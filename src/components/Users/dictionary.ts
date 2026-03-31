@@ -1,0 +1,136 @@
+import { PartialTranslation } from "@/types";
+
+export const dictionary: Record<string, PartialTranslation[]> = {
+  units: [
+    { body: { language: "en", text: "Units" } },
+    { body: { language: "fr", text: "Units" } },
+    { body: { language: "es", text: "Unidades" } },
+    { body: { language: "ar", text: "الوحدات" } },
+  ],
+  nationalId: [
+    { body: { language: "en", text: "National Id" } },
+    { body: { language: "fr", text: "Identifiant national" } },
+    { body: { language: "es", text: "Identificación nacional" } },
+    { body: { language: "ar", text: "الهوية الوطنية" } },
+  ],
+  address: [
+    { body: { language: "en", text: "Address" } },
+    { body: { language: "fr", text: "Adresse" } },
+    { body: { language: "es", text: "Dirección" } },
+    { body: { language: "ar", text: "العنوان" } },
+  ],
+  firstname: [
+    { body: { language: "en", text: "First Name" } },
+    { body: { language: "fr", text: "Prénom" } },
+    { body: { language: "es", text: "Nombre" } },
+    { body: { language: "ar", text: "الاسم الأول" } },
+  ],
+  othernames: [
+    { body: { language: "en", text: "Other Names" } },
+    { body: { language: "fr", text: "Autres noms" } },
+    { body: { language: "es", text: "Otros nombres" } },
+    { body: { language: "ar", text: "أسماء أخرى" } },
+  ],
+  phone: [
+    { body: { language: "en", text: "Phone" } },
+    { body: { language: "fr", text: "Téléphone" } },
+    { body: { language: "es", text: "Teléfono" } },
+    { body: { language: "ar", text: "الهاتف" } },
+  ],
+  alternatePhone: [
+    { body: { language: "en", text: "Alternate Phone" } },
+    { body: { language: "fr", text: "Téléphone alternatif" } },
+    { body: { language: "es", text: "Teléfono alternativo" } },
+    { body: { language: "ar", text: "الهاتف البديل" } },
+  ],
+  dateOfBirth: [
+    { body: { language: "en", text: "Date of Birth" } },
+    { body: { language: "fr", text: "Date de naissance" } },
+    { body: { language: "es", text: "Fecha de nacimiento" } },
+    { body: { language: "ar", text: "تاريخ الميلاد" } },
+  ],
+  fullnames: [
+    { body: { language: "en", text: "Full Names" } },
+    { body: { language: "fr", text: "Noms complets" } },
+    { body: { language: "es", text: "Nombres completos" } },
+    { body: { language: "ar", text: "الأسماء الكاملة" } },
+  ],
+  image: [
+    { body: { language: "en", text: "Image" } },
+    { body: { language: "fr", text: "Image" } },
+    { body: { language: "es", text: "Imagen" } },
+    { body: { language: "ar", text: "الصورة" } },
+  ],
+  role: [
+    { body: { language: "en", text: "Role" } },
+    { body: { language: "fr", text: "Rôle" } },
+    { body: { language: "es", text: "Rol" } },
+    { body: { language: "ar", text: "الدور" } },
+  ],
+  email: [
+    { body: { language: "en", text: "Email" } },
+    { body: { language: "fr", text: "Email" } },
+    { body: { language: "es", text: "Correo electrónico" } },
+    { body: { language: "ar", text: "البريد الإلكتروني" } },
+  ],
+  actions: [
+    { body: { language: "en", text: "Actions" } },
+    { body: { language: "fr", text: "Actions" } },
+    { body: { language: "es", text: "Acciones" } },
+    { body: { language: "ar", text: "الإجراءات" } },
+  ],
+  gender: [
+    { body: { language: "en", text: "Gender" } },
+    { body: { language: "fr", text: "Genre" } },
+    { body: { language: "es", text: "Género" } },
+    { body: { language: "ar", text: "الجنس" } },
+  ],
+  photo: [
+    { body: { language: "en", text: "Photo" } },
+    { body: { language: "fr", text: "Photo" } },
+    { body: { language: "es", text: "Foto" } },
+    { body: { language: "ar", text: "الصورة" } },
+  ],
+  organization: [
+    { body: { language: "en", text: "Organization" } },
+    { body: { language: "fr", text: "Organisation" } },
+    { body: { language: "es", text: "Organización" } },
+    { body: { language: "ar", text: "المنظمة" } },
+  ],
+  save: [
+    { body: { language: "en", text: "Save" } },
+    { body: { language: "fr", text: "Sauvegarder" } },
+    { body: { language: "es", text: "Guardar" } },
+    { body: { language: "ar", text: "حفظ" } },
+  ],
+  success: [
+    { body: { language: "en", text: "Success" } },
+    { body: { language: "fr", text: "Succès" } },
+    { body: { language: "es", text: "Éxito" } },
+    { body: { language: "ar", text: "نجح" } },
+  ],
+  saveSuccess: [
+    { body: { language: "en", text: "User details saved successfully" } },
+    { body: { language: "fr", text: "Détails de l'utilisateur sauvegardés avec succès" } },
+    { body: { language: "es", text: "Detalles del usuario guardados exitosamente" } },
+    { body: { language: "ar", text: "تم حفظ تفاصيل المستخدم بنجاح" } },
+  ],
+  error: [
+    { body: { language: "en", text: "Error" } },
+    { body: { language: "fr", text: "Erreur" } },
+    { body: { language: "es", text: "Error" } },
+    { body: { language: "ar", text: "خطأ" } },
+  ],
+  saveError: [
+    { body: { language: "en", text: "Error saving user details" } },
+    { body: { language: "fr", text: "Erreur lors de la sauvegarde des détails de l'utilisateur" } },
+    { body: { language: "es", text: "Error al guardar los detalles del usuario" } },
+    { body: { language: "ar", text: "خطأ في حفظ تفاصيل المستخدم" } },
+  ],
+  cancel: [
+    { body: { language: "en", text: "Cancel" } },
+    { body: { language: "fr", text: "Annuler" } },
+    { body: { language: "es", text: "Cancelar" } },
+    { body: { language: "ar", text: "إلغاء" } },
+  ],
+};

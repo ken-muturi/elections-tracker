@@ -1,0 +1,148 @@
+import { type PartialTranslation } from "@/types";
+
+export const dictionary: Record<string, PartialTranslation[]> = {
+  allColumns: [
+    { body: { language: "en", text: "All Columns" } },
+    { body: { language: "fr", text: "Toutes les colonnes" } },
+    { body: { language: "es", text: "Todas las columnas" } },
+    { body: { language: "ar", text: "جميع الأعمدة" } },
+  ],
+  items: [
+    { body: { language: "en", text: "items" } },
+    { body: { language: "fr", text: "articles" } },
+    { body: { language: "es", text: "artículos" } },
+    { body: { language: "ar", text: "العناصر" } },
+  ],
+  show: [
+    { body: { language: "en", text: "Show" } },
+    { body: { language: "fr", text: "Montrer" } },
+    { body: { language: "es", text: "Mostrar" } },
+    { body: { language: "ar", text: "تبين" } },
+  ],
+  prev: [
+    { body: { language: "en", text: "Prev" } },
+    { body: { language: "fr", text: "Préc" } },
+    { body: { language: "es", text: "Anterior" } },
+    { body: { language: "ar", text: "سابق" } },
+  ],
+  page: [
+    { body: { language: "en", text: "Page" } },
+    { body: { language: "fr", text: "Page" } },
+    { body: { language: "es", text: "Página" } },
+    { body: { language: "ar", text: "صفحة" } },
+  ],
+  next: [
+    { body: { language: "en", text: "Next" } },
+    { body: { language: "fr", text: "Suivant" } },
+    { body: { language: "es", text: "Siguiente" } },
+    { body: { language: "ar", text: "التالى" } },
+  ],
+  previousPage: [
+    { body: { language: "en", text: "Previous Page" } },
+    { body: { language: "fr", text: "Page précédente" } },
+    { body: { language: "es", text: "Página anterior" } },
+    { body: { language: "ar", text: "الصفحة السابقة" } },
+  ],
+  nextPage: [
+    { body: { language: "en", text: "Next Page" } },
+    { body: { language: "fr", text: "Page suivante" } },
+    { body: { language: "es", text: "Página siguiente" } },
+    { body: { language: "ar", text: "الصفحة التالية" } },
+  ],
+  filter: [
+    { body: { language: "en", text: "Filter" } },
+    { body: { language: "fr", text: "Filtre" } },
+    { body: { language: "es", text: "Filtrar" } },
+    { body: { language: "ar", text: "منقي" } },
+  ],
+  removeGrouping: [
+    { body: { language: "en", text: "Remove Grouping" } },
+    { body: { language: "fr", text: "Supprimer le regroupement" } },
+    { body: { language: "es", text: "Eliminar agrupación" } },
+    { body: { language: "ar", text: "إزالة التجميع" } },
+  ],
+  clearFilter: [
+    { body: { language: "en", text: "Clear Filter" } },
+    { body: { language: "fr", text: "Effacer le filtre" } },
+    { body: { language: "es", text: "Borrar filtro" } },
+    { body: { language: "ar", text: "مسح المرشح" } },
+  ],
+  group: [
+    { body: { language: "en", text: "Group" } },
+    { body: { language: "fr", text: "Groupe" } },
+    { body: { language: "es", text: "Grupo" } },
+    { body: { language: "ar", text: "مجموعة" } },
+  ],
+  hideColumn: [
+    { body: { language: "en", text: "Hide Column" } },
+    { body: { language: "fr", text: "Masquer la colonne" } },
+    { body: { language: "es", text: "Ocultar columna" } },
+    { body: { language: "ar", text: "إخفاء العمود" } },
+  ],
+  noRecordsFound: [
+    { body: { language: "en", text: "No records found" } },
+    { body: { language: "fr", text: "Aucun enregistrement trouvé" } },
+    { body: { language: "es", text: "No se encontraron registros" } },
+    { body: { language: "ar", text: "لم يتم العثور على سجلات" } },
+  ],
+  expandCollapse: [
+    { body: { language: "en", text: "Expand / collapse" } },
+    { body: { language: "fr", text: "Développer / réduire" } },
+    { body: { language: "es", text: "Expandir / contraer" } },
+    { body: { language: "ar", text: "توسيع / طي" } },
+  ],
+  options: [
+    { body: { language: "en", text: "Options" } },
+    { body: { language: "fr", text: "Options" } },
+    { body: { language: "es", text: "Opciones" } },
+    { body: { language: "ar", text: "خيارات" } },
+  ],
+  firstPage: [
+    { body: { language: "en", text: "First Page" } },
+    { body: { language: "fr", text: "Première page" } },
+    { body: { language: "es", text: "Primera página" } },
+    { body: { language: "ar", text: "الصفحة الأولى" } },
+  ],
+  of: [
+    { body: { language: "en", text: "of" } },
+    { body: { language: "fr", text: "de" } },
+    { body: { language: "es", text: "de" } },
+    { body: { language: "ar", text: "من" } },
+  ],
+  resetColumns: [
+    { body: { language: "en", text: "Reset Columns" } },
+    { body: { language: "fr", text: "Réinitialiser les colonnes" } },
+    { body: { language: "es", text: "Restablecer columnas" } },
+    { body: { language: "ar", text: "إعادة تعيين الأعمدة" } },
+  ],
+  downloadPDF: [
+    { body: { language: "en", text: "PDF" } },
+    { body: { language: "fr", text: "PDF" } },
+    { body: { language: "es", text: "PDF" } },
+    { body: { language: "ar", text: "PDF" } },
+  ],
+  downloadCSV: [
+    { body: { language: "en", text: "CSV" } },
+    { body: { language: "fr", text: "CSV" } },
+    { body: { language: "es", text: "CSV" } },
+    { body: { language: "ar", text: "CSV" } },
+  ],
+  search: [
+    { body: { language: "en", text: "Search" } },
+    { body: { language: "fr", text: "Rechercher" } },
+    { body: { language: "es", text: "Buscar" } },
+    { body: { language: "ar", text: "بحث" } },
+  ],
+  min: [
+    { body: { language: "en", text: "Min" } },
+    { body: { language: "fr", text: "Min" } },
+    { body: { language: "es", text: "Min" } },
+    { body: { language: "ar", text: "الحد الأدنى" } },
+  ],
+  max: [
+    { body: { language: "en", text: "Max" } },
+    { body: { language: "fr", text: "Max" } },
+    { body: { language: "es", text: "Max" } },
+    { body: { language: "ar", text: "الحد الأقصى" } },
+  ],
+};

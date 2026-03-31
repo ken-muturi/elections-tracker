@@ -1,0 +1,444 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+generator json {
+  provider = "prisma-json-types-generator"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  title       String    @db.VarChar(50)
+  description String    @db.VarChar(50)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime? @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  users       User[]       @relation("userRole")
+  permissions Permission[] @relation("rolePermission")
+
+  @@map("roles")
+}
+
+model Account {
+  id                 String    @id @default(cuid())
+  userId             String    @map("user_id") @db.VarChar(50)
+  providerType       String    @map("provider_type")
+  providerId         String    @map("provider_id")
+  providerAccountId  String    @map("provider_account_id")
+  refreshToken       String?   @map("refresh_token")
+  accessToken        String?   @map("access_token")
+  accessTokenExpires DateTime? @map("access_token_expires")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  user               User      @relation(fields: [userId], references: [id])
+
+  @@unique([providerId, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id") @db.VarChar(50)
+  expires      DateTime
+  sessionToken String   @unique @map("session_token")
+  accessToken  String   @unique @map("access_token")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@map("sessions")
+}
+
+model User {
+  id                String    @id @default(cuid()) @db.VarChar(50)
+  roleId            String    @default("1") @map("role_id") @db.VarChar(50)
+  email             String    @unique @db.VarChar(50)
+  emailVerified     DateTime? @map("email_verified")
+  password          String    @db.VarChar(100)
+  image             String?   @db.VarChar(50)
+  firstname         String    @db.VarChar(50)
+  othernames        String    @db.VarChar(100)
+  dateOfBirth       String    @map("date_of_birth") @db.VarChar(20)
+  gender            String    @db.VarChar(10)
+  nationalId        String    @unique @map("national_id") @db.VarChar(20)
+  phone             String    @db.VarChar(20)
+  nextOfKin         String    @map("next_of_kin") @db.VarChar(100)
+  nextOfKinContacts String    @map("next_of_kin_contacts") @db.VarChar(100)
+  address           String?   @db.VarChar(255)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime? @updatedAt @map("updated_at")
+  deletedAt         DateTime? @map("deleted_at")
+  deletedBy         String?   @map("deleted_by") @db.VarChar(50)
+
+  role        Role      @relation("userRole", fields: [roleId], references: [id])
+  accounts    Account[]
+  noteCreator Note[]    @relation("noteCreator")
+  noteUpdater Note[]    @relation("noteUpdater")
+
+  questionnairePermissionCreator QuestionnairePermission[] @relation("questionnairePermissionCreator")
+  questionnairePermissionUpdater QuestionnairePermission[] @relation("questionnairePermissionUpdater")
+  questionnairePermissionDeleter QuestionnairePermission[] @relation("questionnairePermissionDeleter")
+
+  questionnairePermissions QuestionnairePermission[] @relation("questionnairePermissionUser")
+
+  permissionCreator Permission[] @relation("permissionCreator")
+  permissionUpdater Permission[] @relation("permissionUpdater")
+  permissionDeleter Permission[] @relation("permissionDeleter")
+
+  questionCreator Question[] @relation("questionCreator")
+  questionUpdater Question[] @relation("questionUpdater")
+  questionDeleter Question[] @relation("questionDeleter")
+
+  unitCreator Unit[] @relation("unitCreator")
+  unitUpdater Unit[] @relation("unitUpdater")
+  unitDeleter Unit[] @relation("unitDeleter")
+
+  sectionCreator Section[] @relation("sectionCreator")
+  sectionUpdater Section[] @relation("sectionUpdater")
+  sectionDeleter Section[] @relation("sectionDeleter")
+
+  questionnaireCreator Questionnaire[] @relation("questionnaireCreator")
+  questionnaireUpdater Questionnaire[] @relation("questionnaireUpdater")
+  questionnaireDeleter Questionnaire[] @relation("questionnaireDeleter")
+
+  tabCreator Tab[] @relation("tabCreator")
+  tabUpdater Tab[] @relation("tabUpdater")
+  tabDeleter Tab[] @relation("tabDeleter")
+
+  moduleCreator Module[] @relation("moduleCreator")
+  moduleUpdater Module[] @relation("moduleUpdater")
+  moduleDeleter Module[] @relation("moduleDeleter")
+
+  pollingStationCreator PollingStation[] @relation("pollingStationCreator")
+  pollingStationUpdater PollingStation[] @relation("pollingStationUpdater")
+  pollingStationDeleter PollingStation[] @relation("pollingStationDeleter")
+
+  submissions Submission[] @relation("submissionUser")
+
+  sessions Session[]
+
+  @@map("users")
+}
+
+model VerificationRequest {
+  id         String   @id @default(cuid())
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([identifier, token])
+  @@map("verification_requests")
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  DORMANT
+  SUSPENDED
+  PENDING
+}
+
+model File {
+  id       Int    @id @default(autoincrement())
+  filename String @db.VarChar(50)
+  filepath String @db.VarChar(50)
+  model    String @db.VarChar(50)
+  modelId  Int    @map("model_id")
+  field    String @db.VarChar(50)
+
+  @@map("files")
+}
+
+model Note {
+  id       String  @id @default(cuid()) @db.VarChar(50)
+  parentId String? @map("parent_id") @db.VarChar(50)
+  modelId  String  @map("model_id") @db.VarChar(50)
+  model    String  @db.VarChar(50)
+  note     String  @db.VarChar(255)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String    @map("created_by") @db.VarChar(50)
+  updatedAt DateTime? @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.VarChar(50)
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.VarChar(50)
+
+  creator User  @relation("noteCreator", fields: [createdBy], references: [id])
+  updater User? @relation("noteUpdater", fields: [updatedBy], references: [id])
+
+  @@map("notes")
+}
+
+model Module {
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  title       String    @db.VarChar(50)
+  description String    @db.VarChar(50)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  createdBy   String    @map("created_by") @db.VarChar(50)
+  updatedAt   DateTime? @updatedAt @map("updated_at")
+  updatedBy   String?   @map("updated_by") @db.VarChar(50)
+  deletedAt   DateTime? @map("deleted_at")
+  deletedBy   String?   @map("deleted_by") @db.VarChar(50)
+
+  tabs        Tab[]        @relation("tabModule")
+  permissions Permission[] @relation("modulePermission")
+
+  creator User  @relation("moduleCreator", fields: [createdBy], references: [id])
+  updater User? @relation("moduleUpdater", fields: [updatedBy], references: [id])
+  deleter User? @relation("moduleDeleter", fields: [deletedBy], references: [id])
+
+  @@map("modules")
+}
+
+model Tab {
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  moduleId    String    @map("module_id") @db.VarChar(50)
+  title       String    @db.VarChar(50)
+  description String    @db.VarChar(50)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  createdBy   String    @map("created_by") @db.VarChar(50)
+  updatedAt   DateTime? @updatedAt @map("updated_at")
+  updatedBy   String?   @map("updated_by") @db.VarChar(50)
+  deletedAt   DateTime? @map("deleted_at")
+  deletedBy   String?   @map("deleted_by") @db.VarChar(50)
+
+  module      Module       @relation("tabModule", fields: [moduleId], references: [id])
+  permissions Permission[] @relation("tabPermission")
+
+  creator User  @relation("tabCreator", fields: [createdBy], references: [id])
+  updater User? @relation("tabUpdater", fields: [updatedBy], references: [id])
+  deleter User? @relation("tabDeleter", fields: [deletedBy], references: [id])
+
+  @@map("tabs")
+}
+
+model Permission {
+  roleId   String @map("role_id") @db.VarChar(50)
+  moduleId String @map("module_id") @db.VarChar(50)
+  tabId    String @map("tab_id") @db.VarChar(50)
+  action   String @map("action") @db.VarChar(10)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String    @map("created_by") @db.VarChar(50)
+  updatedAt DateTime? @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.VarChar(50)
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.VarChar(50)
+
+  creator User  @relation("permissionCreator", fields: [createdBy], references: [id])
+  updater User? @relation("permissionUpdater", fields: [updatedBy], references: [id])
+  deleter User? @relation("permissionDeleter", fields: [deletedBy], references: [id])
+
+  module Module @relation("modulePermission", fields: [moduleId], references: [id])
+  tab    Tab    @relation("tabPermission", fields: [tabId], references: [id])
+  role   Role   @relation("rolePermission", fields: [roleId], references: [id])
+
+  @@id([moduleId, tabId, roleId, action]) // Composite primary key
+  @@map("permissions")
+}
+
+model Questionnaire {
+  id          String @id @default(cuid()) @db.VarChar(50)
+  /// [PartialTranslation]
+  title       Json[]
+  /// [PartialTranslation]
+  description Json[]
+
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String    @map("created_by") @db.VarChar(50)
+  updatedAt DateTime? @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.VarChar(50)
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.VarChar(50)
+
+  creator User  @relation("questionnaireCreator", fields: [createdBy], references: [id])
+  updater User? @relation("questionnaireUpdater", fields: [updatedBy], references: [id])
+  deleter User? @relation("questionnaireDeleter", fields: [deletedBy], references: [id])
+
+  sections Section[]                 @relation("questionnaireSection")
+  users    QuestionnairePermission[] @relation("questionnairePermission")
+  submissions Submission[]           @relation("submissionQuestionnaire")
+
+  @@map("questionnaires")
+}
+
+enum QuestionnairePermissionStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model QuestionnairePermission {
+  id              String @id @default(cuid()) @db.VarChar(50)
+  questionnaireId String @map("questionnaire_id") @db.VarChar(50)
+  role            String @db.VarChar(50)
+  userId          String @db.VarChar(50)
+
+  status    QuestionnairePermissionStatus @default(ACTIVE)
+  createdAt DateTime                      @default(now()) @map("created_at")
+  createdBy String                        @map("created_by") @db.VarChar(50)
+  updatedAt DateTime?                     @updatedAt @map("updated_at")
+  updatedBy String?                       @map("updated_by") @db.VarChar(50)
+  deletedAt DateTime?                     @map("deleted_at")
+  deletedBy String?                       @map("deleted_by") @db.VarChar(50)
+
+  creator User  @relation("questionnairePermissionCreator", fields: [createdBy], references: [id])
+  updater User? @relation("questionnairePermissionUpdater", fields: [updatedBy], references: [id])
+  deleter User? @relation("questionnairePermissionDeleter", fields: [deletedBy], references: [id])
+
+  questionnaire Questionnaire @relation("questionnairePermission", fields: [questionnaireId], references: [id])
+  user          User          @relation("questionnairePermissionUser", fields: [userId], references: [id])
+
+  @@map("questionnaire_permissions")
+}
+
+model Section {
+  id              String @id @default(cuid()) @db.VarChar(50)
+  questionnaireId String @map("questionnaire_id") @db.VarChar(50)
+  sortOrder       Int    @default(1) @map("sort_order")
+  /// [PartialTranslation]
+  title           Json[]
+  /// [PartialTranslation]
+  description     Json[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String    @map("created_by") @db.VarChar(50)
+  updatedAt DateTime? @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.VarChar(50)
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.VarChar(50)
+
+  creator User  @relation("sectionCreator", fields: [createdBy], references: [id])
+  updater User? @relation("sectionUpdater", fields: [updatedBy], references: [id])
+  deleter User? @relation("sectionDeleter", fields: [deletedBy], references: [id])
+
+  questionnaire Questionnaire @relation("questionnaireSection", fields: [questionnaireId], references: [id])
+  units         Unit[]        @relation("sectionUnit")
+
+  @@map("sections")
+}
+
+model Unit {
+  id          String @id @default(cuid()) @db.VarChar(50)
+  sectionId   String @map("section_id") @db.VarChar(50)
+  sortOrder   Int    @default(1) @map("sort_order")
+  /// [PartialTranslation]
+  title       Json[]
+  /// [PartialTranslation]
+  description Json[]
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String    @map("created_by") @db.VarChar(50)
+  updatedAt DateTime? @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.VarChar(50)
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.VarChar(50)
+
+  creator User  @relation("unitCreator", fields: [createdBy], references: [id])
+  updater User? @relation("unitUpdater", fields: [updatedBy], references: [id])
+  deleter User? @relation("unitDeleter", fields: [deletedBy], references: [id])
+
+  section   Section    @relation("sectionUnit", fields: [sectionId], references: [id])
+  questions Question[] @relation("unitQuestion")
+
+  @@map("units")
+}
+
+model Question {
+  id          String @id @default(cuid()) @db.VarChar(50)
+  unitId      String @map("unit_id") @db.VarChar(50)
+  sortOrder   Int    @default(1) @map("sort_order")
+  /// [PartialTranslation]
+  title       Json[]
+  /// [PartialTranslation]
+  description Json[]
+  /// [QuestionDetail]
+  details     Json
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String    @map("created_by") @db.VarChar(50)
+  updatedAt DateTime? @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.VarChar(50)
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.VarChar(50)
+
+  creator User  @relation("questionCreator", fields: [createdBy], references: [id])
+  updater User? @relation("questionUpdater", fields: [updatedBy], references: [id])
+  deleter User? @relation("questionDeleter", fields: [deletedBy], references: [id])
+
+  unit Unit @relation("unitQuestion", fields: [unitId], references: [id])
+  answers Answer[] @relation("questionAnswer")
+
+  @@map("questions")
+}
+
+model PollingStation {
+  id               String    @id @default(cuid()) @db.VarChar(50)
+  name             String    @db.VarChar(200)
+  code             String    @unique @db.VarChar(50)
+  county           String    @db.VarChar(100)
+  constituency     String    @db.VarChar(100)
+  ward             String    @db.VarChar(100)
+  registeredVoters Int?      @map("registered_voters")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  createdBy String    @map("created_by") @db.VarChar(50)
+  updatedAt DateTime? @updatedAt @map("updated_at")
+  updatedBy String?   @map("updated_by") @db.VarChar(50)
+  deletedAt DateTime? @map("deleted_at")
+  deletedBy String?   @map("deleted_by") @db.VarChar(50)
+
+  creator User  @relation("pollingStationCreator", fields: [createdBy], references: [id])
+  updater User? @relation("pollingStationUpdater", fields: [updatedBy], references: [id])
+  deleter User? @relation("pollingStationDeleter", fields: [deletedBy], references: [id])
+
+  submissions Submission[] @relation("submissionPollingStation")
+
+  @@map("polling_stations")
+}
+
+enum SubmissionStatus {
+  PENDING
+  VERIFIED
+  DISPUTED
+  REJECTED
+}
+
+model Submission {
+  id                String           @id @default(cuid()) @db.VarChar(50)
+  questionnaireId   String           @map("questionnaire_id") @db.VarChar(50)
+  pollingStationId  String?          @map("polling_station_id") @db.VarChar(50)
+  dataEntryNumber   String           @unique @map("data_entry_number") @db.VarChar(50)
+  status            SubmissionStatus @default(PENDING)
+  submittedAt       DateTime         @default(now()) @map("submitted_at")
+  submittedBy       String           @map("submitted_by") @db.VarChar(50)
+
+  questionnaire  Questionnaire   @relation("submissionQuestionnaire", fields: [questionnaireId], references: [id])
+  pollingStation PollingStation?  @relation("submissionPollingStation", fields: [pollingStationId], references: [id])
+  user           User             @relation("submissionUser", fields: [submittedBy], references: [id])
+  answers        Answer[]         @relation("submissionAnswer")
+
+  @@map("submissions")
+}
+
+model Answer {
+  id             String  @id @default(cuid()) @db.VarChar(50)
+  submissionId   String  @map("submission_id") @db.VarChar(50)
+  questionId     String  @map("question_id") @db.VarChar(50)
+  answer         String  @db.VarChar(500)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  submission Submission @relation("submissionAnswer", fields: [submissionId], references: [id])
+  question   Question   @relation("questionAnswer", fields: [questionId], references: [id])
+
+  @@map("answers")
+}

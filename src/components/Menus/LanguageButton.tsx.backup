@@ -1,0 +1,49 @@
+import { SupportedLocale, useUX } from "@/context/UXContext";
+import { Box, useColorModeValue } from "@chakra-ui/react";
+
+const LanguageButton = ({
+  language,
+  label,
+}: {
+  language: string;
+  label?: string;
+}) => {
+  const { locale, changeLocale } = useUX();
+  const linkColor = useColorModeValue("whiteAlpha.700", "white");
+  const linkHover = useColorModeValue(
+    "orange.50",
+    "warchild.red.700"
+  );
+  return (
+    <Box
+      fontSize="xs"
+      fontWeight="normal"
+      cursor="pointer"
+      borderWidth="thin"
+      borderColor="whiteAlpha.700"
+      onClick={() => {
+        changeLocale(language as SupportedLocale);
+        // window.location.reload();
+      }}
+    >
+      <Box
+        px="5px"
+        // bg="whiteAlpha.500"
+        bg={locale === language ? linkHover : "whiteAlpha.500"}
+        // borderWidth="1px"
+        // borderColor="white"
+        borderColor={locale === language ? "orange.50" : linkColor}
+        // color={locale === language ? linkHover : linkColor}
+        color={linkColor}
+        _hover={{
+          textDecoration: "none",
+          color: linkHover,
+        }}
+      >
+        {label || language}
+      </Box>
+    </Box>
+  );
+};
+
+export default LanguageButton;
