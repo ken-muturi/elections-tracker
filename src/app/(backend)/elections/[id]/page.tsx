@@ -6,6 +6,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { getElectionById } from "@/services/Elections"
 import { getElectionResults } from "@/services/LevelResults"
+
 import { KNOWN_POSITIONS } from "@/constants/elections"
 import {
   FiArrowLeft, FiUsers, FiBarChart2, FiCheckCircle,

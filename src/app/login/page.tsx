@@ -16,7 +16,7 @@ export default function Page() {
         session?.user.role.toLowerCase() || "user",
       )
         ? "/dashboard"
-        : "/election-results";
+        : "/enter-results";
       router.replace(dest);
     }
   }, [status, session, router]);

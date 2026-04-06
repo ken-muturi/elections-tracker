@@ -4,6 +4,7 @@ import {
 } from "@chakra-ui/react"
 import Link from "next/link"
 import { getElections } from "@/services/Elections"
+
 import { FiCalendar, FiUsers, FiArrowRight, FiPlusCircle } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 import { ElectionActions } from "@/components/Elections"

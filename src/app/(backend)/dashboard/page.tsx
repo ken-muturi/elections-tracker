@@ -6,6 +6,7 @@ import { getElections } from "@/services/Elections"
 import { FiArrowRight, FiCalendar, FiUsers, FiBarChart2, FiPlusCircle } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 
+
 export default async function DashboardPage() {
   const elections = await getElections().catch(() => [])
 

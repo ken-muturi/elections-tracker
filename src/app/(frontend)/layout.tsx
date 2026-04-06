@@ -1,5 +1,6 @@
 import React from 'react';
 import { Flex, VStack } from "@chakra-ui/react";
+import PublicTopNav from "@/components/PublicTopNav";
 
 /**
  * Public layout — no authentication required.
@@ -19,6 +20,7 @@ const PublicLayout = ({
       flexDirection="column"
       bg="#f8fafc"
     >
+      <PublicTopNav />
       <VStack w="full" h="full" borderRadius="md" alignItems="left">
         {children}
       </VStack>

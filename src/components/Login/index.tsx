@@ -86,7 +86,7 @@ export default function FormPage() {
         session?.user.role.toLowerCase() || "ngo",
       )
         ? `/dashboard`
-        : `/questionnaires`;
+        : `/enter-results`;
       window.location.href = callbackUrl;
 
       toaster.success({

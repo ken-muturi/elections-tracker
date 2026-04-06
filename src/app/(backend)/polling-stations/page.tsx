@@ -3,6 +3,7 @@ import { getPollingStations } from "@/services/PollingStations";
 import PollingStationsTable from "@/components/PollingStations/Table";
 import { PollingStation } from "@prisma/client";
 
+
 async function getStations() {
   try {
     return (await getPollingStations()) as PollingStation[];

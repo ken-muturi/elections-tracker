@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getPublicElectionById } from "@/services/Elections";
 import { getElectionResults } from "@/services/LevelResults";
 import { ResultsSummary, PositionResults } from "@/components/Elections";
+
 import { FiArrowLeft } from "react-icons/fi";
 import { MdHowToVote } from "react-icons/md";
 

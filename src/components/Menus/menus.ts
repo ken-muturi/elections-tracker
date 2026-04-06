@@ -112,7 +112,7 @@ export const clientItems: NavItem[] = [
     label: "Home",
     abbreviation: "home",
     icon: FaHome,
-    href: "/",
+    href: "/enter-results",
   },
   {
     type: "link",

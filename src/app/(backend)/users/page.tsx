@@ -3,6 +3,7 @@ import { getUsers } from "@/services/Users"
 import { getRoles } from "@/services/Roles"
 import Details from "@/components/Users/Details"
 import { UserWithRelations } from "@/components/Users/type"
+
 import { Role } from "@prisma/client"
 
 export default async function UsersPage() {

@@ -3,6 +3,7 @@ import {
 } from "@chakra-ui/react";
 import Link from "next/link";
 import { getPublicElections } from "@/services/Elections";
+
 import {
   FiCalendar, FiUsers, FiArrowRight, FiBarChart2, FiActivity, FiMapPin,
   FiChevronRight,
@@ -39,50 +40,6 @@ export default async function PublicElectionsPage() {
   return (
     <Box minH="100vh" bg="#f8fafc">
       <AnimStyles />
-
-      {/* ── TOP NAV ───────────────────────────────────────── */}
-      <Box position="sticky" top={0} zIndex={20}>
-        <Flex
-          maxW="full" mx="auto" h="56px" px={{ base: 4, md: 8 }}
-          alignItems="center" justifyContent="space-between"
-          bg="rgba(255,255,255,0.8)" backdropFilter="blur(20px) saturate(1.8)"
-          borderBottomWidth="1px" borderBottomColor="rgba(0,0,0,0.06)"
-          boxShadow="0 1px 3px rgba(0,0,0,0.04)"
-        >
-          <HStack gap={3}>
-            <Flex
-              w={9} h={9} borderRadius="xl"
-              bg="linear-gradient(135deg, #0f172a, #1e293b)"
-              align="center" justify="center"
-              boxShadow="0 2px 8px rgba(15,23,42,0.25)"
-            >
-              <MdHowToVote fontSize="1rem" color="#C9D927" />
-            </Flex>
-            <VStack alignItems="flex-start" gap={0}>
-              <Text fontWeight="800" fontSize="sm" color="#0f172a" lineHeight="1.2" letterSpacing="tight">
-                Election Tracking System
-              </Text>
-              <Text fontSize="9px" color="#94a3b8" lineHeight="1" fontWeight="600" letterSpacing="widest" textTransform="uppercase">
-                Public Results Portal
-              </Text>
-            </VStack>
-          </HStack>
-
-          <HStack
-            gap={2} px={3.5} py={1.5} borderRadius="full"
-            bg="#ecfdf5" borderWidth="1px" borderColor="#a7f3d0"
-          >
-            <Box
-              w="7px" h="7px" borderRadius="full" bg="#10b981"
-              boxShadow="0 0 6px rgba(16,185,129,0.5)"
-              css={{ animation: "pulse-dot 2s ease-in-out infinite" }}
-            />
-            <Text fontSize="xs" color="#059669" fontWeight="700">
-              Live
-            </Text>
-          </HStack>
-        </Flex>
-      </Box>
 
       {/* ── HERO ──────────────────────────────────────────── */}
       <Box
