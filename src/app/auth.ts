@@ -4,7 +4,7 @@ import { DefaultSession, NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import prisma from '@/db';
 import { pick } from "lodash";
-import { compare } from 'bcrypt-ts';
+import { compare } from "bcryptjs";
 import { getLoginUser } from "@/services/Users";
 
 // https://codevoweb.com/setup-and-use-nextauth-in-nextjs-13-app-directory/
@@ -111,6 +111,6 @@ export const AuthOptions: NextAuthOptions = {
     },
   },
   pages: {
-    signIn: "/",
+    signIn: "/login",
   },
 };

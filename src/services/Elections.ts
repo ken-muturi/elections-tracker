@@ -218,6 +218,19 @@ export const createCandidate = async (input: CandidateInput) => {
   }
 }
 
+export const createCandidatesBulk = async (inputs: CandidateInput[]) => {
+  try {
+    const results: Awaited<ReturnType<typeof prisma.candidate.create>>[] = []
+    for (const input of inputs) {
+      const created = await prisma.candidate.create({ data: input })
+      results.push(created)
+    }
+    return results
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
 export const updateCandidate = async (id: string, data: Partial<CandidateInput>) => {
   try {
     return await prisma.candidate.update({ where: { id }, data })
