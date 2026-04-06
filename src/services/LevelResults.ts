@@ -465,6 +465,101 @@ export type LevelEntryData = {
   candidates: { candidateId: string; votes: number }[]
 }
 
+// ─── Entity search for level-entry UI ───────────────────────────────────────
+
+export type LevelEntity = {
+  id: string
+  name: string
+  parentName?: string      // e.g. constituency name for a ward, county name for constituency
+  grandparentName?: string // e.g. county name for a ward
+}
+
+/**
+ * Search geographic entities at a given aggregation level for an election.
+ * Used by the level-entry UI (Form B/C) to pick which entity to enter results for.
+ */
+export const searchEntitiesAtLevel = async (
+  electionId: string,
+  level: AggregationLevel,
+  search?: string,
+): Promise<LevelEntity[]> => {
+  try {
+    const q = search?.trim().toLowerCase()
+
+    if (level === "NATIONAL") {
+      return [{ id: "national", name: "National" }]
+    }
+
+    if (level === "COUNTY") {
+      const counties = await prisma.county.findMany({
+        where: q ? { name: { contains: q, mode: "insensitive" } } : {},
+        orderBy: { name: "asc" },
+        take: 50,
+      })
+      return counties.map((c) => ({ id: c.id, name: c.name }))
+    }
+
+    if (level === "CONSTITUENCY") {
+      const constituencies = await prisma.constituency.findMany({
+        where: q ? { name: { contains: q, mode: "insensitive" } } : {},
+        orderBy: { name: "asc" },
+        take: 50,
+        include: { county: { select: { name: true } } },
+      })
+      return constituencies.map((c) => ({
+        id: c.id,
+        name: c.name,
+        parentName: c.county.name,
+      }))
+    }
+
+    if (level === "WARD") {
+      const wards = await prisma.ward.findMany({
+        where: {
+          electionId,
+          ...(q ? { name: { contains: q, mode: "insensitive" } } : {}),
+        },
+        orderBy: { name: "asc" },
+        take: 50,
+        include: {
+          constituency: {
+            select: { name: true, county: { select: { name: true } } },
+          },
+        },
+      })
+      return wards.map((w) => ({
+        id: w.id,
+        name: w.name,
+        parentName: w.constituency.name,
+        grandparentName: w.constituency.county.name,
+      }))
+    }
+
+    return []
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+/**
+ * Get level-entry completion status for a position across all entities at a level.
+ * Returns an array of { entityId, status } for entities that have entries.
+ */
+export const getLevelEntryStatuses = async (
+  positionId: string,
+  level: AggregationLevel,
+): Promise<{ entityId: string; status: string }[]> => {
+  try {
+    const results = await prisma.levelResult.findMany({
+      where: { positionId, level },
+      select: { entityId: true, status: true },
+    })
+    return results
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
 /**
  * Fetch LevelResult entries for multiple entities at a given level + position.
  * Returns a map of entityId → entry data (or empty map if none exist).

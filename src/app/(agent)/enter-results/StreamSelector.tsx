@@ -1,92 +1,234 @@
 "use client"
 
-import { useState } from "react"
-import { Box, Text, VStack, HStack, Input } from "@chakra-ui/react"
-import {
-  FiMapPin, FiChevronRight, FiCheck, FiArrowLeft, FiSearch,
-} from "react-icons/fi"
+import { useState, useMemo } from "react";
+import { Box, Text, VStack, HStack, Input, Flex } from "@chakra-ui/react";
+import { FiMapPin, FiCheck, FiArrowLeft, FiSearch } from "react-icons/fi";
+import { MdHowToVote } from "react-icons/md";
 import { useQuery } from "@tanstack/react-query"
-import { searchElectionStreams } from "@/services/AgentAssignments"
-import { CARD_STYLES } from "./constants"
+import { searchElectionStreams } from "@/services/AgentAssignments";
 import type { ElectionData, AdminSearchStream, StreamResult } from "./types"
 
-/* ── Shared stream-card ─────────────────────────────────────── */
+/* ── Types ──────────────────────────────────────────────────── */
 
-function StreamCard({
-  label,
-  stationName,
-  county,
-  constituency,
-  ward,
-  registeredVoters,
-  completedPositions,
-  totalPositions,
-  onClick,
-}: {
-  label: string
-  stationName: string
-  county: string
-  constituency: string
-  ward: string
-  registeredVoters: number | null
-  completedPositions: number
-  totalPositions: number
-  onClick: () => void
-}) {
-  const allDone = completedPositions === totalPositions && totalPositions > 0
-
-  return (
-    <Box as="button" onClick={onClick} {...CARD_STYLES}>
-      <HStack justify="space-between" align="flex-start">
-        <VStack alignItems="flex-start" gap={2}>
-          <VStack alignItems="flex-start" gap={0.5}>
-            <Text fontWeight="700" fontSize="md" color="gray.900">
-              {stationName} — {label}
-            </Text>
-            <HStack gap={1.5} flexWrap="wrap">
-              <HStack gap={1}>
-                <FiMapPin fontSize="0.7rem" color="#94a3b8" />
-                <Text fontSize="xs" color="gray.400">{county}</Text>
-              </HStack>
-              <Text fontSize="xs" color="gray.300">›</Text>
-              <Text fontSize="xs" color="gray.400">{constituency}</Text>
-              <Text fontSize="xs" color="gray.300">›</Text>
-              <Text fontSize="xs" color="gray.400">{ward}</Text>
-            </HStack>
-          </VStack>
-          <HStack gap={3}>
-            <HStack gap={1}>
-              <FiCheck
-                fontSize="0.75rem"
-                color={allDone ? "#16a34a" : "#94a3b8"}
-              />
-              <Text
-                fontSize="xs"
-                color={allDone ? "#16a34a" : "gray.500"}
-                fontWeight="600"
-              >
-                {completedPositions}/{totalPositions} positions
-              </Text>
-            </HStack>
-            {registeredVoters && (
-              <Text fontSize="xs" color="gray.400">
-                {registeredVoters.toLocaleString()} voters
-              </Text>
-            )}
-          </HStack>
-        </VStack>
-        <FiChevronRight color="#94a3b8" />
-      </HStack>
-    </Box>
-  )
-}
+type GroupedStation = {
+  id: string;
+  name: string;
+  county: string;
+  constituency: string;
+  ward: string;
+  registeredVoters: number | null;
+  streams: {
+    id: string;
+    name: string;
+    registeredVoters: number | null;
+    completedPositions: number;
+  }[];
+};
 
 /* ── Helpers ────────────────────────────────────────────────── */
 
 function countCompleted(results: StreamResult[]) {
   return results.filter(
     (r) => r.status === "SUBMITTED" || r.status === "VERIFIED",
-  ).length
+  ).length;
+}
+
+/** Group a flat list of admin-search streams by polling station. */
+function groupByStation(
+  streams: AdminSearchStream[],
+  resultsCache: Record<string, StreamResult[]>,
+): GroupedStation[] {
+  const map = new Map<string, GroupedStation>();
+
+  for (const s of streams) {
+    const ps = s.pollingStation;
+    let group = map.get(ps.id);
+    if (!group) {
+      group = {
+        id: ps.id,
+        name: ps.name,
+        county: ps.county,
+        constituency: ps.constituency,
+        ward: ps.ward,
+        registeredVoters: ps.registeredVoters,
+        streams: [],
+      };
+      map.set(ps.id, group);
+    }
+    const results = resultsCache[s.id] ?? [];
+    group.streams.push({
+      id: s.id,
+      name: s.name,
+      registeredVoters: s.registeredVoters,
+      completedPositions: countCompleted(results),
+    });
+  }
+
+  return Array.from(map.values());
+}
+
+/** Group agent-assignment streams by polling station. */
+function groupAgentStreams(
+  agentStreams: ElectionData["streams"],
+  resultsCache: Record<string, StreamResult[]>,
+): GroupedStation[] {
+  const map = new Map<string, GroupedStation>();
+
+  for (const a of agentStreams) {
+    const ps = a.stream.pollingStation;
+    let group = map.get(ps.id);
+    if (!group) {
+      group = {
+        id: ps.id,
+        name: ps.name,
+        county: ps.county,
+        constituency: ps.constituency,
+        ward: ps.ward,
+        registeredVoters: ps.registeredVoters,
+        streams: [],
+      };
+      map.set(ps.id, group);
+    }
+    const results = resultsCache[a.stream.id] ?? [];
+    group.streams.push({
+      id: a.stream.id,
+      name: a.stream.name,
+      registeredVoters: a.stream.registeredVoters,
+      completedPositions: countCompleted(results),
+    });
+  }
+
+  return Array.from(map.values());
+}
+
+/* ── Polling-station card with stream links ─────────────────── */
+
+function StationGroup({
+  station,
+  totalPositions,
+  onSelectStream,
+}: {
+  station: GroupedStation;
+  totalPositions: number;
+  onSelectStream: (streamId: string) => void;
+}) {
+  const completedStreams = station.streams.filter(
+    (s) => s.completedPositions === totalPositions && totalPositions > 0,
+  ).length;
+  const allDone =
+    completedStreams === station.streams.length && station.streams.length > 0;
+
+  return (
+    <Box
+      bg="white"
+      borderRadius="2xl"
+      borderWidth="1px"
+      borderColor="gray.100"
+      boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)"
+      p={5}
+    >
+      {/* Station info */}
+      <HStack justify="space-between" align="flex-start" mb={3}>
+        <HStack gap={2.5} align="flex-start">
+          <Flex
+            w={8}
+            h={8}
+            borderRadius="lg"
+            flexShrink={0}
+            bg={allDone ? "#d1fae5" : "#f0f9ff"}
+            align="center"
+            justify="center"
+          >
+            <MdHowToVote
+              fontSize="1rem"
+              color={allDone ? "#059669" : "#0284c7"}
+            />
+          </Flex>
+          <VStack alignItems="flex-start" gap={0.5}>
+            <Text
+              fontWeight="700"
+              fontSize="sm"
+              color="gray.900"
+              lineHeight="1.3"
+            >
+              {station.name}
+            </Text>
+            <HStack gap={1.5} flexWrap="wrap">
+              <FiMapPin fontSize="0.6rem" color="#94a3b8" />
+              <Text fontSize="xs" color="gray.400">
+                {station.county} › {station.constituency} › {station.ward}
+              </Text>
+            </HStack>
+          </VStack>
+        </HStack>
+        <VStack alignItems="flex-end" gap={0}>
+          <HStack gap={1}>
+            <FiCheck
+              fontSize="0.65rem"
+              color={allDone ? "#16a34a" : "#94a3b8"}
+            />
+            <Text
+              fontSize="xs"
+              color={allDone ? "#16a34a" : "gray.500"}
+              fontWeight="600"
+            >
+              {completedStreams}/{station.streams.length}
+            </Text>
+          </HStack>
+          {station.registeredVoters && (
+            <Text fontSize="2xs" color="gray.400">
+              {station.registeredVoters.toLocaleString()} voters
+            </Text>
+          )}
+        </VStack>
+      </HStack>
+
+      {/* Stream chips */}
+      <HStack gap={2} flexWrap="wrap">
+        {station.streams.map((stream) => {
+          const done =
+            stream.completedPositions === totalPositions && totalPositions > 0;
+          return (
+            <Box
+              key={stream.id}
+              as="button"
+              onClick={() => onSelectStream(stream.id)}
+              px={3}
+              py={1.5}
+              borderRadius="lg"
+              borderWidth="1px"
+              borderColor={done ? "#a7f3d0" : "gray.200"}
+              bg={done ? "#ecfdf5" : "white"}
+              cursor="pointer"
+              _hover={{
+                borderColor: done ? "#6ee7b7" : "#0ea5e9",
+                boxShadow: done ? "0 0 0 1px #6ee7b7" : "0 0 0 1px #0ea5e9",
+              }}
+              transition="all 0.15s"
+            >
+              <HStack gap={1.5}>
+                {done ? (
+                  <FiCheck fontSize="0.7rem" color="#059669" />
+                ) : (
+                  <Box w={1.5} h={1.5} borderRadius="full" bg="gray.300" />
+                )}
+                <Text
+                  fontSize="xs"
+                  fontWeight="600"
+                  color={done ? "#059669" : "gray.700"}
+                >
+                  {stream.name}
+                </Text>
+                <Text fontSize="2xs" color={done ? "#6ee7b7" : "gray.400"}>
+                  {stream.completedPositions}/{totalPositions}
+                </Text>
+              </HStack>
+            </Box>
+          );
+        })}
+      </HStack>
+    </Box>
+  );
 }
 
 /* ── Props ──────────────────────────────────────────────────── */
@@ -109,36 +251,51 @@ export default function StreamSelector({
   onBack,
 }: StreamSelectorProps) {
   // Admin search state
-  const [searchQuery, setSearchQuery] = useState("")
-  const [debouncedQuery, setDebouncedQuery] = useState("")
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  const { data: searchResults = [], isFetching: searching } = useQuery<AdminSearchStream[]>({
+  const { data: searchResults = [], isFetching: searching } = useQuery<
+    AdminSearchStream[]
+  >({
     queryKey: ["stream-search", election.election.id, debouncedQuery],
     queryFn: () => searchElectionStreams(election.election.id, debouncedQuery),
     enabled: isAdmin && debouncedQuery.trim().length >= 2,
-  })
+  });
 
-  const searched = debouncedQuery.trim().length >= 2 && !searching
+  const searched = debouncedQuery.trim().length >= 2 && !searching;
 
   // Debounced search
-  let searchTimeout: ReturnType<typeof setTimeout> | null = null
+  let searchTimeout: ReturnType<typeof setTimeout> | null = null;
   const onSearchChange = (value: string) => {
-    setSearchQuery(value)
-    if (searchTimeout) clearTimeout(searchTimeout)
-    searchTimeout = setTimeout(() => setDebouncedQuery(value), 400)
-  }
+    setSearchQuery(value);
+    if (searchTimeout) clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => setDebouncedQuery(value), 400);
+  };
 
   const handleBackClick = () => {
-    setSearchQuery("")
-    setDebouncedQuery("")
-    onBack()
-  }
+    setSearchQuery("");
+    setDebouncedQuery("");
+    onBack();
+  };
 
-  const totalPositions = election.positions.length
+  const totalPositions = election.positions.length;
 
-  /* ── Admin: search-based picker ───────────────────────── */
+  // Build a lookup so we can pass the full AdminSearchStream to the parent
+  const adminStreamMap = useMemo(() => {
+    const m = new Map<string, AdminSearchStream>();
+    for (const s of searchResults) m.set(s.id, s);
+    return m;
+  }, [searchResults]);
+
+  const handleAdminSelectStream = (streamId: string) => {
+    onSelectStream(streamId, adminStreamMap.get(streamId));
+  };
+
+  /* ── Admin: search-based picker (grouped) ─────────────── */
 
   if (isAdmin) {
+    const grouped = groupByStation(searchResults, resultsCache);
+
     return (
       <VStack gap={4} alignItems="stretch">
         <HStack gap={2}>
@@ -218,23 +375,14 @@ export default function StreamSelector({
           </VStack>
         )}
 
-        {searchResults.map((stream) => {
-          const results = resultsCache[stream.id] ?? []
-          return (
-            <StreamCard
-              key={stream.id}
-              label={stream.name}
-              stationName={stream.pollingStation.name}
-              county={stream.pollingStation.county}
-              constituency={stream.pollingStation.constituency}
-              ward={stream.pollingStation.ward}
-              registeredVoters={stream.registeredVoters}
-              completedPositions={countCompleted(results)}
-              totalPositions={totalPositions}
-              onClick={() => onSelectStream(stream.id, stream)}
-            />
-          )
-        })}
+        {grouped.map((station) => (
+          <StationGroup
+            key={station.id}
+            station={station}
+            totalPositions={totalPositions}
+            onSelectStream={handleAdminSelectStream}
+          />
+        ))}
 
         {searchResults.length >= 50 && (
           <Text fontSize="xs" color="gray.400" textAlign="center">
@@ -243,10 +391,12 @@ export default function StreamSelector({
           </Text>
         )}
       </VStack>
-    )
+    );
   }
 
-  /* ── Agent: assignment-based list ─────────────────────── */
+  /* ── Agent: assignment-based list (grouped) ───────────── */
+
+  const agentGrouped = groupAgentStreams(election.streams, resultsCache);
 
   return (
     <VStack gap={4} alignItems="stretch">
@@ -277,24 +427,14 @@ export default function StreamSelector({
         </VStack>
       </HStack>
 
-      {election.streams.map((s) => {
-        const ps = s.stream.pollingStation
-        const results = resultsCache[s.stream.id] ?? []
-        return (
-          <StreamCard
-            key={s.stream.id}
-            label={s.stream.name}
-            stationName={ps.name}
-            county={ps.county}
-            constituency={ps.constituency}
-            ward={ps.ward}
-            registeredVoters={s.stream.registeredVoters}
-            completedPositions={countCompleted(results)}
-            totalPositions={totalPositions}
-            onClick={() => onSelectStream(s.stream.id)}
-          />
-        )
-      })}
+      {agentGrouped.map((station) => (
+        <StationGroup
+          key={station.id}
+          station={station}
+          totalPositions={totalPositions}
+          onSelectStream={(streamId) => onSelectStream(streamId)}
+        />
+      ))}
     </VStack>
-  )
+  );
 }

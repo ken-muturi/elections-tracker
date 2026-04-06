@@ -90,6 +90,24 @@ export default async function ElectionResultsPage({
               {election.title}
             </Text>
           </VStack>
+          <Link href={`/enter-results?electionId=${election.id}`}>
+            <HStack
+              gap={2}
+              px={4}
+              py={2}
+              bg="#0f172a"
+              color="white"
+              borderRadius="lg"
+              fontSize="sm"
+              fontWeight="600"
+              cursor="pointer"
+              _hover={{ bg: "#1e293b" }}
+              transition="background 0.15s"
+            >
+              <MdHowToVote />
+              <Text>Enter Results</Text>
+            </HStack>
+          </Link>
         </HStack>
       </VStack>
 

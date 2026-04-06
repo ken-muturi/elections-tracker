@@ -1,11 +1,12 @@
 /* ── enter-results shared types ─────────────────────────────── */
 
 export type Candidate = {
-  id: string
-  name: string
-  party: string | null
-  sortOrder: number
-}
+  id: string;
+  name: string;
+  party: string | null;
+  entityId: string | null;
+  sortOrder: number;
+};
 
 export type Position = {
   id: string
@@ -34,14 +35,22 @@ export type StreamResult = {
 }
 
 export type PollingStation = {
-  id: string
-  name: string
-  code: string
-  county: string
-  constituency: string
-  ward: string
-  registeredVoters: number | null
-}
+  id: string;
+  name: string;
+  code: string;
+  county: string;
+  constituency: string;
+  ward: string;
+  registeredVoters: number | null;
+  wardRef?: {
+    id: string;
+    constituencyId: string;
+    constituency: {
+      id: string;
+      countyId: string;
+    };
+  } | null;
+};
 
 export type StreamInfo = {
   id: string

@@ -103,23 +103,64 @@ export default async function DashboardPage() {
               const totalC = election.positions.reduce((s, p) => s + p.candidates.length, 0)
               return (
                 <Link key={election.id} href={`/elections/${election.id}`}>
-                  <Box bg="white" px={5} py={4} borderRadius="xl" borderWidth="1px" borderColor="gray.100"
-                    boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)" cursor="pointer"
-                    _hover={{ borderColor: "#C9D927", boxShadow: "0 4px 12px -2px rgba(0,0,0,0.08)" }}
-                    transition="all 0.2s ease">
+                  <Box
+                    bg="white"
+                    px={5}
+                    py={4}
+                    borderRadius="xl"
+                    borderWidth="1px"
+                    borderColor="gray.100"
+                    boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)"
+                    cursor="pointer"
+                    _hover={{
+                      borderColor: "#C9D927",
+                      boxShadow: "0 4px 12px -2px rgba(0,0,0,0.08)",
+                    }}
+                    transition="all 0.2s ease"
+                  >
                     <HStack justify="space-between" flexWrap="wrap" gap={2}>
                       <HStack gap={3}>
-                        <Flex w={9} h={9} borderRadius="lg" bg="#eff9d1" align="center" justify="center" flexShrink={0}>
+                        <Flex
+                          w={9}
+                          h={9}
+                          borderRadius="lg"
+                          bg="#eff9d1"
+                          align="center"
+                          justify="center"
+                          flexShrink={0}
+                        >
                           <MdHowToVote fontSize="1.1rem" color="#798217" />
                         </Flex>
                         <VStack alignItems="flex-start" gap={0}>
                           <HStack gap={2}>
-                            <Text fontWeight="700" fontSize="sm" color="gray.900">{election.title}</Text>
-                            <Box px={1.5} py={0.5} bg="#eff9d1" color="#798217" borderRadius="md" fontSize="xs" fontWeight="700">
+                            <Text
+                              fontWeight="700"
+                              fontSize="sm"
+                              color="gray.900"
+                            >
+                              {election.title}
+                            </Text>
+                            <Box
+                              px={1.5}
+                              py={0.5}
+                              bg="#eff9d1"
+                              color="#798217"
+                              borderRadius="md"
+                              fontSize="xs"
+                              fontWeight="700"
+                            >
                               {election.year}
                             </Box>
                             {election.isActive && (
-                              <Box px={1.5} py={0.5} bg="#d1fae5" color="#065f46" borderRadius="md" fontSize="xs" fontWeight="700">
+                              <Box
+                                px={1.5}
+                                py={0.5}
+                                bg="#d1fae5"
+                                color="#065f46"
+                                borderRadius="md"
+                                fontSize="xs"
+                                fontWeight="700"
+                              >
                                 Active
                               </Box>
                             )}
@@ -128,13 +169,20 @@ export default async function DashboardPage() {
                             <HStack gap={1}>
                               <FiCalendar fontSize="0.7rem" color="#9ca3af" />
                               <Text fontSize="xs" color="gray.400">
-                                {new Date(election.electionDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                                {new Date(
+                                  election.electionDate,
+                                ).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
                               </Text>
                             </HStack>
                             <HStack gap={1}>
                               <FiUsers fontSize="0.7rem" color="#9ca3af" />
                               <Text fontSize="xs" color="gray.400">
-                                {totalC} candidates · {election.positions.length} positions
+                                {totalC} candidates ·{" "}
+                                {election.positions.length} positions
                               </Text>
                             </HStack>
                           </HStack>
@@ -142,10 +190,41 @@ export default async function DashboardPage() {
                       </HStack>
                       <HStack gap={2}>
                         <Link href={`/elections/${election.id}/results`}>
-                          <HStack gap={1.5} px={3} py={1.5} borderRadius="lg" bg="#eff9d1" color="#798217"
-                            fontSize="xs" fontWeight="600" cursor="pointer" _hover={{ bg: "#e5f0a0" }} transition="all 0.15s">
+                          <HStack
+                            gap={1.5}
+                            px={3}
+                            py={1.5}
+                            borderRadius="lg"
+                            bg="#eff9d1"
+                            color="#798217"
+                            fontSize="xs"
+                            fontWeight="600"
+                            cursor="pointer"
+                            _hover={{ bg: "#e5f0a0" }}
+                            transition="all 0.15s"
+                          >
                             <FiBarChart2 />
                             <Text>Results</Text>
+                          </HStack>
+                        </Link>
+                        <Link href={`/enter-results?electionId=${election.id}`}>
+                          <HStack
+                            gap={1.5}
+                            px={3}
+                            py={1.5}
+                            borderRadius="lg"
+                            bg="white"
+                            borderWidth="1px"
+                            borderColor="gray.200"
+                            color="gray.600"
+                            fontSize="xs"
+                            fontWeight="600"
+                            cursor="pointer"
+                            _hover={{ bg: "gray.50", borderColor: "gray.300" }}
+                            transition="all 0.15s"
+                          >
+                            <MdHowToVote fontSize="0.8rem" />
+                            <Text>Enter</Text>
                           </HStack>
                         </Link>
                         <FiArrowRight fontSize="0.85rem" color="#9ca3af" />
@@ -153,7 +232,7 @@ export default async function DashboardPage() {
                     </HStack>
                   </Box>
                 </Link>
-              )
+              );
             })}
           </VStack>
         )}

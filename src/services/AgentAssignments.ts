@@ -54,10 +54,19 @@ export const getElectionPositionsWithCandidates = async (electionId: string) => 
     return await prisma.electionPosition.findMany({
       where: { electionId },
       include: {
-        candidates: { orderBy: { sortOrder: "asc" } },
+        candidates: {
+          select: {
+            id: true,
+            name: true,
+            party: true,
+            entityId: true,
+            sortOrder: true,
+          },
+          orderBy: { sortOrder: "asc" },
+        },
       },
       orderBy: { sortOrder: "asc" },
-    })
+    });
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
@@ -132,16 +141,32 @@ export const searchElectionStreams = async (
       take: 50,
       orderBy: [{ pollingStation: { name: "asc" } }, { name: "asc" }],
       select: {
-        id: true, name: true, code: true, registeredVoters: true,
+        id: true,
+        name: true,
+        code: true,
+        registeredVoters: true,
         pollingStation: {
           select: {
-            id: true, name: true, code: true,
-            county: true, constituency: true, ward: true,
+            id: true,
+            name: true,
+            code: true,
+            county: true,
+            constituency: true,
+            ward: true,
             registeredVoters: true,
+            wardRef: {
+              select: {
+                id: true,
+                constituencyId: true,
+                constituency: {
+                  select: { id: true, countyId: true },
+                },
+              },
+            },
           },
         },
       },
-    })
+    });
 
     return streams
   } catch (error) {
