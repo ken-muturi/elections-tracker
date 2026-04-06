@@ -3,16 +3,13 @@
 import React from "react"
 import { useQuery } from "@tanstack/react-query"
 import DrillDown from "./DrillDown"
-import type { DrillDownResult } from "@/services/PublicResults"
+import { getDrillDownNational } from "@/services/PublicResults";
 
 export default function DrillDownClient({ electionId, positionId }: { electionId: string; positionId: string }) {
-  const { data: initial, isLoading } = useQuery<DrillDownResult>({
+  const { data: initial, isLoading } = useQuery({
     queryKey: ["public-results", electionId, positionId],
-    queryFn: async () => {
-      const res = await fetch(`/api/public-results?electionId=${encodeURIComponent(electionId)}&positionId=${encodeURIComponent(positionId)}`)
-      return res.json()
-    },
-  })
+    queryFn: () => getDrillDownNational(electionId, positionId),
+  });
 
   if (isLoading || !initial) return null
   return <DrillDown initial={initial} electionId={electionId} />

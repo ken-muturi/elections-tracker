@@ -7,8 +7,28 @@ import {
 import { FiChevronRight, FiMapPin } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 import type { DrillDownResult } from "@/services/PublicResults"
+import {
+  getDrillDownCounty,
+  getDrillDownConstituency,
+  getDrillDownWard,
+  getDrillDownStation,
+} from "@/services/PublicResults";
 import { LEVEL_COLOR, NEXT_ACTION } from "./constants"
 import useSyncMutation from "@/hooks/hooks/useSyncMutation"
+
+const DRILL_FN: Record<
+  string,
+  (
+    electionId: string,
+    positionId: string,
+    id: string,
+  ) => Promise<DrillDownResult>
+> = {
+  COUNTY: getDrillDownCounty,
+  CONSTITUENCY: getDrillDownConstituency,
+  WARD: getDrillDownWard,
+  STATION: getDrillDownStation,
+};
 
 export default function DrillDown({
   initial,
@@ -23,15 +43,9 @@ export default function DrillDown({
   const drillMutation = useSyncMutation(
     async (childId: string) => {
       const nextAction = NEXT_ACTION[data.level]
-      if (!nextAction) throw new Error("Already at leaf level")
-      const qs = new URLSearchParams({
-        action: nextAction,
-        id: childId,
-        positionId: data.positionId,
-        electionId,
-      })
-      const res = await fetch(`/api/public-results?${qs}`)
-      return res.json() as Promise<DrillDownResult>
+      const fn = nextAction ? DRILL_FN[nextAction] : undefined;
+      if (!fn) throw new Error("Already at leaf level");
+      return fn(electionId, data.positionId, childId);
     },
     {
       onSuccess: (json) => {
