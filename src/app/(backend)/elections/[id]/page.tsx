@@ -14,13 +14,7 @@ import {
 } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 import { ElectionActions } from "@/components/Elections"
-
-const LEVEL_COLOR: Record<string, { bg: string; color: string }> = {
-  WARD:          { bg: "#dbeafe", color: "#1e40af" },
-  CONSTITUENCY:  { bg: "#ede9fe", color: "#5b21b6" },
-  COUNTY:        { bg: "#fef3c7", color: "#92400e" },
-  NATIONAL:      { bg: "#d1fae5", color: "#065f46" },
-}
+import { LEVEL_COLOR } from "@/components/Elections/constants"
 
 export default async function ElectionDetailPage({
   params,

@@ -5,17 +5,11 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { cookies } from "next/headers";
 import { getElectionById } from "@/services/Elections"
+import { LEVEL_COLOR } from "@/components/Elections/constants"
 
 import { FiArrowLeft, FiUsers } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 import CandidateManager from "./CandidateManager"
-
-const LEVEL_COLOR: Record<string, { bg: string; color: string }> = {
-  WARD:          { bg: "#dbeafe", color: "#1e40af" },
-  CONSTITUENCY:  { bg: "#ede9fe", color: "#5b21b6" },
-  COUNTY:        { bg: "#fef3c7", color: "#92400e" },
-  NATIONAL:      { bg: "#d1fae5", color: "#065f46" },
-}
 
 export default async function CandidatesPage({
   params,

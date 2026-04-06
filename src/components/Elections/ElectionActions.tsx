@@ -11,23 +11,11 @@ import {
   FiMoreVertical, FiToggleLeft, FiToggleRight,
   FiEdit2, FiTrash2, FiX, FiCheck,
 } from "react-icons/fi"
+import type { ElectionForActions, ElectionActionsProps } from "./types"
 
-export interface ElectionForActions {
-  id: string
-  title: string
-  year: number
-  electionDate: Date | string
-  description?: string | null
-  isActive: boolean
-}
+export type { ElectionForActions }
 
-interface Props {
-  election: ElectionForActions
-  /** "card" = icon-only trigger (list view), "detail" = full button (detail page) */
-  variant?: "card" | "detail"
-}
-
-export default function ElectionActions({ election, variant = "card" }: Props) {
+export default function ElectionActions({ election, variant = "card" }: ElectionActionsProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 

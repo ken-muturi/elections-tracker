@@ -7,25 +7,7 @@ import {
 import { FiChevronRight, FiMapPin } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 import type { DrillDownResult } from "@/services/PublicResults"
-
-/**
- * Map the current drill-down level to the API `action` needed
- * to fetch the *next* level down.
- */
-const NEXT_ACTION: Record<string, string> = {
-  NATIONAL: "COUNTY",
-  COUNTY: "CONSTITUENCY",
-  CONSTITUENCY: "WARD",
-  WARD: "STATION",
-}
-
-const LEVEL_COLOR: Record<string, { bg: string; color: string; border: string }> = {
-  NATIONAL:     { bg: "#d1fae5", color: "#065f46", border: "#6ee7b7" },
-  COUNTY:       { bg: "#fef3c7", color: "#92400e", border: "#fcd34d" },
-  CONSTITUENCY: { bg: "#ede9fe", color: "#5b21b6", border: "#c4b5fd" },
-  WARD:         { bg: "#dbeafe", color: "#1e40af", border: "#93c5fd" },
-  STATION:      { bg: "#fce7f3", color: "#9d174d", border: "#f9a8d4" },
-}
+import { LEVEL_COLOR, NEXT_ACTION } from "./constants"
 
 export default function DrillDown({
   initial,

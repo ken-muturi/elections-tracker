@@ -11,13 +11,7 @@ import { KNOWN_POSITIONS, AGGREGATION_LEVELS, AGGREGATION_LEVEL_LABEL } from "@/
 import { AggregationLevel } from "@prisma/client"
 import { FiArrowLeft, FiPlus, FiTrash2, FiChevronDown } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
-
-const LEVEL_COLOR: Record<AggregationLevel, { bg: string; color: string }> = {
-  WARD:          { bg: "#dbeafe", color: "#1e40af" },
-  CONSTITUENCY:  { bg: "#ede9fe", color: "#5b21b6" },
-  COUNTY:        { bg: "#fef3c7", color: "#92400e" },
-  NATIONAL:      { bg: "#d1fae5", color: "#065f46" },
-}
+import { LEVEL_COLOR } from "@/components/Elections/constants"
 
 const DEFAULT_POSITIONS: PositionInput[] = Object.entries(KNOWN_POSITIONS).map(([type, meta], i) => ({
   type,
