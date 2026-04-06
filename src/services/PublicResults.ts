@@ -9,7 +9,11 @@ import { handleReturnError } from "@/db/error-handling"
  * Hierarchy for drill-down:
  *   National → County → Constituency → Ward → Polling Station → Stream
  *
- * At each level we aggregate the stream-level votes upward.
+ * PERF — compared to the previous version:
+ *   • N+1 stream.count() loops replaced with a single groupBy query
+ *   • All stream results fetched once, grouped in JS (no per-entity re-queries)
+ *   • Parallel queries where possible (Promise.all)
+ *   • Only the columns we need are selected
  */
 
 type CandidateVoteSummary = {
@@ -31,25 +35,23 @@ type ChildResult = {
 }
 
 export type DrillDownResult = {
-  positionId: string
-  positionTitle: string
-  positionType: string
-  aggregationLevel: string
-  level: string           // current drill-down level being viewed
-  levelLabel: string      // e.g. "Counties", "Constituencies"
-  parentName: string | null
-  breadcrumb: { id: string; name: string; level: string }[]
-  totalVotes: number
-  rejectedVotes: number
-  reportedStreams: number
-  totalStreams: number
-  candidates: CandidateVoteSummary[]  // aggregated totals at this level
-  children: ChildResult[]             // breakdown by child entities
-}
+  positionId: string;
+  positionTitle: string;
+  positionType: string;
+  aggregationLevel: string;
+  level: string;
+  levelLabel: string;
+  parentName: string | null;
+  breadcrumb: { id: string; name: string; level: string }[];
+  totalVotes: number;
+  rejectedVotes: number;
+  reportedStreams: number;
+  totalStreams: number;
+  candidates: CandidateVoteSummary[];
+  children: ChildResult[];
+};
 
-/**
- * Get the candidate lookup for a position.
- */
+/** Candidate lookup for a position. */
 async function getCandidatesForPosition(positionId: string) {
   return prisma.candidate.findMany({
     where: { positionId },
@@ -58,158 +60,199 @@ async function getCandidatesForPosition(positionId: string) {
   })
 }
 
-/**
- * Helper to aggregate stream results from a list of stream IDs.
- */
-function aggregateVotes(
-  streamResults: { totalVotes: number | null; rejectedVotes: number | null; votes: { candidateId: string; votes: number }[] }[]
-) {
-  const candidateMap = new Map<string, number>()
-  let totalVotes = 0
-  let rejectedVotes = 0
-
-  for (const sr of streamResults) {
-    totalVotes += sr.totalVotes ?? 0
-    rejectedVotes += sr.rejectedVotes ?? 0
-    for (const v of sr.votes) {
-      candidateMap.set(v.candidateId, (candidateMap.get(v.candidateId) ?? 0) + v.votes)
-    }
-  }
-
-  return { totalVotes, rejectedVotes, candidateMap }
+/** Build the CandidateVoteSummary[] from a candidate list + a vote map. */
+function buildCandidateSummaries(
+  candidates: { id: string; name: string; party: string | null }[],
+  voteMap: Map<string, number>,
+): CandidateVoteSummary[] {
+  return candidates
+    .map((c) => ({
+      candidateId: c.id,
+      name: c.name,
+      party: c.party,
+      votes: voteMap.get(c.id) ?? 0,
+    }))
+    .sort((a, b) => b.votes - a.votes)
 }
 
-/**
- * National level — break down by county.
- */
+// ═══════════════════════════════════════════════════════════════════════════
+// National level — break down by county
+// ═══════════════════════════════════════════════════════════════════════════
+
 export async function getDrillDownNational(
   electionId: string,
   positionId: string,
 ): Promise<DrillDownResult> {
   try {
-    const position = await prisma.electionPosition.findUniqueOrThrow({
-      where: { id: positionId },
-      select: { id: true, title: true, type: true, aggregationLevel: true },
-    })
-    const candidates = await getCandidatesForPosition(positionId)
-
-    // Get all counties that have wards in this election
-    const counties = await prisma.county.findMany({
-      orderBy: { name: "asc" },
-      include: {
-        constituencies: {
-          include: {
-            wards: {
-              where: { electionId },
-              select: { id: true },
+    // All lightweight metadata in parallel
+    const [position, candidates, counties] = await Promise.all([
+      prisma.electionPosition.findUniqueOrThrow({
+        where: { id: positionId },
+        select: { id: true, title: true, type: true, aggregationLevel: true },
+      }),
+      getCandidatesForPosition(positionId),
+      prisma.county.findMany({
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          constituencies: {
+            select: {
+              id: true,
+              wards: { where: { electionId }, select: { id: true } },
             },
           },
         },
-      },
-    })
+      }),
+    ]);
 
-    // Get ALL submitted/verified stream results for this position in this election
-    const streamResults = await prisma.streamResult.findMany({
-      where: {
-        positionId,
-        status: { in: ["SUBMITTED", "VERIFIED"] },
-        stream: {
-          pollingStation: {
-            wardRef: { electionId },
+    // Only counties that participate in this election
+    const activeCounties = counties.filter((c) =>
+      c.constituencies.some((con) => con.wards.length > 0),
+    );
+    // ward → county lookup
+    const wardToCounty = new Map<string, string>();
+    for (const county of activeCounties) {
+      for (const con of county.constituencies) {
+        for (const w of con.wards) {
+          wardToCounty.set(w.id, county.id);
+        }
+      }
+    }
+    const allWardIds = Array.from(wardToCounty.keys());
+
+    // Heavy queries in parallel — all use indexes
+    const [streamResults, voteRows, streamCountsByWard] = await Promise.all([
+      // Stream result header rows (no votes, no joins)
+      prisma.streamResult.findMany({
+        where: {
+          positionId,
+          status: { in: ["SUBMITTED", "VERIFIED"] },
+          stream: { pollingStation: { wardId: { in: allWardIds } } },
+        },
+        select: {
+          totalVotes: true,
+          rejectedVotes: true,
+          stream: { select: { pollingStation: { select: { wardId: true } } } },
+        },
+      }),
+      // Vote rows (flat, no nested joins)
+      prisma.streamCandidateVote.findMany({
+        where: {
+          streamResult: {
+            positionId,
+            status: { in: ["SUBMITTED", "VERIFIED"] },
+            stream: { pollingStation: { wardId: { in: allWardIds } } },
           },
         },
-      },
-      include: {
-        votes: { select: { candidateId: true, votes: true } },
-        stream: {
-          select: {
-            pollingStation: {
-              select: {
-                wardRef: {
-                  select: {
-                    constituency: {
-                      select: { countyId: true },
-                    },
-                  },
-                },
+        select: {
+          candidateId: true,
+          votes: true,
+          streamResult: {
+            select: {
+              stream: {
+                select: { pollingStation: { select: { wardId: true } } },
               },
             },
           },
         },
-      },
-    })
-
-    // Total streams in election for this position
-    const totalStreams = await prisma.stream.count({
-      where: {
-        isActive: true,
-        pollingStation: { wardRef: { electionId } },
-      },
-    })
-
-    // Group stream results by county
-    const byCounty = new Map<string, typeof streamResults>()
-    for (const sr of streamResults) {
-      const countyId = sr.stream.pollingStation.wardRef?.constituency?.countyId
-      if (!countyId) continue
-      const arr = byCounty.get(countyId) ?? []
-      arr.push(sr)
-      byCounty.set(countyId, arr)
-    }
-
-    // Count streams per county
-    const streamsByCounty = new Map<string, number>()
-    // We need to map pollingStationId → countyId
-    const stationToCounty = new Map<string, string>()
-    const allStations = await prisma.pollingStation.findMany({
-      where: { wardRef: { electionId } },
-      select: {
-        id: true,
-        wardRef: {
-          select: { constituency: { select: { countyId: true } } },
+      }),
+      // Stream counts grouped by wardId — ONE query, no N+1
+      prisma.stream.groupBy({
+        by: ["pollingStationId"],
+        where: {
+          isActive: true,
+          pollingStation: { wardId: { in: allWardIds } },
         },
-      },
-    })
-    for (const s of allStations) {
-      stationToCounty.set(s.id, s.wardRef.constituency.countyId)
-    }
-    // Count active streams per county
-    const allStreams = await prisma.stream.findMany({
-      where: { isActive: true, pollingStation: { wardRef: { electionId } } },
-      select: { pollingStationId: true },
-    })
-    for (const s of allStreams) {
-      const countyId = stationToCounty.get(s.pollingStationId)
+        _count: { id: true },
+      }),
+    ]);
+
+    // Map pollingStationId → wardId for stream counts
+    const stationWardRows = await prisma.pollingStation.findMany({
+      where: { wardId: { in: allWardIds } },
+      select: { id: true, wardId: true },
+    });
+    const stationToWard = new Map(stationWardRows.map((s) => [s.id, s.wardId]));
+
+    // Aggregate streams per county
+    const streamsByCounty = new Map<string, number>();
+    for (const row of streamCountsByWard) {
+      const wardId = stationToWard.get(row.pollingStationId);
+      const countyId = wardId ? wardToCounty.get(wardId) : undefined;
       if (countyId) {
-        streamsByCounty.set(countyId, (streamsByCounty.get(countyId) ?? 0) + 1)
+        streamsByCounty.set(
+          countyId,
+          (streamsByCounty.get(countyId) ?? 0) + row._count.id,
+        );
       }
     }
 
+    // Group vote rows by county
+    const votesByCounty = new Map<string, typeof voteRows>();
+    const resultsByCounty = new Map<string, typeof streamResults>();
+
+    for (const sr of streamResults) {
+      const wardId = sr.stream.pollingStation.wardId;
+      const countyId = wardToCounty.get(wardId);
+      if (!countyId) continue;
+      const arr = resultsByCounty.get(countyId) ?? [];
+      arr.push(sr);
+      resultsByCounty.set(countyId, arr);
+    }
+    for (const v of voteRows) {
+      const wardId = v.streamResult.stream.pollingStation.wardId;
+      const countyId = wardToCounty.get(wardId);
+      if (!countyId) continue;
+      const arr = votesByCounty.get(countyId) ?? [];
+      arr.push(v);
+      votesByCounty.set(countyId, arr);
+    }
+
     // Overall aggregation
-    const overall = aggregateVotes(streamResults)
+    const overallVoteMap = new Map<string, number>();
+    for (const v of voteRows) {
+      overallVoteMap.set(
+        v.candidateId,
+        (overallVoteMap.get(v.candidateId) ?? 0) + v.votes,
+      );
+    }
+    let overallTotalVotes = 0;
+    let overallRejected = 0;
+    for (const sr of streamResults) {
+      overallTotalVotes += sr.totalVotes ?? 0;
+      overallRejected += sr.rejectedVotes ?? 0;
+    }
+    const totalStreams = Array.from(streamsByCounty.values()).reduce(
+      (a, b) => a + b,
+      0,
+    );
 
-    const children: ChildResult[] = counties
-      .filter((c) => c.constituencies.some((con) => con.wards.length > 0))
-      .map((county) => {
-        const countyResults = byCounty.get(county.id) ?? []
-        const agg = aggregateVotes(countyResults)
+    const children: ChildResult[] = activeCounties.map((county) => {
+      const cVotes = votesByCounty.get(county.id) ?? [];
+      const cResults = resultsByCounty.get(county.id) ?? [];
+      const cMap = new Map<string, number>();
+      for (const v of cVotes)
+        cMap.set(v.candidateId, (cMap.get(v.candidateId) ?? 0) + v.votes);
+      let cTotal = 0,
+        cRejected = 0;
+      for (const r of cResults) {
+        cTotal += r.totalVotes ?? 0;
+        cRejected += r.rejectedVotes ?? 0;
+      }
 
-        return {
-          entityId: county.id,
-          entityName: county.name,
-          entityCode: county.code,
-          totalVotes: agg.totalVotes,
-          rejectedVotes: agg.rejectedVotes,
-          reportedStreams: countyResults.length,
-          totalStreams: streamsByCounty.get(county.id) ?? 0,
-          candidates: candidates.map((c) => ({
-            candidateId: c.id,
-            name: c.name,
-            party: c.party,
-            votes: agg.candidateMap.get(c.id) ?? 0,
-          })).sort((a, b) => b.votes - a.votes),
-        }
-      })
+      return {
+        entityId: county.id,
+        entityName: county.name,
+        entityCode: county.code,
+        totalVotes: cTotal,
+        rejectedVotes: cRejected,
+        reportedStreams: cResults.length,
+        totalStreams: streamsByCounty.get(county.id) ?? 0,
+        candidates: buildCandidateSummaries(candidates, cMap),
+      };
+    });
 
     return {
       positionId: position.id,
@@ -220,111 +263,184 @@ export async function getDrillDownNational(
       levelLabel: "Counties",
       parentName: null,
       breadcrumb: [{ id: "national", name: "National", level: "NATIONAL" }],
-      totalVotes: overall.totalVotes,
-      rejectedVotes: overall.rejectedVotes,
+      totalVotes: overallTotalVotes,
+      rejectedVotes: overallRejected,
       reportedStreams: streamResults.length,
       totalStreams,
-      candidates: candidates.map((c) => ({
-        candidateId: c.id,
-        name: c.name,
-        party: c.party,
-        votes: overall.candidateMap.get(c.id) ?? 0,
-      })).sort((a, b) => b.votes - a.votes),
+      candidates: buildCandidateSummaries(candidates, overallVoteMap),
       children,
-    }
+    };
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
 }
 
-/**
- * County level — break down by constituency.
- */
+// ═══════════════════════════════════════════════════════════════════════════
+// County level — break down by constituency
+// ═══════════════════════════════════════════════════════════════════════════
+
 export async function getDrillDownCounty(
   electionId: string,
   positionId: string,
   countyId: string,
 ): Promise<DrillDownResult> {
   try {
-    const position = await prisma.electionPosition.findUniqueOrThrow({
-      where: { id: positionId },
-      select: { id: true, title: true, type: true, aggregationLevel: true },
-    })
-    const candidates = await getCandidatesForPosition(positionId)
-    const county = await prisma.county.findUniqueOrThrow({
-      where: { id: countyId },
-      select: { id: true, name: true },
-    })
+    const [position, candidates, county, constituencies] = await Promise.all([
+      prisma.electionPosition.findUniqueOrThrow({
+        where: { id: positionId },
+        select: { id: true, title: true, type: true, aggregationLevel: true },
+      }),
+      getCandidatesForPosition(positionId),
+      prisma.county.findUniqueOrThrow({
+        where: { id: countyId },
+        select: { id: true, name: true },
+      }),
+      prisma.constituency.findMany({
+        where: { countyId },
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          wards: { where: { electionId }, select: { id: true } },
+        },
+      }),
+    ]);
 
-    const constituencies = await prisma.constituency.findMany({
-      where: { countyId },
-      orderBy: { name: "asc" },
-      include: {
-        wards: { where: { electionId }, select: { id: true } },
-      },
-    })
+    const activeConstituencies = constituencies.filter(
+      (c) => c.wards.length > 0,
+    );
+    // ward → constituency lookup
+    const wardToConstituency = new Map<string, string>();
+    for (const con of activeConstituencies) {
+      for (const w of con.wards) wardToConstituency.set(w.id, con.id);
+    }
+    const allWardIds = Array.from(wardToConstituency.keys());
 
-    const wardIds = constituencies.flatMap((c) => c.wards.map((w) => w.id))
+    const [streamResults, voteRows, streamCountGroups, stationWardRows] =
+      await Promise.all([
+        prisma.streamResult.findMany({
+          where: {
+            positionId,
+            status: { in: ["SUBMITTED", "VERIFIED"] },
+            stream: { pollingStation: { wardId: { in: allWardIds } } },
+          },
+          select: {
+            totalVotes: true,
+            rejectedVotes: true,
+            stream: {
+              select: { pollingStation: { select: { wardId: true } } },
+            },
+          },
+        }),
+        prisma.streamCandidateVote.findMany({
+          where: {
+            streamResult: {
+              positionId,
+              status: { in: ["SUBMITTED", "VERIFIED"] },
+              stream: { pollingStation: { wardId: { in: allWardIds } } },
+            },
+          },
+          select: {
+            candidateId: true,
+            votes: true,
+            streamResult: {
+              select: {
+                stream: {
+                  select: { pollingStation: { select: { wardId: true } } },
+                },
+              },
+            },
+          },
+        }),
+        prisma.stream.groupBy({
+          by: ["pollingStationId"],
+          where: {
+            isActive: true,
+            pollingStation: { wardId: { in: allWardIds } },
+          },
+          _count: { id: true },
+        }),
+        prisma.pollingStation.findMany({
+          where: { wardId: { in: allWardIds } },
+          select: { id: true, wardId: true },
+        }),
+      ]);
 
-    const streamResults = await prisma.streamResult.findMany({
-      where: {
-        positionId,
-        status: { in: ["SUBMITTED", "VERIFIED"] },
-        stream: { pollingStation: { wardId: { in: wardIds } } },
-      },
-      include: {
-        votes: { select: { candidateId: true, votes: true } },
-        stream: { select: { pollingStation: { select: { wardRef: { select: { constituencyId: true } } } } } },
-      },
-    })
+    const stationToWard = new Map(stationWardRows.map((s) => [s.id, s.wardId]));
 
-    const totalStreams = await prisma.stream.count({
-      where: { isActive: true, pollingStation: { wardId: { in: wardIds } } },
-    })
+    // Batch stream counts per constituency
+    const streamsByConstituency = new Map<string, number>();
+    for (const row of streamCountGroups) {
+      const wardId = stationToWard.get(row.pollingStationId);
+      const conId = wardId ? wardToConstituency.get(wardId) : undefined;
+      if (conId)
+        streamsByConstituency.set(
+          conId,
+          (streamsByConstituency.get(conId) ?? 0) + row._count.id,
+        );
+    }
 
     // Group by constituency
-    const byConstituency = new Map<string, typeof streamResults>()
+    const votesByCon = new Map<string, typeof voteRows>();
+    const resultsByCon = new Map<string, typeof streamResults>();
     for (const sr of streamResults) {
-      const cId = sr.stream.pollingStation.wardRef?.constituencyId
-      if (!cId) continue
-      const arr = byConstituency.get(cId) ?? []
-      arr.push(sr)
-      byConstituency.set(cId, arr)
+      const conId = wardToConstituency.get(sr.stream.pollingStation.wardId);
+      if (!conId) continue;
+      const arr = resultsByCon.get(conId) ?? [];
+      arr.push(sr);
+      resultsByCon.set(conId, arr);
+    }
+    for (const v of voteRows) {
+      const conId = wardToConstituency.get(
+        v.streamResult.stream.pollingStation.wardId,
+      );
+      if (!conId) continue;
+      const arr = votesByCon.get(conId) ?? [];
+      arr.push(v);
+      votesByCon.set(conId, arr);
     }
 
-    // Streams per constituency
-    const streamsByConstituency = new Map<string, number>()
-    for (const con of constituencies) {
-      const conWardIds = con.wards.map((w) => w.id)
-      if (conWardIds.length > 0) {
-        const count = await prisma.stream.count({
-          where: { isActive: true, pollingStation: { wardId: { in: conWardIds } } },
-        })
-        streamsByConstituency.set(con.id, count)
+    const overallVoteMap = new Map<string, number>();
+    for (const v of voteRows)
+      overallVoteMap.set(
+        v.candidateId,
+        (overallVoteMap.get(v.candidateId) ?? 0) + v.votes,
+      );
+    let overallTotal = 0,
+      overallRejected = 0;
+    for (const sr of streamResults) {
+      overallTotal += sr.totalVotes ?? 0;
+      overallRejected += sr.rejectedVotes ?? 0;
+    }
+    const totalStreams = Array.from(streamsByConstituency.values()).reduce(
+      (a, b) => a + b,
+      0,
+    );
+
+    const children: ChildResult[] = activeConstituencies.map((con) => {
+      const cVotes = votesByCon.get(con.id) ?? [];
+      const cResults = resultsByCon.get(con.id) ?? [];
+      const cMap = new Map<string, number>();
+      for (const v of cVotes)
+        cMap.set(v.candidateId, (cMap.get(v.candidateId) ?? 0) + v.votes);
+      let cTotal = 0,
+        cRejected = 0;
+      for (const r of cResults) {
+        cTotal += r.totalVotes ?? 0;
+        cRejected += r.rejectedVotes ?? 0;
       }
-    }
-
-    const overall = aggregateVotes(streamResults)
-
-    const children: ChildResult[] = constituencies
-      .filter((c) => c.wards.length > 0)
-      .map((con) => {
-        const conResults = byConstituency.get(con.id) ?? []
-        const agg = aggregateVotes(conResults)
-        return {
-          entityId: con.id,
-          entityName: con.name,
-          entityCode: con.code,
-          totalVotes: agg.totalVotes,
-          rejectedVotes: agg.rejectedVotes,
-          reportedStreams: conResults.length,
-          totalStreams: streamsByConstituency.get(con.id) ?? 0,
-          candidates: candidates.map((c) => ({
-            candidateId: c.id, name: c.name, party: c.party,
-            votes: agg.candidateMap.get(c.id) ?? 0,
-          })).sort((a, b) => b.votes - a.votes),
-        }
-      })
+      return {
+        entityId: con.id,
+        entityName: con.name,
+        entityCode: con.code,
+        totalVotes: cTotal,
+        rejectedVotes: cRejected,
+        reportedStreams: cResults.length,
+        totalStreams: streamsByConstituency.get(con.id) ?? 0,
+        candidates: buildCandidateSummaries(candidates, cMap),
+      };
+    });
 
     return {
       positionId: position.id,
@@ -338,97 +454,166 @@ export async function getDrillDownCounty(
         { id: "national", name: "National", level: "NATIONAL" },
         { id: countyId, name: county.name, level: "COUNTY" },
       ],
-      totalVotes: overall.totalVotes,
-      rejectedVotes: overall.rejectedVotes,
+      totalVotes: overallTotal,
+      rejectedVotes: overallRejected,
       reportedStreams: streamResults.length,
       totalStreams,
-      candidates: candidates.map((c) => ({
-        candidateId: c.id, name: c.name, party: c.party,
-        votes: overall.candidateMap.get(c.id) ?? 0,
-      })).sort((a, b) => b.votes - a.votes),
+      candidates: buildCandidateSummaries(candidates, overallVoteMap),
       children,
-    }
+    };
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
 }
 
-/**
- * Constituency level — break down by ward.
- */
+// ═══════════════════════════════════════════════════════════════════════════
+// Constituency level — break down by ward
+// ═══════════════════════════════════════════════════════════════════════════
+
 export async function getDrillDownConstituency(
   electionId: string,
   positionId: string,
   constituencyId: string,
 ): Promise<DrillDownResult> {
   try {
-    const position = await prisma.electionPosition.findUniqueOrThrow({
-      where: { id: positionId },
-      select: { id: true, title: true, type: true, aggregationLevel: true },
-    })
-    const candidates = await getCandidatesForPosition(positionId)
-    const constituency = await prisma.constituency.findUniqueOrThrow({
-      where: { id: constituencyId },
-      include: { county: { select: { id: true, name: true } } },
-    })
+    const [position, candidates, constituency, wards] = await Promise.all([
+      prisma.electionPosition.findUniqueOrThrow({
+        where: { id: positionId },
+        select: { id: true, title: true, type: true, aggregationLevel: true },
+      }),
+      getCandidatesForPosition(positionId),
+      prisma.constituency.findUniqueOrThrow({
+        where: { id: constituencyId },
+        include: { county: { select: { id: true, name: true } } },
+      }),
+      prisma.ward.findMany({
+        where: { constituencyId, electionId },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, code: true },
+      }),
+    ]);
 
-    const wards = await prisma.ward.findMany({
-      where: { constituencyId, electionId },
-      orderBy: { name: "asc" },
-    })
-    const wardIds = wards.map((w) => w.id)
+    const wardIds = wards.map((w) => w.id);
 
-    const streamResults = await prisma.streamResult.findMany({
-      where: {
-        positionId,
-        status: { in: ["SUBMITTED", "VERIFIED"] },
-        stream: { pollingStation: { wardId: { in: wardIds } } },
-      },
-      include: {
-        votes: { select: { candidateId: true, votes: true } },
-        stream: { select: { pollingStation: { select: { wardId: true } } } },
-      },
-    })
+    // All heavy queries in parallel — no N+1 loops
+    const [streamResults, voteRows, streamCountGroups, stationWardRows] =
+      await Promise.all([
+        prisma.streamResult.findMany({
+          where: {
+            positionId,
+            status: { in: ["SUBMITTED", "VERIFIED"] },
+            stream: { pollingStation: { wardId: { in: wardIds } } },
+          },
+          select: {
+            totalVotes: true,
+            rejectedVotes: true,
+            stream: {
+              select: { pollingStation: { select: { wardId: true } } },
+            },
+          },
+        }),
+        prisma.streamCandidateVote.findMany({
+          where: {
+            streamResult: {
+              positionId,
+              status: { in: ["SUBMITTED", "VERIFIED"] },
+              stream: { pollingStation: { wardId: { in: wardIds } } },
+            },
+          },
+          select: {
+            candidateId: true,
+            votes: true,
+            streamResult: {
+              select: {
+                stream: {
+                  select: { pollingStation: { select: { wardId: true } } },
+                },
+              },
+            },
+          },
+        }),
+        // ONE groupBy instead of N ward.count() calls
+        prisma.stream.groupBy({
+          by: ["pollingStationId"],
+          where: {
+            isActive: true,
+            pollingStation: { wardId: { in: wardIds } },
+          },
+          _count: { id: true },
+        }),
+        prisma.pollingStation.findMany({
+          where: { wardId: { in: wardIds } },
+          select: { id: true, wardId: true },
+        }),
+      ]);
 
-    const totalStreams = await prisma.stream.count({
-      where: { isActive: true, pollingStation: { wardId: { in: wardIds } } },
-    })
+    const stationToWard = new Map(stationWardRows.map((s) => [s.id, s.wardId]));
 
-    const byWard = new Map<string, typeof streamResults>()
+    const streamsByWard = new Map<string, number>();
+    for (const row of streamCountGroups) {
+      const wardId = stationToWard.get(row.pollingStationId);
+      if (wardId)
+        streamsByWard.set(
+          wardId,
+          (streamsByWard.get(wardId) ?? 0) + row._count.id,
+        );
+    }
+
+    const votesByWard = new Map<string, typeof voteRows>();
+    const resultsByWard = new Map<string, typeof streamResults>();
     for (const sr of streamResults) {
-      const wId = sr.stream.pollingStation.wardId
-      const arr = byWard.get(wId) ?? []
-      arr.push(sr)
-      byWard.set(wId, arr)
+      const wId = sr.stream.pollingStation.wardId;
+      const arr = resultsByWard.get(wId) ?? [];
+      arr.push(sr);
+      resultsByWard.set(wId, arr);
+    }
+    for (const v of voteRows) {
+      const wId = v.streamResult.stream.pollingStation.wardId;
+      const arr = votesByWard.get(wId) ?? [];
+      arr.push(v);
+      votesByWard.set(wId, arr);
     }
 
-    const streamsByWard = new Map<string, number>()
-    for (const ward of wards) {
-      const count = await prisma.stream.count({
-        where: { isActive: true, pollingStation: { wardId: ward.id } },
-      })
-      streamsByWard.set(ward.id, count)
+    const overallVoteMap = new Map<string, number>();
+    for (const v of voteRows)
+      overallVoteMap.set(
+        v.candidateId,
+        (overallVoteMap.get(v.candidateId) ?? 0) + v.votes,
+      );
+    let overallTotal = 0,
+      overallRejected = 0;
+    for (const sr of streamResults) {
+      overallTotal += sr.totalVotes ?? 0;
+      overallRejected += sr.rejectedVotes ?? 0;
     }
-
-    const overall = aggregateVotes(streamResults)
+    const totalStreams = Array.from(streamsByWard.values()).reduce(
+      (a, b) => a + b,
+      0,
+    );
 
     const children: ChildResult[] = wards.map((ward) => {
-      const wardResults = byWard.get(ward.id) ?? []
-      const agg = aggregateVotes(wardResults)
+      const wVotes = votesByWard.get(ward.id) ?? [];
+      const wResults = resultsByWard.get(ward.id) ?? [];
+      const wMap = new Map<string, number>();
+      for (const v of wVotes)
+        wMap.set(v.candidateId, (wMap.get(v.candidateId) ?? 0) + v.votes);
+      let wTotal = 0,
+        wRejected = 0;
+      for (const r of wResults) {
+        wTotal += r.totalVotes ?? 0;
+        wRejected += r.rejectedVotes ?? 0;
+      }
       return {
         entityId: ward.id,
         entityName: ward.name,
         entityCode: ward.code,
-        totalVotes: agg.totalVotes,
-        rejectedVotes: agg.rejectedVotes,
-        reportedStreams: wardResults.length,
+        totalVotes: wTotal,
+        rejectedVotes: wRejected,
+        reportedStreams: wResults.length,
         totalStreams: streamsByWard.get(ward.id) ?? 0,
-        candidates: candidates.map((c) => ({
-          candidateId: c.id, name: c.name, party: c.party,
-          votes: agg.candidateMap.get(c.id) ?? 0,
-        })).sort((a, b) => b.votes - a.votes),
-      }
-    })
+        candidates: buildCandidateSummaries(candidates, wMap),
+      };
+    });
 
     return {
       positionId: position.id,
@@ -440,100 +625,147 @@ export async function getDrillDownConstituency(
       parentName: constituency.name,
       breadcrumb: [
         { id: "national", name: "National", level: "NATIONAL" },
-        { id: constituency.county.id, name: constituency.county.name, level: "COUNTY" },
+        {
+          id: constituency.county.id,
+          name: constituency.county.name,
+          level: "COUNTY",
+        },
         { id: constituencyId, name: constituency.name, level: "CONSTITUENCY" },
       ],
-      totalVotes: overall.totalVotes,
-      rejectedVotes: overall.rejectedVotes,
+      totalVotes: overallTotal,
+      rejectedVotes: overallRejected,
       reportedStreams: streamResults.length,
       totalStreams,
-      candidates: candidates.map((c) => ({
-        candidateId: c.id, name: c.name, party: c.party,
-        votes: overall.candidateMap.get(c.id) ?? 0,
-      })).sort((a, b) => b.votes - a.votes),
+      candidates: buildCandidateSummaries(candidates, overallVoteMap),
       children,
-    }
+    };
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
 }
 
-/**
- * Ward level — break down by polling station.
- */
+// ═══════════════════════════════════════════════════════════════════════════
+// Ward level — break down by polling station
+// ═══════════════════════════════════════════════════════════════════════════
+
 export async function getDrillDownWard(
   electionId: string,
   positionId: string,
   wardId: string,
 ): Promise<DrillDownResult> {
   try {
-    const position = await prisma.electionPosition.findUniqueOrThrow({
-      where: { id: positionId },
-      select: { id: true, title: true, type: true, aggregationLevel: true },
-    })
-    const candidates = await getCandidatesForPosition(positionId)
-    const ward = await prisma.ward.findUniqueOrThrow({
-      where: { id: wardId },
-      include: {
-        constituency: {
-          include: { county: { select: { id: true, name: true } } },
+    const [position, candidates, ward] = await Promise.all([
+      prisma.electionPosition.findUniqueOrThrow({
+        where: { id: positionId },
+        select: { id: true, title: true, type: true, aggregationLevel: true },
+      }),
+      getCandidatesForPosition(positionId),
+      prisma.ward.findUniqueOrThrow({
+        where: { id: wardId },
+        include: {
+          constituency: {
+            include: { county: { select: { id: true, name: true } } },
+          },
         },
-      },
-    })
+      }),
+    ]);
 
+    // Stations + stream counts in one query via include
     const stations = await prisma.pollingStation.findMany({
       where: { wardId, deletedAt: null },
       orderBy: { name: "asc" },
-      include: {
-        streams: {
-          where: { isActive: true },
-          select: { id: true },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        streams: { where: { isActive: true }, select: { id: true } },
+      },
+    });
+    const stationIds = stations.map((s) => s.id);
+
+    const [streamResults, voteRows] = await Promise.all([
+      prisma.streamResult.findMany({
+        where: {
+          positionId,
+          status: { in: ["SUBMITTED", "VERIFIED"] },
+          stream: { pollingStationId: { in: stationIds } },
         },
-      },
-    })
+        select: {
+          totalVotes: true,
+          rejectedVotes: true,
+          stream: { select: { pollingStationId: true } },
+        },
+      }),
+      prisma.streamCandidateVote.findMany({
+        where: {
+          streamResult: {
+            positionId,
+            status: { in: ["SUBMITTED", "VERIFIED"] },
+            stream: { pollingStationId: { in: stationIds } },
+          },
+        },
+        select: {
+          candidateId: true,
+          votes: true,
+          streamResult: {
+            select: { stream: { select: { pollingStationId: true } } },
+          },
+        },
+      }),
+    ]);
 
-    const stationIds = stations.map((s) => s.id)
+    const totalStreams = stations.reduce((s, st) => s + st.streams.length, 0);
 
-    const streamResults = await prisma.streamResult.findMany({
-      where: {
-        positionId,
-        status: { in: ["SUBMITTED", "VERIFIED"] },
-        stream: { pollingStationId: { in: stationIds } },
-      },
-      include: {
-        votes: { select: { candidateId: true, votes: true } },
-        stream: { select: { pollingStationId: true } },
-      },
-    })
-
-    const totalStreams = stations.reduce((s, st) => s + st.streams.length, 0)
-
-    const byStation = new Map<string, typeof streamResults>()
+    const votesByStation = new Map<string, typeof voteRows>();
+    const resultsByStation = new Map<string, typeof streamResults>();
     for (const sr of streamResults) {
-      const sId = sr.stream.pollingStationId
-      const arr = byStation.get(sId) ?? []
-      arr.push(sr)
-      byStation.set(sId, arr)
+      const sId = sr.stream.pollingStationId;
+      const arr = resultsByStation.get(sId) ?? [];
+      arr.push(sr);
+      resultsByStation.set(sId, arr);
+    }
+    for (const v of voteRows) {
+      const sId = v.streamResult.stream.pollingStationId;
+      const arr = votesByStation.get(sId) ?? [];
+      arr.push(v);
+      votesByStation.set(sId, arr);
     }
 
-    const overall = aggregateVotes(streamResults)
+    const overallVoteMap = new Map<string, number>();
+    for (const v of voteRows)
+      overallVoteMap.set(
+        v.candidateId,
+        (overallVoteMap.get(v.candidateId) ?? 0) + v.votes,
+      );
+    let overallTotal = 0,
+      overallRejected = 0;
+    for (const sr of streamResults) {
+      overallTotal += sr.totalVotes ?? 0;
+      overallRejected += sr.rejectedVotes ?? 0;
+    }
 
     const children: ChildResult[] = stations.map((station) => {
-      const stResults = byStation.get(station.id) ?? []
-      const agg = aggregateVotes(stResults)
+      const sVotes = votesByStation.get(station.id) ?? [];
+      const sResults = resultsByStation.get(station.id) ?? [];
+      const sMap = new Map<string, number>();
+      for (const v of sVotes)
+        sMap.set(v.candidateId, (sMap.get(v.candidateId) ?? 0) + v.votes);
+      let sTotal = 0,
+        sRejected = 0;
+      for (const r of sResults) {
+        sTotal += r.totalVotes ?? 0;
+        sRejected += r.rejectedVotes ?? 0;
+      }
       return {
         entityId: station.id,
         entityName: station.name,
         entityCode: station.code,
-        totalVotes: agg.totalVotes,
-        rejectedVotes: agg.rejectedVotes,
-        reportedStreams: stResults.length,
+        totalVotes: sTotal,
+        rejectedVotes: sRejected,
+        reportedStreams: sResults.length,
         totalStreams: station.streams.length,
-        candidates: candidates.map((c) => ({
-          candidateId: c.id, name: c.name, party: c.party,
-          votes: agg.candidateMap.get(c.id) ?? 0,
-        })).sort((a, b) => b.votes - a.votes),
-      }
+        candidates: buildCandidateSummaries(candidates, sMap),
+      };
     })
 
     return {
@@ -546,94 +778,142 @@ export async function getDrillDownWard(
       parentName: ward.name,
       breadcrumb: [
         { id: "national", name: "National", level: "NATIONAL" },
-        { id: ward.constituency.county.id, name: ward.constituency.county.name, level: "COUNTY" },
-        { id: ward.constituency.id, name: ward.constituency.name, level: "CONSTITUENCY" },
+        {
+          id: ward.constituency.county.id,
+          name: ward.constituency.county.name,
+          level: "COUNTY",
+        },
+        {
+          id: ward.constituency.id,
+          name: ward.constituency.name,
+          level: "CONSTITUENCY",
+        },
         { id: wardId, name: ward.name, level: "WARD" },
       ],
-      totalVotes: overall.totalVotes,
-      rejectedVotes: overall.rejectedVotes,
+      totalVotes: overallTotal,
+      rejectedVotes: overallRejected,
       reportedStreams: streamResults.length,
       totalStreams,
-      candidates: candidates.map((c) => ({
-        candidateId: c.id, name: c.name, party: c.party,
-        votes: overall.candidateMap.get(c.id) ?? 0,
-      })).sort((a, b) => b.votes - a.votes),
+      candidates: buildCandidateSummaries(candidates, overallVoteMap),
       children,
-    }
+    };
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
 }
 
-/**
- * Polling station level — break down by stream (leaf level).
- */
+// ═══════════════════════════════════════════════════════════════════════════
+// Polling station level — break down by stream (leaf)
+// ═══════════════════════════════════════════════════════════════════════════
+
 export async function getDrillDownStation(
   electionId: string,
   positionId: string,
   stationId: string,
 ): Promise<DrillDownResult> {
   try {
-    const position = await prisma.electionPosition.findUniqueOrThrow({
-      where: { id: positionId },
-      select: { id: true, title: true, type: true, aggregationLevel: true },
-    })
-    const candidates = await getCandidatesForPosition(positionId)
-    const station = await prisma.pollingStation.findUniqueOrThrow({
-      where: { id: stationId },
-      include: {
-        wardRef: {
-          include: {
-            constituency: {
-              include: { county: { select: { id: true, name: true } } },
+    const [position, candidates, station] = await Promise.all([
+      prisma.electionPosition.findUniqueOrThrow({
+        where: { id: positionId },
+        select: { id: true, title: true, type: true, aggregationLevel: true },
+      }),
+      getCandidatesForPosition(positionId),
+      prisma.pollingStation.findUniqueOrThrow({
+        where: { id: stationId },
+        include: {
+          wardRef: {
+            include: {
+              constituency: {
+                include: { county: { select: { id: true, name: true } } },
+              },
             },
           },
         },
-      },
-    })
+      }),
+    ]);
 
     const streams = await prisma.stream.findMany({
       where: { pollingStationId: stationId, isActive: true },
       orderBy: { name: "asc" },
-    })
+      select: { id: true, name: true, code: true },
+    });
 
-    const streamResults = await prisma.streamResult.findMany({
-      where: {
-        positionId,
-        status: { in: ["SUBMITTED", "VERIFIED"] },
-        streamId: { in: streams.map((s) => s.id) },
-      },
-      include: {
-        votes: { select: { candidateId: true, votes: true } },
-        stream: { select: { id: true } },
-      },
-    })
+    const streamIds = streams.map((s) => s.id);
 
-    const byStream = new Map<string, typeof streamResults>()
+    const [streamResults, voteRows] = await Promise.all([
+      prisma.streamResult.findMany({
+        where: {
+          positionId,
+          status: { in: ["SUBMITTED", "VERIFIED"] },
+          streamId: { in: streamIds },
+        },
+        select: { totalVotes: true, rejectedVotes: true, streamId: true },
+      }),
+      prisma.streamCandidateVote.findMany({
+        where: {
+          streamResult: {
+            positionId,
+            status: { in: ["SUBMITTED", "VERIFIED"] },
+            streamId: { in: streamIds },
+          },
+        },
+        select: {
+          candidateId: true,
+          votes: true,
+          streamResult: { select: { streamId: true } },
+        },
+      }),
+    ]);
+
+    const votesByStream = new Map<string, typeof voteRows>();
+    const resultsByStream = new Map<string, typeof streamResults>();
     for (const sr of streamResults) {
-      const arr = byStream.get(sr.stream.id) ?? []
-      arr.push(sr)
-      byStream.set(sr.stream.id, arr)
+      const arr = resultsByStream.get(sr.streamId) ?? [];
+      arr.push(sr);
+      resultsByStream.set(sr.streamId, arr);
+    }
+    for (const v of voteRows) {
+      const sId = v.streamResult.streamId;
+      const arr = votesByStream.get(sId) ?? [];
+      arr.push(v);
+      votesByStream.set(sId, arr);
     }
 
-    const overall = aggregateVotes(streamResults)
+    const overallVoteMap = new Map<string, number>();
+    for (const v of voteRows)
+      overallVoteMap.set(
+        v.candidateId,
+        (overallVoteMap.get(v.candidateId) ?? 0) + v.votes,
+      );
+    let overallTotal = 0,
+      overallRejected = 0;
+    for (const sr of streamResults) {
+      overallTotal += sr.totalVotes ?? 0;
+      overallRejected += sr.rejectedVotes ?? 0;
+    }
 
     const children: ChildResult[] = streams.map((stream) => {
-      const stResults = byStream.get(stream.id) ?? []
-      const agg = aggregateVotes(stResults)
+      const sVotes = votesByStream.get(stream.id) ?? [];
+      const sResults = resultsByStream.get(stream.id) ?? [];
+      const sMap = new Map<string, number>();
+      for (const v of sVotes)
+        sMap.set(v.candidateId, (sMap.get(v.candidateId) ?? 0) + v.votes);
+      let sTotal = 0,
+        sRejected = 0;
+      for (const r of sResults) {
+        sTotal += r.totalVotes ?? 0;
+        sRejected += r.rejectedVotes ?? 0;
+      }
       return {
         entityId: stream.id,
         entityName: stream.name,
         entityCode: stream.code,
-        totalVotes: agg.totalVotes,
-        rejectedVotes: agg.rejectedVotes,
-        reportedStreams: stResults.length,
+        totalVotes: sTotal,
+        rejectedVotes: sRejected,
+        reportedStreams: sResults.length,
         totalStreams: 1,
-        candidates: candidates.map((c) => ({
-          candidateId: c.id, name: c.name, party: c.party,
-          votes: agg.candidateMap.get(c.id) ?? 0,
-        })).sort((a, b) => b.votes - a.votes),
-      }
+        candidates: buildCandidateSummaries(candidates, sMap),
+      };
     })
 
     return {
@@ -646,21 +926,26 @@ export async function getDrillDownStation(
       parentName: station.name,
       breadcrumb: [
         { id: "national", name: "National", level: "NATIONAL" },
-        { id: station.wardRef.constituency.county.id, name: station.wardRef.constituency.county.name, level: "COUNTY" },
-        { id: station.wardRef.constituency.id, name: station.wardRef.constituency.name, level: "CONSTITUENCY" },
+        {
+          id: station.wardRef.constituency.county.id,
+          name: station.wardRef.constituency.county.name,
+          level: "COUNTY",
+        },
+        {
+          id: station.wardRef.constituency.id,
+          name: station.wardRef.constituency.name,
+          level: "CONSTITUENCY",
+        },
         { id: station.wardRef.id, name: station.wardRef.name, level: "WARD" },
         { id: stationId, name: station.name, level: "STATION" },
       ],
-      totalVotes: overall.totalVotes,
-      rejectedVotes: overall.rejectedVotes,
+      totalVotes: overallTotal,
+      rejectedVotes: overallRejected,
       reportedStreams: streamResults.length,
       totalStreams: streams.length,
-      candidates: candidates.map((c) => ({
-        candidateId: c.id, name: c.name, party: c.party,
-        votes: overall.candidateMap.get(c.id) ?? 0,
-      })).sort((a, b) => b.votes - a.votes),
+      candidates: buildCandidateSummaries(candidates, overallVoteMap),
       children,
-    }
+    };
   } catch (error) {
     throw new Error(handleReturnError(error))
   }

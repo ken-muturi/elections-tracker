@@ -65,6 +65,13 @@ export const adminItems: NavItem[] = [
         icon: FiUsers,
         href: "/elections/agents",
       },
+      {
+        label: "Enter Results",
+        abbreviation: "enter-results",
+        type: "link",
+        icon: MdHowToVote,
+        href: "/enter-results",
+      },
     ],
   },
   {

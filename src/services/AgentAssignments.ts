@@ -80,3 +80,71 @@ export const getStreamResultsForStream = async (streamId: string) => {
     throw new Error(handleReturnError(error))
   }
 }
+
+/**
+ * Get all active elections (admin only — no agent assignment filter).
+ */
+export const getActiveElections = async () => {
+  try {
+    return await prisma.election.findMany({
+      where: { isActive: true },
+      select: { id: true, title: true, year: true, electionDate: true, isActive: true },
+      orderBy: { electionDate: "desc" },
+    })
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+/**
+ * Search/browse streams for a given election (admin only).
+ * Returns streams matching the optional search query, limited to 50.
+ */
+export const searchElectionStreams = async (
+  electionId: string,
+  searchQuery?: string,
+) => {
+  try {
+    const where: Record<string, unknown> = {
+      isActive: true,
+      pollingStation: {
+        deletedAt: null,
+        wardRef: { electionId },
+      },
+    }
+
+    if (searchQuery && searchQuery.trim().length > 0) {
+      const q = searchQuery.trim()
+      where.OR = [
+        { name: { contains: q, mode: "insensitive" } },
+        { code: { contains: q, mode: "insensitive" } },
+        { pollingStation: { name: { contains: q, mode: "insensitive" } } },
+        { pollingStation: { code: { contains: q, mode: "insensitive" } } },
+        { pollingStation: { county: { contains: q, mode: "insensitive" } } },
+        { pollingStation: { constituency: { contains: q, mode: "insensitive" } } },
+        { pollingStation: { ward: { contains: q, mode: "insensitive" } } },
+      ]
+    }
+
+    const streams = await prisma.stream.findMany({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      where: where as any,
+      take: 50,
+      orderBy: [{ pollingStation: { name: "asc" } }, { name: "asc" }],
+      select: {
+        id: true, name: true, code: true, registeredVoters: true,
+        pollingStation: {
+          select: {
+            id: true, name: true, code: true,
+            county: true, constituency: true, ward: true,
+            registeredVoters: true,
+          },
+        },
+      },
+    })
+
+    return streams
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}

@@ -241,144 +241,194 @@ export const computeAggregateFromStreams = async (
  * Full election results view — candidate totals at each position's natural level.
  * MCA per ward, MP per constituency, etc.
  * This is the main public results endpoint.
+ *
+ * PERF: Uses SQL-level aggregation (groupBy / _sum / _count) instead of
+ * loading every StreamResult + votes row into Node.js memory.
+ * Old approach: O(streams × candidates) rows transferred.
+ * New approach: O(positions + candidates) rows — orders of magnitude less.
  */
 export const getElectionResults = async (electionId: string) => {
   try {
-    // Fetch all geographic lookup tables in parallel
+    // 1. Light metadata: positions + candidates (small)
+    // 2. SQL-level aggregation: stream vote totals grouped by candidate
+    // 3. SQL-level aggregation: stream-result stats (count, sum) per position
+    // 4. Level results — already small, kept as-is
+
     const [counties, constituencies, wards, positions] = await Promise.all([
       prisma.county.findMany({ select: { id: true, name: true } }),
       prisma.constituency.findMany({ select: { id: true, name: true } }),
-      prisma.ward.findMany({ where: { electionId }, select: { id: true, name: true } }),
+      prisma.ward.findMany({
+        where: { electionId },
+        select: { id: true, name: true },
+      }),
       prisma.electionPosition.findMany({
         where: { electionId },
         include: {
           candidates: { orderBy: { sortOrder: "asc" } },
           levelResults: {
             where: { status: { in: ["SUBMITTED", "VERIFIED"] } },
-            include: { votes: { include: { candidate: true } } },
-          },
-          streamResults: {
-            where: { status: { in: ["SUBMITTED", "VERIFIED"] } },
-            include: {
-              votes: true,
-              stream: {
-                include: {
-                  pollingStation: {
-                    select: { county: true, constituency: true, ward: true, wardId: true },
-                  },
-                },
-              },
-            },
+            include: { votes: true },
           },
         },
       }),
-    ])
+    ]);
 
-    const countyNameById = new Map(counties.map((c) => [c.id, c.name]))
-    const constituencyNameById = new Map(constituencies.map((c) => [c.id, c.name]))
-    const wardNameById = new Map(wards.map((w) => [w.id, w.name]))
+    const positionIds = positions.map((p) => p.id);
+
+    // ── SQL aggregation: vote totals per candidate ───────────────────────
+    // One query replaces loading ALL StreamResult + StreamCandidateVote rows.
+    const [candidateVoteTotals, streamStats] = await Promise.all([
+      prisma.streamCandidateVote.groupBy({
+        by: ["candidateId"],
+        where: {
+          streamResult: {
+            positionId: { in: positionIds },
+            status: { in: ["SUBMITTED", "VERIFIED"] },
+          },
+        },
+        _sum: { votes: true },
+      }),
+      // ── SQL aggregation: stream stats per position ─────────────────────
+      prisma.streamResult.groupBy({
+        by: ["positionId"],
+        where: {
+          positionId: { in: positionIds },
+          status: { in: ["SUBMITTED", "VERIFIED"] },
+        },
+        _count: { id: true },
+        _sum: { totalVotes: true, rejectedVotes: true },
+      }),
+    ]);
+
+    // Build fast lookup maps
+    const candidateVoteMap = new Map(
+      candidateVoteTotals.map((r) => [r.candidateId, r._sum.votes ?? 0]),
+    );
+    const streamStatMap = new Map(
+      streamStats.map((r) => [
+        r.positionId,
+        {
+          totalReported: r._count.id,
+          totalVotes: r._sum.totalVotes ?? 0,
+          rejectedVotes: r._sum.rejectedVotes ?? 0,
+        },
+      ]),
+    );
+
+    const countyNameById = new Map(counties.map((c) => [c.id, c.name]));
+    const constituencyNameById = new Map(
+      constituencies.map((c) => [c.id, c.name]),
+    );
+    const wardNameById = new Map(wards.map((w) => [w.id, w.name]));
 
     return positions.map((position) => {
-      const level = position.aggregationLevel
-
-      // ── Stream aggregation ─────────────────────────────────────────────────
-      // streamAgg: candidateId → total stream votes
-      const streamAgg = new Map<string, number>()
-      let streamTotal = 0
-      let streamRejected = 0
-
-      for (const sr of position.streamResults) {
-        streamTotal += sr.totalVotes ?? 0
-        streamRejected += sr.rejectedVotes ?? 0
-        for (const v of sr.votes) {
-          streamAgg.set(v.candidateId, (streamAgg.get(v.candidateId) ?? 0) + v.votes)
-        }
-      }
+      const level = position.aggregationLevel;
 
       // ── Level votes lookup: candidateId → total level votes ───────────────
-      const levelAgg = new Map<string, number>()
+      const levelAgg = new Map<string, number>();
       for (const lr of position.levelResults) {
         for (const v of lr.votes) {
-          levelAgg.set(v.candidateId, (levelAgg.get(v.candidateId) ?? 0) + v.votes)
+          levelAgg.set(
+            v.candidateId,
+            (levelAgg.get(v.candidateId) ?? 0) + v.votes,
+          );
         }
       }
 
       // ── Level result totals lookup: entityId → { totalVotes, rejectedVotes }
-      const levelTotals = new Map<string, { totalVotes: number; rejectedVotes: number }>()
+      const levelTotals = new Map<
+        string,
+        { totalVotes: number; rejectedVotes: number }
+      >();
       for (const lr of position.levelResults) {
-        const key = lr.entityId
-        const existing = levelTotals.get(key) ?? { totalVotes: 0, rejectedVotes: 0 }
+        const key = lr.entityId;
+        const existing = levelTotals.get(key) ?? {
+          totalVotes: 0,
+          rejectedVotes: 0,
+        };
         levelTotals.set(key, {
           totalVotes: existing.totalVotes + (lr.totalVotes ?? 0),
           rejectedVotes: existing.rejectedVotes + (lr.rejectedVotes ?? 0),
-        })
+        });
       }
 
       // ── Helper: resolve entity name from its id ───────────────────────────
       const resolveEntityName = (entityId: string | null): string => {
-        if (level === "NATIONAL" || entityId === null) return "National"
-        if (level === "COUNTY") return countyNameById.get(entityId) ?? entityId
-        if (level === "CONSTITUENCY") return constituencyNameById.get(entityId) ?? entityId
-        if (level === "WARD") return wardNameById.get(entityId) ?? entityId
-        return entityId
-      }
+        if (level === "NATIONAL" || entityId === null) return "National";
+        if (level === "COUNTY") return countyNameById.get(entityId) ?? entityId;
+        if (level === "CONSTITUENCY")
+          return constituencyNameById.get(entityId) ?? entityId;
+        if (level === "WARD") return wardNameById.get(entityId) ?? entityId;
+        return entityId;
+      };
 
       // ── Group candidates by entityId ──────────────────────────────────────
-      // For NATIONAL positions all candidates share a single synthetic entity.
       const entityMap = new Map<
         string,
         {
-          entityId: string
-          entityName: string
+          entityId: string;
+          entityName: string;
           candidates: {
-            id: string
-            name: string
-            party: string | null
-            streamVotes: number
-            levelVotes: number
-          }[]
+            id: string;
+            name: string;
+            party: string | null;
+            streamVotes: number;
+            levelVotes: number;
+          }[];
         }
-      >()
+      >();
 
       for (const c of position.candidates) {
-        const rawEntityId = level === "NATIONAL" ? "national" : (c.entityId ?? "national")
-        const entityName = resolveEntityName(rawEntityId === "national" ? null : rawEntityId)
+        const rawEntityId =
+          level === "NATIONAL" ? "national" : (c.entityId ?? "national");
+        const entityName = resolveEntityName(
+          rawEntityId === "national" ? null : rawEntityId,
+        );
 
         if (!entityMap.has(rawEntityId)) {
           entityMap.set(rawEntityId, {
             entityId: rawEntityId,
             entityName,
             candidates: [],
-          })
+          });
         }
 
         entityMap.get(rawEntityId)!.candidates.push({
           id: c.id,
           name: c.name,
           party: c.party,
-          streamVotes: streamAgg.get(c.id) ?? 0,
+          streamVotes: candidateVoteMap.get(c.id) ?? 0,
           levelVotes: levelAgg.get(c.id) ?? 0,
-        })
+        });
       }
 
       // ── Sort candidates within each entity by streamVotes desc ────────────
       for (const entity of entityMap.values()) {
-        entity.candidates.sort((a, b) => b.streamVotes - a.streamVotes)
+        entity.candidates.sort((a, b) => b.streamVotes - a.streamVotes);
       }
 
       // ── Build final entities array sorted alphabetically by name ──────────
       const entities = Array.from(entityMap.values())
         .map((entity) => {
-          const totals = levelTotals.get(entity.entityId) ?? { totalVotes: 0, rejectedVotes: 0 }
+          const totals = levelTotals.get(entity.entityId) ?? {
+            totalVotes: 0,
+            rejectedVotes: 0,
+          };
           return {
             entityId: entity.entityId,
             entityName: entity.entityName,
             candidates: entity.candidates,
             totalVotes: totals.totalVotes,
             rejectedVotes: totals.rejectedVotes,
-          }
+          };
         })
-        .sort((a, b) => a.entityName.localeCompare(b.entityName))
+        .sort((a, b) => a.entityName.localeCompare(b.entityName));
+
+      const stats = streamStatMap.get(position.id) ?? {
+        totalReported: 0,
+        totalVotes: 0,
+        rejectedVotes: 0,
+      };
 
       return {
         positionId: position.id,
@@ -386,14 +436,10 @@ export const getElectionResults = async (electionId: string) => {
         positionTitle: position.title,
         aggregationLevel: level,
         entities,
-        streamStats: {
-          totalReported: position.streamResults.length,
-          totalVotes: streamTotal,
-          rejectedVotes: streamRejected,
-        },
+        streamStats: stats,
         levelValidations: position.levelResults.length,
-      }
-    })
+      };
+    });
   } catch (error) {
     throw new Error(handleReturnError(error))
   }

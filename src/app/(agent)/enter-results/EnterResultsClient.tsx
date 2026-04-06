@@ -1,15 +1,16 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useCallback } from "react"
 import {
   Box, Text, VStack, HStack, Flex, SimpleGrid, Input,
 } from "@chakra-ui/react"
 import {
   FiMapPin, FiChevronRight, FiCheck, FiClock, FiAlertCircle,
-  FiCheckCircle, FiArrowLeft, FiSend, FiSave, FiX,
+  FiCheckCircle, FiArrowLeft, FiSend, FiSave, FiX, FiSearch,
 } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 import { upsertStreamResult, submitStreamResult } from "@/services/StreamResults"
+import { searchElectionStreams, getStreamResultsForStream } from "@/services/AgentAssignments"
 
 /* ── Types ─────────────────────────────────────────────────────── */
 
@@ -101,8 +102,10 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function EnterResultsClient({
   electionData,
+  isAdmin = false,
 }: {
   electionData: ElectionData[]
+  isAdmin?: boolean
 }) {
   // Navigation state: election → stream → position
   const [selectedElection, setSelectedElection] = useState<string | null>(
@@ -119,6 +122,18 @@ export default function EnterResultsClient({
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
+  // Admin: dynamic stream search
+  const [adminSearchQuery, setAdminSearchQuery] = useState("")
+  const [adminStreams, setAdminStreams] = useState<Array<{
+    id: string; name: string; code: string; registeredVoters: number | null
+    pollingStation: { id: string; name: string; code: string; county: string; constituency: string; ward: string; registeredVoters: number | null }
+  }>>([])
+  const [adminSearching, setAdminSearching] = useState(false)
+  const [adminSearched, setAdminSearched] = useState(false)
+
+  // The active admin-selected stream (full object for display)
+  const [adminActiveStream, setAdminActiveStream] = useState<typeof adminStreams[0] | null>(null)
+
   // Local results cache (updated after save)
   const [resultsCache, setResultsCache] = useState<Record<string, StreamResult[]>>(() => {
     const cache: Record<string, StreamResult[]> = {}
@@ -131,9 +146,48 @@ export default function EnterResultsClient({
   })
 
   const activeElection = electionData.find((e) => e.election.id === selectedElection)
-  const activeStream = activeElection?.streams.find((s) => s.stream.id === selectedStream)
+  const activeStream = isAdmin
+    ? (adminActiveStream ? { id: "admin", stream: adminActiveStream } as Stream : undefined)
+    : activeElection?.streams.find((s) => s.stream.id === selectedStream)
   const activePosition = activeElection?.positions.find((p) => p.id === selectedPosition)
   const streamResults = selectedStream ? (resultsCache[selectedStream] ?? []) : []
+
+  /* ── Admin: search streams ───────────────────────────────── */
+
+  const handleAdminSearch = useCallback(async (query: string) => {
+    if (!selectedElection) return
+    setAdminSearchQuery(query)
+    if (query.trim().length < 2) {
+      setAdminStreams([])
+      setAdminSearched(false)
+      return
+    }
+    setAdminSearching(true)
+    try {
+      const results = await searchElectionStreams(selectedElection, query)
+      setAdminStreams(results)
+      setAdminSearched(true)
+    } catch {
+      setAdminStreams([])
+    } finally {
+      setAdminSearching(false)
+    }
+  }, [selectedElection])
+
+  const handleAdminSelectStream = useCallback(async (stream: typeof adminStreams[0]) => {
+    setAdminActiveStream(stream)
+    setSelectedStream(stream.id)
+    // Lazy-load existing results for this stream
+    try {
+      const results = await getStreamResultsForStream(stream.id)
+      setResultsCache((prev) => ({
+        ...prev,
+        [stream.id]: results as unknown as StreamResult[],
+      }))
+    } catch {
+      // No results yet — fine
+    }
+  }, [])
 
   /* ── Entering a position form ────────────────────────────── */
 
@@ -250,7 +304,7 @@ export default function EnterResultsClient({
               <VStack alignItems="flex-start" gap={1}>
                 <Text fontWeight="700" fontSize="md" color="gray.900">{e.election.title}</Text>
                 <Text fontSize="sm" color="gray.500">
-                  {e.election.year} · {e.streams.length} stream{e.streams.length !== 1 ? "s" : ""} assigned
+                  {e.election.year}{!isAdmin && ` · ${e.streams.length} stream${e.streams.length !== 1 ? "s" : ""} assigned`}
                 </Text>
               </VStack>
               <FiChevronRight color="#94a3b8" />
@@ -264,6 +318,131 @@ export default function EnterResultsClient({
   /* ── Step 2: Stream selection ────────────────────────────── */
 
   if (!selectedStream && activeElection) {
+
+    // ── Admin: search-based stream picker ──
+    if (isAdmin) {
+      // Debounced search handler
+      let searchTimeout: ReturnType<typeof setTimeout> | null = null
+      const onSearchChange = (value: string) => {
+        setAdminSearchQuery(value)
+        if (searchTimeout) clearTimeout(searchTimeout)
+        searchTimeout = setTimeout(() => handleAdminSearch(value), 400)
+      }
+
+      return (
+        <VStack gap={4} alignItems="stretch">
+          <HStack gap={2}>
+            <Box as="button" onClick={() => { setSelectedElection(null); setAdminStreams([]); setAdminSearchQuery(""); setAdminSearched(false) }} cursor="pointer" _hover={{ color: "gray.900" }} color="gray.400" transition="color 0.15s">
+              <FiArrowLeft />
+            </Box>
+            <VStack alignItems="flex-start" gap={0}>
+              <Text fontSize="sm" fontWeight="600" color="gray.500" textTransform="uppercase" letterSpacing="wide">
+                {activeElection.election.title}
+              </Text>
+              <Text fontSize="xs" color="gray.400">Search for a polling station or stream</Text>
+            </VStack>
+          </HStack>
+
+          {/* Search input */}
+          <Box position="relative">
+            <Box position="absolute" left={3} top="50%" transform="translateY(-50%)" zIndex={1} color="gray.400">
+              <FiSearch fontSize="0.9rem" />
+            </Box>
+            <Input
+              placeholder="Search by station name, stream, county, constituency, ward…"
+              value={adminSearchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+              pl={9} fontSize="sm" borderColor="gray.200" borderRadius="xl"
+              bg="white" _hover={{ borderColor: "gray.300" }}
+              _focus={{ borderColor: "#0ea5e9", boxShadow: "0 0 0 1px #0ea5e9" }}
+            />
+          </Box>
+
+          {adminSearching && (
+            <Text fontSize="sm" color="gray.400" textAlign="center" py={4}>Searching…</Text>
+          )}
+
+          {!adminSearching && adminSearched && adminStreams.length === 0 && (
+            <VStack gap={2} py={8}>
+              <FiSearch fontSize="1.5rem" color="#94a3b8" />
+              <Text fontSize="sm" color="gray.500">No streams found. Try a different search term.</Text>
+            </VStack>
+          )}
+
+          {!adminSearching && !adminSearched && (
+            <VStack gap={2} py={8}>
+              <FiSearch fontSize="1.5rem" color="#cbd5e1" />
+              <Text fontSize="sm" color="gray.400">
+                Type at least 2 characters to search for a stream
+              </Text>
+            </VStack>
+          )}
+
+          {adminStreams.map((stream) => {
+            const ps = stream.pollingStation
+            const results = resultsCache[stream.id] ?? []
+            const totalPositions = activeElection.positions.length
+            const completedPositions = results.filter(
+              (r) => r.status === "SUBMITTED" || r.status === "VERIFIED"
+            ).length
+
+            return (
+              <Box
+                key={stream.id}
+                as="button"
+                onClick={() => handleAdminSelectStream(stream)}
+                bg="white" borderRadius="xl" borderWidth="1px" borderColor="gray.100"
+                boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)" p={5} textAlign="left"
+                _hover={{ borderColor: "#0ea5e9", boxShadow: "0 0 0 1px #0ea5e9" }}
+                transition="all 0.15s" cursor="pointer"
+              >
+                <HStack justify="space-between" align="flex-start">
+                  <VStack alignItems="flex-start" gap={2}>
+                    <VStack alignItems="flex-start" gap={0.5}>
+                      <Text fontWeight="700" fontSize="md" color="gray.900">
+                        {ps.name} — {stream.name}
+                      </Text>
+                      <HStack gap={1.5} flexWrap="wrap">
+                        <HStack gap={1}>
+                          <FiMapPin fontSize="0.7rem" color="#94a3b8" />
+                          <Text fontSize="xs" color="gray.400">{ps.county}</Text>
+                        </HStack>
+                        <Text fontSize="xs" color="gray.300">›</Text>
+                        <Text fontSize="xs" color="gray.400">{ps.constituency}</Text>
+                        <Text fontSize="xs" color="gray.300">›</Text>
+                        <Text fontSize="xs" color="gray.400">{ps.ward}</Text>
+                      </HStack>
+                    </VStack>
+                    <HStack gap={3}>
+                      <HStack gap={1}>
+                        <FiCheck fontSize="0.75rem" color={completedPositions === totalPositions && totalPositions > 0 ? "#16a34a" : "#94a3b8"} />
+                        <Text fontSize="xs" color={completedPositions === totalPositions && totalPositions > 0 ? "#16a34a" : "gray.500"} fontWeight="600">
+                          {completedPositions}/{totalPositions} positions
+                        </Text>
+                      </HStack>
+                      {stream.registeredVoters && (
+                        <Text fontSize="xs" color="gray.400">
+                          {stream.registeredVoters.toLocaleString()} voters
+                        </Text>
+                      )}
+                    </HStack>
+                  </VStack>
+                  <FiChevronRight color="#94a3b8" />
+                </HStack>
+              </Box>
+            )
+          })}
+
+          {adminStreams.length >= 50 && (
+            <Text fontSize="xs" color="gray.400" textAlign="center">
+              Showing first 50 results. Refine your search for more specific results.
+            </Text>
+          )}
+        </VStack>
+      )
+    }
+
+    // ── Agent: assignment-based stream list ──
     const streams = activeElection.streams
     return (
       <VStack gap={4} alignItems="stretch">
@@ -346,7 +525,7 @@ export default function EnterResultsClient({
     return (
       <VStack gap={4} alignItems="stretch">
         <HStack gap={2}>
-          <Box as="button" onClick={() => setSelectedStream(null)} cursor="pointer" _hover={{ color: "gray.900" }} color="gray.400" transition="color 0.15s">
+          <Box as="button" onClick={() => { setSelectedStream(null); setAdminActiveStream(null) }} cursor="pointer" _hover={{ color: "gray.900" }} color="gray.400" transition="color 0.15s">
             <FiArrowLeft />
           </Box>
           <VStack alignItems="flex-start" gap={0}>

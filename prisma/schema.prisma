@@ -136,6 +136,7 @@ model Constituency {
   county County @relation(fields: [countyId], references: [id])
   wards  Ward[]
 
+  @@index([countyId])
   @@map("constituencies")
 }
 
@@ -163,6 +164,8 @@ model Ward {
   constituency    Constituency     @relation(fields: [constituencyId], references: [id])
   pollingStations PollingStation[]
 
+  @@index([constituencyId])
+  @@index([electionId])
   @@unique([electionId, code])
   @@map("wards")
 }
@@ -192,6 +195,7 @@ model PollingStation {
   wardRef Ward     @relation(fields: [wardId], references: [id], onDelete: Cascade)
   streams Stream[]
 
+  @@index([wardId])
   @@unique([wardId, code])
   @@map("polling_stations")
 }
@@ -210,6 +214,7 @@ model Stream {
   streamResults    StreamResult[]
   agentAssignments AgentStream[]
 
+  @@index([pollingStationId, isActive])
   @@unique([pollingStationId, code])
   @@map("streams")
 }
@@ -283,6 +288,7 @@ model ElectionPosition {
   levelResults  LevelResult[]
 
   /// One position type per election (case-insensitive enforced in service layer)
+  @@index([electionId])
   @@unique([electionId, type])
   @@map("election_positions")
 }
@@ -306,6 +312,7 @@ model Candidate {
   streamVotes StreamCandidateVote[]
   levelVotes  LevelCandidateVote[]
 
+  @@index([positionId])
   @@map("candidates")
 }
 
@@ -350,6 +357,8 @@ model StreamResult {
   agent    User             @relation("streamResultAgent", fields: [agentId], references: [id])
   votes    StreamCandidateVote[]
 
+  @@index([positionId, status])
+  @@index([streamId])
   @@unique([streamId, positionId])
   @@map("stream_results")
 }
@@ -363,6 +372,8 @@ model StreamCandidateVote {
   streamResult StreamResult @relation(fields: [streamResultId], references: [id], onDelete: Cascade)
   candidate    Candidate    @relation(fields: [candidateId], references: [id])
 
+  @@index([streamResultId])
+  @@index([candidateId])
   @@unique([streamResultId, candidateId])
   @@map("stream_candidate_votes")
 }
@@ -400,6 +411,7 @@ model LevelResult {
   validator User                @relation("levelResultValidator", fields: [validatorId], references: [id])
   votes     LevelCandidateVote[]
 
+  @@index([positionId, status])
   @@unique([positionId, level, entityId])
   @@map("level_results")
 }
