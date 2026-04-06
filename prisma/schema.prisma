@@ -11,6 +11,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth / Users / Roles
+// ─────────────────────────────────────────────────────────────────────────────
+
 model Role {
   id          String    @id @default(cuid()) @db.VarChar(50)
   title       String    @db.VarChar(50)
@@ -19,8 +23,7 @@ model Role {
   updatedAt   DateTime? @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  users       User[]       @relation("userRole")
-  permissions Permission[] @relation("rolePermission")
+  users User[] @relation("userRole")
 
   @@map("roles")
 }
@@ -36,7 +39,8 @@ model Account {
   accessTokenExpires DateTime? @map("access_token_expires")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
-  user               User      @relation(fields: [userId], references: [id])
+
+  user User @relation(fields: [userId], references: [id])
 
   @@unique([providerId, providerAccountId])
   @@map("accounts")
@@ -50,7 +54,8 @@ model Session {
   accessToken  String   @unique @map("access_token")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
-  user         User     @relation(fields: [userId], references: [id])
+
+  user User @relation(fields: [userId], references: [id])
 
   @@map("sessions")
 }
@@ -76,52 +81,19 @@ model User {
   deletedAt         DateTime? @map("deleted_at")
   deletedBy         String?   @map("deleted_by") @db.VarChar(50)
 
-  role        Role      @relation("userRole", fields: [roleId], references: [id])
-  accounts    Account[]
-  noteCreator Note[]    @relation("noteCreator")
-  noteUpdater Note[]    @relation("noteUpdater")
-
-  questionnairePermissionCreator QuestionnairePermission[] @relation("questionnairePermissionCreator")
-  questionnairePermissionUpdater QuestionnairePermission[] @relation("questionnairePermissionUpdater")
-  questionnairePermissionDeleter QuestionnairePermission[] @relation("questionnairePermissionDeleter")
-
-  questionnairePermissions QuestionnairePermission[] @relation("questionnairePermissionUser")
-
-  permissionCreator Permission[] @relation("permissionCreator")
-  permissionUpdater Permission[] @relation("permissionUpdater")
-  permissionDeleter Permission[] @relation("permissionDeleter")
-
-  questionCreator Question[] @relation("questionCreator")
-  questionUpdater Question[] @relation("questionUpdater")
-  questionDeleter Question[] @relation("questionDeleter")
-
-  unitCreator Unit[] @relation("unitCreator")
-  unitUpdater Unit[] @relation("unitUpdater")
-  unitDeleter Unit[] @relation("unitDeleter")
-
-  sectionCreator Section[] @relation("sectionCreator")
-  sectionUpdater Section[] @relation("sectionUpdater")
-  sectionDeleter Section[] @relation("sectionDeleter")
-
-  questionnaireCreator Questionnaire[] @relation("questionnaireCreator")
-  questionnaireUpdater Questionnaire[] @relation("questionnaireUpdater")
-  questionnaireDeleter Questionnaire[] @relation("questionnaireDeleter")
-
-  tabCreator Tab[] @relation("tabCreator")
-  tabUpdater Tab[] @relation("tabUpdater")
-  tabDeleter Tab[] @relation("tabDeleter")
-
-  moduleCreator Module[] @relation("moduleCreator")
-  moduleUpdater Module[] @relation("moduleUpdater")
-  moduleDeleter Module[] @relation("moduleDeleter")
+  role     Role      @relation("userRole", fields: [roleId], references: [id])
+  accounts Account[]
+  sessions Session[]
 
   pollingStationCreator PollingStation[] @relation("pollingStationCreator")
   pollingStationUpdater PollingStation[] @relation("pollingStationUpdater")
   pollingStationDeleter PollingStation[] @relation("pollingStationDeleter")
 
-  submissions Submission[] @relation("submissionUser")
-
-  sessions Session[]
+  // Election system
+  electionsCreated Election[]     @relation("electionCreator")
+  streamResults    StreamResult[] @relation("streamResultAgent")
+  levelResults     LevelResult[]  @relation("levelResultValidator")
+  agentAssignments AgentStream[]  @relation("agentStreamUser")
 
   @@map("users")
 }
@@ -138,257 +110,73 @@ model VerificationRequest {
   @@map("verification_requests")
 }
 
-enum OrganizationStatus {
-  ACTIVE
-  DORMANT
-  SUSPENDED
-  PENDING
+// ─────────────────────────────────────────────────────────────────────────────
+// Geographic Hierarchy — PERMANENT (County → Constituency)
+//
+// Created once by a super-admin, never scoped to an election.
+// Constituency boundaries are legally defined and stable.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model County {
+  id   String @id @default(cuid()) @db.VarChar(50)
+  name String @db.VarChar(100)
+  code String @unique @db.VarChar(20)
+
+  constituencies Constituency[]
+
+  @@map("counties")
 }
 
-model File {
-  id       Int    @id @default(autoincrement())
-  filename String @db.VarChar(50)
-  filepath String @db.VarChar(50)
-  model    String @db.VarChar(50)
-  modelId  Int    @map("model_id")
-  field    String @db.VarChar(50)
+model Constituency {
+  id       String @id @default(cuid()) @db.VarChar(50)
+  countyId String @map("county_id") @db.VarChar(50)
+  name     String @db.VarChar(100)
+  code     String @unique @db.VarChar(20)
 
-  @@map("files")
+  county County @relation(fields: [countyId], references: [id])
+  wards  Ward[]
+
+  @@map("constituencies")
 }
 
-model Note {
-  id       String  @id @default(cuid()) @db.VarChar(50)
-  parentId String? @map("parent_id") @db.VarChar(50)
-  modelId  String  @map("model_id") @db.VarChar(50)
-  model    String  @db.VarChar(50)
-  note     String  @db.VarChar(255)
+// ─────────────────────────────────────────────────────────────────────────────
+// Geographic Hierarchy — NON-PERMANENT (Ward → PollingStation → Stream)
+//
+// These are configured fresh per election by the admin.
+// Ward boundaries can be redrawn; polling stations and streams change with
+// each election cycle's registered voter rolls.
+//
+// Uniqueness is election-scoped:
+//   Ward:           (electionId, code)
+//   PollingStation: (wardId, code)         — inherits election via ward
+//   Stream:         (pollingStationId, code) — inherits election via station
+// ─────────────────────────────────────────────────────────────────────────────
 
-  createdAt DateTime  @default(now()) @map("created_at")
-  createdBy String    @map("created_by") @db.VarChar(50)
-  updatedAt DateTime? @map("updated_at")
-  updatedBy String?   @map("updated_by") @db.VarChar(50)
-  deletedAt DateTime? @map("deleted_at")
-  deletedBy String?   @map("deleted_by") @db.VarChar(50)
+model Ward {
+  id             String @id @default(cuid()) @db.VarChar(50)
+  electionId     String @map("election_id") @db.VarChar(50)
+  constituencyId String @map("constituency_id") @db.VarChar(50)
+  name           String @db.VarChar(100)
+  code           String @db.VarChar(20)
 
-  creator User  @relation("noteCreator", fields: [createdBy], references: [id])
-  updater User? @relation("noteUpdater", fields: [updatedBy], references: [id])
+  election        Election         @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  constituency    Constituency     @relation(fields: [constituencyId], references: [id])
+  pollingStations PollingStation[]
 
-  @@map("notes")
-}
-
-model Module {
-  id          String    @id @default(cuid()) @db.VarChar(50)
-  title       String    @db.VarChar(50)
-  description String    @db.VarChar(50)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  createdBy   String    @map("created_by") @db.VarChar(50)
-  updatedAt   DateTime? @updatedAt @map("updated_at")
-  updatedBy   String?   @map("updated_by") @db.VarChar(50)
-  deletedAt   DateTime? @map("deleted_at")
-  deletedBy   String?   @map("deleted_by") @db.VarChar(50)
-
-  tabs        Tab[]        @relation("tabModule")
-  permissions Permission[] @relation("modulePermission")
-
-  creator User  @relation("moduleCreator", fields: [createdBy], references: [id])
-  updater User? @relation("moduleUpdater", fields: [updatedBy], references: [id])
-  deleter User? @relation("moduleDeleter", fields: [deletedBy], references: [id])
-
-  @@map("modules")
-}
-
-model Tab {
-  id          String    @id @default(cuid()) @db.VarChar(50)
-  moduleId    String    @map("module_id") @db.VarChar(50)
-  title       String    @db.VarChar(50)
-  description String    @db.VarChar(50)
-  createdAt   DateTime  @default(now()) @map("created_at")
-  createdBy   String    @map("created_by") @db.VarChar(50)
-  updatedAt   DateTime? @updatedAt @map("updated_at")
-  updatedBy   String?   @map("updated_by") @db.VarChar(50)
-  deletedAt   DateTime? @map("deleted_at")
-  deletedBy   String?   @map("deleted_by") @db.VarChar(50)
-
-  module      Module       @relation("tabModule", fields: [moduleId], references: [id])
-  permissions Permission[] @relation("tabPermission")
-
-  creator User  @relation("tabCreator", fields: [createdBy], references: [id])
-  updater User? @relation("tabUpdater", fields: [updatedBy], references: [id])
-  deleter User? @relation("tabDeleter", fields: [deletedBy], references: [id])
-
-  @@map("tabs")
-}
-
-model Permission {
-  roleId   String @map("role_id") @db.VarChar(50)
-  moduleId String @map("module_id") @db.VarChar(50)
-  tabId    String @map("tab_id") @db.VarChar(50)
-  action   String @map("action") @db.VarChar(10)
-
-  createdAt DateTime  @default(now()) @map("created_at")
-  createdBy String    @map("created_by") @db.VarChar(50)
-  updatedAt DateTime? @updatedAt @map("updated_at")
-  updatedBy String?   @map("updated_by") @db.VarChar(50)
-  deletedAt DateTime? @map("deleted_at")
-  deletedBy String?   @map("deleted_by") @db.VarChar(50)
-
-  creator User  @relation("permissionCreator", fields: [createdBy], references: [id])
-  updater User? @relation("permissionUpdater", fields: [updatedBy], references: [id])
-  deleter User? @relation("permissionDeleter", fields: [deletedBy], references: [id])
-
-  module Module @relation("modulePermission", fields: [moduleId], references: [id])
-  tab    Tab    @relation("tabPermission", fields: [tabId], references: [id])
-  role   Role   @relation("rolePermission", fields: [roleId], references: [id])
-
-  @@id([moduleId, tabId, roleId, action]) // Composite primary key
-  @@map("permissions")
-}
-
-model Questionnaire {
-  id          String @id @default(cuid()) @db.VarChar(50)
-  /// [PartialTranslation]
-  title       Json[]
-  /// [PartialTranslation]
-  description Json[]
-
-  startDate DateTime @map("start_date") @db.Date
-  endDate   DateTime @map("end_date") @db.Date
-
-  createdAt DateTime  @default(now()) @map("created_at")
-  createdBy String    @map("created_by") @db.VarChar(50)
-  updatedAt DateTime? @updatedAt @map("updated_at")
-  updatedBy String?   @map("updated_by") @db.VarChar(50)
-  deletedAt DateTime? @map("deleted_at")
-  deletedBy String?   @map("deleted_by") @db.VarChar(50)
-
-  creator User  @relation("questionnaireCreator", fields: [createdBy], references: [id])
-  updater User? @relation("questionnaireUpdater", fields: [updatedBy], references: [id])
-  deleter User? @relation("questionnaireDeleter", fields: [deletedBy], references: [id])
-
-  sections Section[]                 @relation("questionnaireSection")
-  users    QuestionnairePermission[] @relation("questionnairePermission")
-  submissions Submission[]           @relation("submissionQuestionnaire")
-
-  @@map("questionnaires")
-}
-
-enum QuestionnairePermissionStatus {
-  ACTIVE
-  INACTIVE
-}
-
-model QuestionnairePermission {
-  id              String @id @default(cuid()) @db.VarChar(50)
-  questionnaireId String @map("questionnaire_id") @db.VarChar(50)
-  role            String @db.VarChar(50)
-  userId          String @db.VarChar(50)
-
-  status    QuestionnairePermissionStatus @default(ACTIVE)
-  createdAt DateTime                      @default(now()) @map("created_at")
-  createdBy String                        @map("created_by") @db.VarChar(50)
-  updatedAt DateTime?                     @updatedAt @map("updated_at")
-  updatedBy String?                       @map("updated_by") @db.VarChar(50)
-  deletedAt DateTime?                     @map("deleted_at")
-  deletedBy String?                       @map("deleted_by") @db.VarChar(50)
-
-  creator User  @relation("questionnairePermissionCreator", fields: [createdBy], references: [id])
-  updater User? @relation("questionnairePermissionUpdater", fields: [updatedBy], references: [id])
-  deleter User? @relation("questionnairePermissionDeleter", fields: [deletedBy], references: [id])
-
-  questionnaire Questionnaire @relation("questionnairePermission", fields: [questionnaireId], references: [id])
-  user          User          @relation("questionnairePermissionUser", fields: [userId], references: [id])
-
-  @@map("questionnaire_permissions")
-}
-
-model Section {
-  id              String @id @default(cuid()) @db.VarChar(50)
-  questionnaireId String @map("questionnaire_id") @db.VarChar(50)
-  sortOrder       Int    @default(1) @map("sort_order")
-  /// [PartialTranslation]
-  title           Json[]
-  /// [PartialTranslation]
-  description     Json[]
-
-  createdAt DateTime  @default(now()) @map("created_at")
-  createdBy String    @map("created_by") @db.VarChar(50)
-  updatedAt DateTime? @updatedAt @map("updated_at")
-  updatedBy String?   @map("updated_by") @db.VarChar(50)
-  deletedAt DateTime? @map("deleted_at")
-  deletedBy String?   @map("deleted_by") @db.VarChar(50)
-
-  creator User  @relation("sectionCreator", fields: [createdBy], references: [id])
-  updater User? @relation("sectionUpdater", fields: [updatedBy], references: [id])
-  deleter User? @relation("sectionDeleter", fields: [deletedBy], references: [id])
-
-  questionnaire Questionnaire @relation("questionnaireSection", fields: [questionnaireId], references: [id])
-  units         Unit[]        @relation("sectionUnit")
-
-  @@map("sections")
-}
-
-model Unit {
-  id          String @id @default(cuid()) @db.VarChar(50)
-  sectionId   String @map("section_id") @db.VarChar(50)
-  sortOrder   Int    @default(1) @map("sort_order")
-  /// [PartialTranslation]
-  title       Json[]
-  /// [PartialTranslation]
-  description Json[]
-
-  createdAt DateTime  @default(now()) @map("created_at")
-  createdBy String    @map("created_by") @db.VarChar(50)
-  updatedAt DateTime? @updatedAt @map("updated_at")
-  updatedBy String?   @map("updated_by") @db.VarChar(50)
-  deletedAt DateTime? @map("deleted_at")
-  deletedBy String?   @map("deleted_by") @db.VarChar(50)
-
-  creator User  @relation("unitCreator", fields: [createdBy], references: [id])
-  updater User? @relation("unitUpdater", fields: [updatedBy], references: [id])
-  deleter User? @relation("unitDeleter", fields: [deletedBy], references: [id])
-
-  section   Section    @relation("sectionUnit", fields: [sectionId], references: [id])
-  questions Question[] @relation("unitQuestion")
-
-  @@map("units")
-}
-
-model Question {
-  id          String @id @default(cuid()) @db.VarChar(50)
-  unitId      String @map("unit_id") @db.VarChar(50)
-  sortOrder   Int    @default(1) @map("sort_order")
-  /// [PartialTranslation]
-  title       Json[]
-  /// [PartialTranslation]
-  description Json[]
-  /// [QuestionDetail]
-  details     Json
-
-  createdAt DateTime  @default(now()) @map("created_at")
-  createdBy String    @map("created_by") @db.VarChar(50)
-  updatedAt DateTime? @updatedAt @map("updated_at")
-  updatedBy String?   @map("updated_by") @db.VarChar(50)
-  deletedAt DateTime? @map("deleted_at")
-  deletedBy String?   @map("deleted_by") @db.VarChar(50)
-
-  creator User  @relation("questionCreator", fields: [createdBy], references: [id])
-  updater User? @relation("questionUpdater", fields: [updatedBy], references: [id])
-  deleter User? @relation("questionDeleter", fields: [deletedBy], references: [id])
-
-  unit Unit @relation("unitQuestion", fields: [unitId], references: [id])
-  answers Answer[] @relation("questionAnswer")
-
-  @@map("questions")
+  @@unique([electionId, code])
+  @@map("wards")
 }
 
 model PollingStation {
-  id               String    @id @default(cuid()) @db.VarChar(50)
-  name             String    @db.VarChar(200)
-  code             String    @unique @db.VarChar(50)
-  county           String    @db.VarChar(100)
-  constituency     String    @db.VarChar(100)
-  ward             String    @db.VarChar(100)
-  registeredVoters Int?      @map("registered_voters")
+  id               String  @id @default(cuid()) @db.VarChar(50)
+  wardId           String  @map("ward_id") @db.VarChar(50)
+  name             String  @db.VarChar(200)
+  code             String  @db.VarChar(50)
+  /// Denormalised for fast filtering without joins
+  county           String  @db.VarChar(100)
+  constituency     String  @db.VarChar(100)
+  ward             String  @db.VarChar(100)
+  registeredVoters Int?    @map("registered_voters")
 
   createdAt DateTime  @default(now()) @map("created_at")
   createdBy String    @map("created_by") @db.VarChar(50)
@@ -401,44 +189,230 @@ model PollingStation {
   updater User? @relation("pollingStationUpdater", fields: [updatedBy], references: [id])
   deleter User? @relation("pollingStationDeleter", fields: [deletedBy], references: [id])
 
-  submissions Submission[] @relation("submissionPollingStation")
+  wardRef Ward     @relation(fields: [wardId], references: [id], onDelete: Cascade)
+  streams Stream[]
 
+  @@unique([wardId, code])
   @@map("polling_stations")
 }
 
-enum SubmissionStatus {
-  PENDING
-  VERIFIED
-  DISPUTED
-  REJECTED
+/// Stream — smallest data-entry unit. One agent enters results per stream.
+/// Scoped to an election via PollingStation → Ward → Election.
+model Stream {
+  id               String  @id @default(cuid()) @db.VarChar(50)
+  pollingStationId String  @map("polling_station_id") @db.VarChar(50)
+  name             String  @db.VarChar(100)
+  code             String  @db.VarChar(20)
+  registeredVoters Int?    @map("registered_voters")
+  isActive         Boolean @default(true) @map("is_active")
+
+  pollingStation   PollingStation @relation(fields: [pollingStationId], references: [id], onDelete: Cascade)
+  streamResults    StreamResult[]
+  agentAssignments AgentStream[]
+
+  @@unique([pollingStationId, code])
+  @@map("streams")
 }
 
-model Submission {
-  id                String           @id @default(cuid()) @db.VarChar(50)
-  questionnaireId   String           @map("questionnaire_id") @db.VarChar(50)
-  pollingStationId  String?          @map("polling_station_id") @db.VarChar(50)
-  dataEntryNumber   String           @unique @map("data_entry_number") @db.VarChar(50)
-  status            SubmissionStatus @default(PENDING)
-  submittedAt       DateTime         @default(now()) @map("submitted_at")
-  submittedBy       String           @map("submitted_by") @db.VarChar(50)
+// ─────────────────────────────────────────────────────────────────────────────
+// Election  (one row per election event)
+//
+// Positions are fully configurable — admin names them, sets the aggregation
+// level, and adds candidates. No fixed enum; server-side validation only.
+//
+// Well-known position keys for the Kenyan general election:
+//   MCA       → WARD
+//   MP        → CONSTITUENCY
+//   WOMEN_REP → COUNTY
+//   SENATOR   → COUNTY
+//   GOVERNOR  → COUNTY
+//   PRESIDENT → NATIONAL
+// These are suggestions only — admin can add any position they need.
+// ─────────────────────────────────────────────────────────────────────────────
 
-  questionnaire  Questionnaire   @relation("submissionQuestionnaire", fields: [questionnaireId], references: [id])
-  pollingStation PollingStation?  @relation("submissionPollingStation", fields: [pollingStationId], references: [id])
-  user           User             @relation("submissionUser", fields: [submittedBy], references: [id])
-  answers        Answer[]         @relation("submissionAnswer")
-
-  @@map("submissions")
+enum AggregationLevel {
+  WARD
+  CONSTITUENCY
+  COUNTY
+  NATIONAL
 }
 
-model Answer {
-  id             String  @id @default(cuid()) @db.VarChar(50)
-  submissionId   String  @map("submission_id") @db.VarChar(50)
-  questionId     String  @map("question_id") @db.VarChar(50)
-  answer         String  @db.VarChar(500)
-  createdAt      DateTime @default(now()) @map("created_at")
+enum ResultStatus {
+  DRAFT     // saved but not submitted
+  SUBMITTED // agent submitted, awaiting verification
+  VERIFIED  // confirmed correct
+  DISPUTED  // flagged for dispute
+  REJECTED  // rejected, re-entry needed
+}
 
-  submission Submission @relation("submissionAnswer", fields: [submissionId], references: [id])
-  question   Question   @relation("questionAnswer", fields: [questionId], references: [id])
+model Election {
+  id           String   @id @default(cuid()) @db.VarChar(50)
+  title        String   @db.VarChar(200)
+  /// e.g. 2026, 2027 — kept separate so queries can filter by year
+  year         Int
+  electionDate DateTime @map("election_date") @db.Date
+  isActive     Boolean  @default(true) @map("is_active")
+  description  String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  createdBy    String   @map("created_by") @db.VarChar(50)
 
-  @@map("answers")
+  creator          User               @relation("electionCreator", fields: [createdBy], references: [id])
+  positions        ElectionPosition[]
+  wards            Ward[]
+  agentAssignments AgentStream[]
+
+  @@map("elections")
+}
+
+/// One row per position contested in this election.
+/// type is a free string — admin names it (e.g. "MCA", "Governor", "Village Elder").
+/// aggregationLevel drives the actual vote aggregation logic.
+model ElectionPosition {
+  id               String           @id @default(cuid()) @db.VarChar(50)
+  electionId       String           @map("election_id") @db.VarChar(50)
+  /// Free-form label, e.g. "MCA", "MP", "Governor", "Village Elder"
+  type             String           @db.VarChar(100)
+  title            String           @db.VarChar(150)
+  aggregationLevel AggregationLevel @map("aggregation_level")
+  description      String?          @db.VarChar(300)
+  sortOrder        Int              @default(0) @map("sort_order")
+
+  election      Election       @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  candidates    Candidate[]
+  streamResults StreamResult[]
+  levelResults  LevelResult[]
+
+  /// One position type per election (case-insensitive enforced in service layer)
+  @@unique([electionId, type])
+  @@map("election_positions")
+}
+
+/// A candidate running for a specific position in a specific election.
+/// entityId scopes the candidate geographically:
+///   aggregationLevel = WARD         → Ward.id
+///   aggregationLevel = CONSTITUENCY → Constituency.id
+///   aggregationLevel = COUNTY       → County.id
+///   aggregationLevel = NATIONAL     → null
+model Candidate {
+  id         String  @id @default(cuid()) @db.VarChar(50)
+  positionId String  @map("position_id") @db.VarChar(50)
+  name       String  @db.VarChar(150)
+  party      String? @db.VarChar(100)
+  photoUrl   String? @map("photo_url") @db.VarChar(500)
+  entityId   String? @map("entity_id") @db.VarChar(50)
+  sortOrder  Int     @default(0) @map("sort_order")
+
+  position    ElectionPosition      @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  streamVotes StreamCandidateVote[]
+  levelVotes  LevelCandidateVote[]
+
+  @@map("candidates")
+}
+
+/// Assigns an agent (User) to a stream for data entry.
+/// electionId is denormalised here for fast "all assignments for election" queries
+/// without traversing Stream → PollingStation → Ward → Election.
+model AgentStream {
+  id         String  @id @default(cuid()) @db.VarChar(50)
+  electionId String  @map("election_id") @db.VarChar(50)
+  streamId   String  @map("stream_id") @db.VarChar(50)
+  agentId    String  @map("agent_id") @db.VarChar(50)
+  isActive   Boolean @default(true) @map("is_active")
+
+  election Election @relation(fields: [electionId], references: [id])
+  stream   Stream   @relation(fields: [streamId], references: [id])
+  agent    User     @relation("agentStreamUser", fields: [agentId], references: [id])
+
+  @@unique([electionId, streamId, agentId])
+  @@map("agent_streams")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Stream-level results  (entered by agents at the polling station)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model StreamResult {
+  id            String       @id @default(cuid()) @db.VarChar(50)
+  streamId      String       @map("stream_id") @db.VarChar(50)
+  positionId    String       @map("position_id") @db.VarChar(50)
+  agentId       String       @map("agent_id") @db.VarChar(50)
+  status        ResultStatus @default(DRAFT)
+  totalVotes    Int?         @map("total_votes")
+  rejectedVotes Int?         @map("rejected_votes")
+  notes         String?      @db.Text
+  imageUrl      String?      @map("image_url") @db.VarChar(500)
+  voiceUrl      String?      @map("voice_url") @db.VarChar(500)
+  submittedAt   DateTime     @default(now()) @map("submitted_at")
+  updatedAt     DateTime?    @updatedAt @map("updated_at")
+
+  stream   Stream           @relation(fields: [streamId], references: [id])
+  position ElectionPosition @relation(fields: [positionId], references: [id])
+  agent    User             @relation("streamResultAgent", fields: [agentId], references: [id])
+  votes    StreamCandidateVote[]
+
+  @@unique([streamId, positionId])
+  @@map("stream_results")
+}
+
+model StreamCandidateVote {
+  id             String @id @default(cuid()) @db.VarChar(50)
+  streamResultId String @map("stream_result_id") @db.VarChar(50)
+  candidateId    String @map("candidate_id") @db.VarChar(50)
+  votes          Int    @default(0)
+
+  streamResult StreamResult @relation(fields: [streamResultId], references: [id], onDelete: Cascade)
+  candidate    Candidate    @relation(fields: [candidateId], references: [id])
+
+  @@unique([streamResultId, candidateId])
+  @@map("stream_candidate_votes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hierarchical level validation
+//
+// Validators at each level manually confirm the aggregated totals from streams.
+//
+// entityId is an untyped string pointing to the relevant geographic entity:
+//   level = WARD          → Ward.id
+//   level = CONSTITUENCY  → Constituency.id
+//   level = COUNTY        → County.id
+//   level = NATIONAL      → "national" (constant string)
+//
+// Prisma does not support polymorphic FKs — resolved in application code.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model LevelResult {
+  id            String           @id @default(cuid()) @db.VarChar(50)
+  positionId    String           @map("position_id") @db.VarChar(50)
+  level         AggregationLevel
+  entityId      String           @map("entity_id") @db.VarChar(50)
+  validatorId   String           @map("validator_id") @db.VarChar(50)
+  status        ResultStatus     @default(DRAFT)
+  totalVotes    Int?             @map("total_votes")
+  rejectedVotes Int?             @map("rejected_votes")
+  notes         String?          @db.Text
+  imageUrl      String?          @map("image_url") @db.VarChar(500)
+  voiceUrl      String?          @map("voice_url") @db.VarChar(500)
+  submittedAt   DateTime         @default(now()) @map("submitted_at")
+  updatedAt     DateTime?        @updatedAt @map("updated_at")
+
+  position  ElectionPosition    @relation(fields: [positionId], references: [id])
+  validator User                @relation("levelResultValidator", fields: [validatorId], references: [id])
+  votes     LevelCandidateVote[]
+
+  @@unique([positionId, level, entityId])
+  @@map("level_results")
+}
+
+model LevelCandidateVote {
+  id            String @id @default(cuid()) @db.VarChar(50)
+  levelResultId String @map("level_result_id") @db.VarChar(50)
+  candidateId   String @map("candidate_id") @db.VarChar(50)
+  votes         Int    @default(0)
+
+  levelResult LevelResult @relation(fields: [levelResultId], references: [id], onDelete: Cascade)
+  candidate   Candidate   @relation(fields: [candidateId], references: [id])
+
+  @@unique([levelResultId, candidateId])
+  @@map("level_candidate_votes")
 }

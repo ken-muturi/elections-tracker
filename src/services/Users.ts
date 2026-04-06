@@ -62,15 +62,7 @@ export const getUserById = async (id: string) => {
 
 export async function getLoginUser(email: string, hasChildren = false) {
   try {
-    const include = hasChildren
-      ? {
-          role: {
-            include: {
-              permissions: true,
-            },
-          },
-        }
-      : { role: true };
+    const include = { role: true };
     return prisma.user.findUnique({
       where: { email: email.toLowerCase() },
       include,

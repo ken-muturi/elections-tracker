@@ -1,29 +1,14 @@
 import React from 'react';
-import { Flex, VStack } from "@chakra-ui/react";
-const ProtectedLayout = async ({
+import { Box } from "@chakra-ui/react";
+
+const LoginLayout = async ({
   children,
 }: Readonly<{ children: React.ReactNode }>) => {
   return (
-    <Flex
-      as="main"
-      w="full"
-      h="full"
-      minH="100vh"
-      alignItems="start"
-      justifyContent="start"
-      flexDirection="column"
-    >
-      <VStack
-        w="full"
-        h="full"
-        borderRadius="md"
-        // shadow="base"
-        alignItems="left"
-      >
-        {children}
-      </VStack>
-    </Flex>
+    <Box as="main" w="full" minH="100vh">
+      {children}
+    </Box>
   );
 };
 
-export default ProtectedLayout;
+export default LoginLayout;

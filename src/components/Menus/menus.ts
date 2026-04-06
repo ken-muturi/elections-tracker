@@ -1,11 +1,10 @@
-import { PermissionsWithRelation } from "@/context/AuthContext";
 import { IconType } from "react-icons";
 import { FaHome, FaUserShield, FaChartBar } from "react-icons/fa";
 import { MdOutlineSpaceDashboard, MdHowToVote } from "react-icons/md";
 import { LiaUsersSolid } from "react-icons/lia";
 import { PiUsersThreeDuotone } from "react-icons/pi";
-import { SiVitest } from "react-icons/si";
 import { FaMapLocationDot } from "react-icons/fa6";
+import { FiCalendar, FiUsers, FiLayers } from "react-icons/fi";
 
 export type Item = {
   type: string;
@@ -37,30 +36,45 @@ export const adminItems: NavItem[] = [
         icon: FaHome,
         href: "/dashboard",
       },
-      {
-        label: "Results",
-        abbreviation: "results",
-        type: "link",
-        icon: FaChartBar,
-        href: "/results",
-      },
     ],
   },
   {
     label: "Elections",
-    abbreviation: "forms",
+    abbreviation: "elections",
     type: "home",
     icon: MdHowToVote,
     children: [
       {
-        label: "Election Forms",
-        abbreviation: "forms",
+        label: "All Elections",
+        abbreviation: "elections",
         type: "link",
-        icon: SiVitest,
-        href: "/questionnaires",
+        icon: FiCalendar,
+        href: "/elections",
       },
       {
-        label: "Polling Stations",
+        label: "Hierarchy",
+        abbreviation: "hierarchy",
+        type: "link",
+        icon: FiLayers,
+        href: "/hierarchy",
+      },
+      {
+        label: "Agent Assignments",
+        abbreviation: "agents",
+        type: "link",
+        icon: FiUsers,
+        href: "/elections/agents",
+      },
+    ],
+  },
+  {
+    label: "Polling Stations",
+    abbreviation: "polling-stations",
+    type: "home",
+    icon: FaMapLocationDot,
+    children: [
+      {
+        label: "All Stations",
         abbreviation: "polling-stations",
         type: "link",
         icon: FaMapLocationDot,
@@ -94,45 +108,27 @@ export const adminItems: NavItem[] = [
 
 export const clientItems: NavItem[] = [
   {
-    type: "Home",
+    type: "link",
     label: "Home",
     abbreviation: "home",
     icon: FaHome,
     href: "/",
   },
   {
-    type: "Home",
+    type: "link",
     label: "Enter Results",
-    abbreviation: "assessments",
+    abbreviation: "enter-results",
     icon: MdHowToVote,
-    href: "/assessments",
+    href: "/enter-results",
   },
   {
-    type: "Home",
+    type: "link",
     label: "View Results",
     abbreviation: "results",
     icon: FaChartBar,
-    href: "/election-results",
+    href: "/results",
   },
 ];
 
-export const hasNavPermission = (
-  item: NavItem,
-  permissionsByTab: Record<string, PermissionsWithRelation[]>
-): boolean => {
-  // Get the tab name (from item.tab or item.label)
-  const tabName = (item.tab || item.label).toLowerCase();
-
-  // Check if we have any permissions for this tab
-  const tabPermissions = permissionsByTab[tabName];
-  if (!tabPermissions) {
-    // Check if the children have permissions
-    if (item.children && item.children.length > 0) {
-      return item.children.some((child) =>
-        hasNavPermission(child, permissionsByTab)
-      );
-    }
-    return false;
-  }
-  return true;
-};
+/** Role-based nav — no permission table needed. */
+export const hasNavPermission = (): boolean => true;

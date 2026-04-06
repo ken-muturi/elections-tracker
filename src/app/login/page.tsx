@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 import FullPageLoader from "@/components/Generic/FullPageLoader";
 import { Suspense, useEffect } from "react";
-import GenericPage from "@/components/Generic/Page";
 
 export default function Page() {
   const { data: session, status } = useSession();
@@ -23,9 +22,7 @@ export default function Page() {
 
   return (
     <Suspense fallback={<FullPageLoader />}>
-      <GenericPage title={"Login"}>
-        <Login />
-      </GenericPage>
+      <Login />
     </Suspense>
   );
 }

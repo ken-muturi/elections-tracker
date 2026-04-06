@@ -7,6 +7,7 @@ import { getCurrentUser } from "./UserSessison"
 
 export type PollingStationForm = {
   id?: string
+  wardId: string
   name: string
   code: string
   county: string
@@ -35,14 +36,7 @@ export const getPollingStationById = async (id: string) => {
   try {
     return await prisma.pollingStation.findUnique({
       where: { id, deletedAt: null },
-      include: {
-        submissions: {
-          include: {
-            questionnaire: true,
-            answers: { include: { question: true } },
-          },
-        },
-      },
+      include: { streams: true },
     })
   } catch (error) {
     const message = handleReturnError(error)
@@ -56,6 +50,7 @@ export const createPollingStation = async (data: PollingStationForm) => {
     const user = await getCurrentUser()
     return await prisma.pollingStation.create({
       data: {
+        wardId: data.wardId,
         name: data.name,
         code: data.code,
         county: data.county,

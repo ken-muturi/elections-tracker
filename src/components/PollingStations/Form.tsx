@@ -30,6 +30,7 @@ const PollingStationForm = ({
 }) => {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<StationFormData>({
+    wardId: station?.wardId || "",
     name: station?.name || "",
     code: station?.code || "",
     county: station?.county || "",

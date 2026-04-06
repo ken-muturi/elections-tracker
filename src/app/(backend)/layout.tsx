@@ -22,20 +22,19 @@ const ProtectedLayout = async ({
 
   return (
     <AuthProvider session={session}>
-      <Box minH="100vh" bg="gray.200">
+      <Box minH="100vh" bg="#f1f5f9">
         <Navigation />
         <Box
-          p={3}
-          ml={{ base: 2, md: 60 }}
+          ml={{ base: 0, md: "var(--sidebar-w, 240px)" }}
+          pt={0}
+          minH="100vh"
           as="main"
-          overflowX="auto"
-          style={{
-            scrollbarWidth: "thin",
-            scrollbarColor: "#aab7cf transparent",
-          }}
-          h="fit-content"
+          transition="margin-left 0.2s ease"
+          css={{ "--sidebar-w": "240px" }}
         >
-          <ContentWrapper bg="whiteAlpha.800">{children}</ContentWrapper>
+          <Box p={{ base: 4, md: 6 }} minH="calc(100vh - 56px)">
+            <ContentWrapper>{children}</ContentWrapper>
+          </Box>
         </Box>
       </Box>
     </AuthProvider>

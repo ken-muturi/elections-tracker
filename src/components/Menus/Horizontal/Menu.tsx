@@ -41,7 +41,7 @@ export default function WithSubnavigation() {
   // Using static color values since useColorModeValue is not available in v3
   const linkColor = "warchild.white.default";
   const linkHoverColor = "warchild.sand.default";
-  const { user, role, removePermissionsQuery } = usePermissions();
+  const { user, role } = usePermissions();
 
   const ITEMS: NavItem[] = ["admin", "super admin"].includes(
     role?.toLowerCase() || "ngo"
@@ -85,7 +85,7 @@ export default function WithSubnavigation() {
             color="orange.50"
           >
             <Avatar.Fallback fontSize="2xl" fontWeight="bold">
-              OCAT
+              ETS
             </Avatar.Fallback>
           </Avatar.Root>
         </Flex>
@@ -99,7 +99,7 @@ export default function WithSubnavigation() {
         >
           {role &&
             !["admin", "super admin"].includes(
-              role.toLowerCase() || "user"
+              role.toLowerCase() || "user",
             ) && (
               <Box textAlign="right">
                 {/* <Box fontWeight="bold" color="white">
@@ -124,7 +124,6 @@ export default function WithSubnavigation() {
               cursor="pointer"
               _hover={{ color: linkHoverColor }}
               onClick={async () => {
-                await removePermissionsQuery();
                 await signOut({
                   callbackUrl: `/`,
                 });
@@ -135,10 +134,7 @@ export default function WithSubnavigation() {
             </Box>
           ) : (
             <Link href="/login">
-              <Box
-                _hover={{ color: linkHoverColor }}
-                fontSize="md"
-              >
+              <Box _hover={{ color: linkHoverColor }} fontSize="md">
                 {translate(dictionary.login)}
               </Box>
             </Link>
@@ -152,9 +148,7 @@ export default function WithSubnavigation() {
         </Flex>
       </Flex>
 
-      {isOpen && (
-        <MobileNav items={ITEMS} />
-      )}
+      {isOpen && <MobileNav items={ITEMS} />}
     </Box>
   );
 }

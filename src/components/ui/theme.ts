@@ -1,8 +1,6 @@
 import { createSystem, defaultConfig, defineConfig } from "@chakra-ui/react";
 
-// Define your custom theme configuration
 const customConfig = defineConfig({
-  // Global styles
   globalCss: {
     body: {
       bg: "gray.50",
@@ -10,36 +8,31 @@ const customConfig = defineConfig({
     },
   },
 
-  // Theme configuration
   theme: {
-    // Breakpoints for responsive design
     breakpoints: {
-      sm: "30em", // 480px
-      md: "48em", // 768px
-      lg: "62em", // 992px
-      xl: "80em", // 1280px
-      "2xl": "96em", // 1536px
+      sm: "30em",
+      md: "48em",
+      lg: "62em",
+      xl: "80em",
+      "2xl": "96em",
     },
 
-    // Semantic tokens - these adapt to color mode
     tokens: {
       colors: {
-        // Your custom brand colors
         brand: {
-          lime: { value: "#C9D927" }, // Primary lime green
-          olive: { value: "#838D19" }, // Darker olive green
-          neon: { value: "#E0F12D" }, // Bright neon yellow
-          light: { value: "#F7F7F7" }, // Light gray/white
-          orange: { value: "#FE8E00" }, // Vibrant orange
+          lime: { value: "#C9D927" },
+          olive: { value: "#838D19" },
+          neon: { value: "#E0F12D" },
+          light: { value: "#F8FAFC" },
+          orange: { value: "#FE8E00" },
         },
-        // Extended palette with shades
         primary: {
           50: { value: "#f7fce8" },
           100: { value: "#eff9d1" },
           200: { value: "#e7f6ba" },
           300: { value: "#dff3a3" },
           400: { value: "#d7f08c" },
-          500: { value: "#C9D927" }, // Main lime
+          500: { value: "#C9D927" },
           600: { value: "#a1ae1f" },
           700: { value: "#798217" },
           800: { value: "#51570f" },
@@ -51,19 +44,48 @@ const customConfig = defineConfig({
           200: { value: "#ffdfb3" },
           300: { value: "#ffd499" },
           400: { value: "#ffc980" },
-          500: { value: "#FE8E00" }, // Main orange
+          500: { value: "#FE8E00" },
           600: { value: "#cb7200" },
           700: { value: "#985600" },
           800: { value: "#653a00" },
           900: { value: "#321d00" },
         },
+        // Aurora-inspired sidebar palette
+        sidebar: {
+          bg: { value: "#0f172a" },
+          bgHover: { value: "#1e293b" },
+          bgActive: { value: "#1e293b" },
+          text: { value: "#94a3b8" },
+          textHover: { value: "#f1f5f9" },
+          textActive: { value: "#ffffff" },
+          border: { value: "#1e293b" },
+          accent: { value: "#C9D927" },
+          section: { value: "#475569" },
+        },
+        // Canvas backgrounds
+        canvas: {
+          default: { value: "#f1f5f9" },
+          card: { value: "#ffffff" },
+          elevated: { value: "#ffffff" },
+        },
+        // Status colors
+        status: {
+          success: { value: "#10b981" },
+          successBg: { value: "#d1fae5" },
+          warning: { value: "#f59e0b" },
+          warningBg: { value: "#fef3c7" },
+          error: { value: "#ef4444" },
+          errorBg: { value: "#fee2e2" },
+          info: { value: "#3b82f6" },
+          infoBg: { value: "#dbeafe" },
+        },
       },
       fonts: {
         heading: {
-          value: `'Playfair Display','Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
+          value: `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
         },
         body: {
-          value: `'Inter', 'Schibsted_Grotesk',-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
+          value: `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
         },
       },
       fontSizes: {
@@ -91,17 +113,22 @@ const customConfig = defineConfig({
         lg: { value: "0.5rem" },
         xl: { value: "0.75rem" },
         "2xl": { value: "1rem" },
+        "3xl": { value: "1.5rem" },
         full: { value: "9999px" },
       },
       shadows: {
-        sm: { value: "0 1px 2px 0 rgba(0, 0, 0, 0.05)" },
-        md: { value: "0 4px 6px -1px rgba(0, 0, 0, 0.1)" },
-        lg: { value: "0 10px 15px -3px rgba(0, 0, 0, 0.1)" },
-        xl: { value: "0 20px 25px -5px rgba(0, 0, 0, 0.1)" },
+        xs: { value: "0 1px 2px 0 rgba(0, 0, 0, 0.05)" },
+        sm: { value: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)" },
+        md: { value: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)" },
+        lg: { value: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)" },
+        xl: { value: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)" },
+        "2xl": { value: "0 25px 50px -12px rgba(0, 0, 0, 0.25)" },
+        card: { value: "0 1px 3px 0 rgba(0,0,0,0.08), 0 1px 2px -1px rgba(0,0,0,0.06)" },
+        cardHover: { value: "0 8px 25px -5px rgba(0,0,0,0.12), 0 4px 10px -4px rgba(0,0,0,0.08)" },
+        glow: { value: "0 0 20px rgba(201, 217, 39, 0.35)" },
       },
     },
 
-    // Semantic tokens that change based on color mode
     semanticTokens: {
       colors: {
         primary: {
@@ -125,7 +152,7 @@ const customConfig = defineConfig({
         bg: {
           canvas: {
             value: {
-              _light: "{colors.brand.light}",
+              _light: "{colors.canvas.default}",
               _dark: "{colors.gray.900}",
             },
           },
@@ -142,12 +169,12 @@ const customConfig = defineConfig({
           },
           secondary: {
             value: {
-              _light: "{colors.brand.olive}",
+              _light: "{colors.gray.600}",
               _dark: "{colors.gray.400}",
             },
           },
           muted: {
-            value: { _light: "{colors.gray.500}", _dark: "{colors.gray.500}" },
+            value: { _light: "{colors.gray.400}", _dark: "{colors.gray.500}" },
           },
           accent: {
             value: {
@@ -162,7 +189,6 @@ const customConfig = defineConfig({
       },
     },
 
-    // Text styles
     textStyles: {
       heading: {
         value: {
@@ -180,32 +206,35 @@ const customConfig = defineConfig({
       },
     },
 
-    // Layer styles for common patterns
     layerStyles: {
       card: {
         value: {
           bg: "bg.surface",
-          borderRadius: "lg",
-          boxShadow: "md",
+          borderRadius: "xl",
+          boxShadow: "card",
           p: "6",
+          borderWidth: "1px",
+          borderColor: "gray.100",
         },
       },
       cardHover: {
         value: {
           bg: "bg.surface",
-          borderRadius: "lg",
-          boxShadow: "md",
+          borderRadius: "xl",
+          boxShadow: "card",
           p: "6",
-          transition: "all 0.2s",
+          borderWidth: "1px",
+          borderColor: "gray.100",
+          transition: "all 0.2s ease",
           _hover: {
-            boxShadow: "xl",
+            boxShadow: "cardHover",
             transform: "translateY(-2px)",
+            borderColor: "gray.200",
           },
         },
       },
     },
 
-    // Component recipes - default styles for components
     recipes: {
       heading: {
         base: {
@@ -218,8 +247,5 @@ const customConfig = defineConfig({
   },
 });
 
-// Create the system by merging with default config
 export const system = createSystem(defaultConfig, customConfig);
-
-// Export for use in your app
 export default system;

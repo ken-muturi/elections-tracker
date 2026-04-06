@@ -10,34 +10,50 @@ type ContentWrapperProps = {
 } & BoxProps
 
 const ContentWrapper = ({ children, hasBreadCrumb = false, ...props }: ContentWrapperProps) => {
-  const borderColor = 'white.200'; // Using static value instead of useColorModeValue
   const styles = hasBreadCrumb ? {
-    borderWidth: "thin",
-    bg: "gray.200",
-    borderColor,
-    borderRadius: 'sm',
-    alignContent: "start"
+    borderWidth: "1px",
+    borderColor: "gray.100",
+    borderRadius: "xl",
+    bg: "white",
+    boxShadow: "0 1px 3px 0 rgba(0,0,0,0.06)",
+    alignContent: "start",
   } : {}
-  
+
   // Filter out potentially problematic props
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { direction, ...stackProps } = props;
-  
+
   return (
     <VStack
-      px={4}
-      pt={2}
-      pb={6}
       w="full"
       h="full"
-      borderRadius="md"
-      bg="whiteAlpha.800"
-      alignItems="left"
+      borderRadius="xl"
+      bg="transparent"
+      alignItems="stretch"
       {...(hasBreadCrumb ? styles : {})}
       {...stackProps}
     >
-      {hasBreadCrumb && <NextBreadcrumb capitalizeLinks />}
-      {children}
+      {hasBreadCrumb && (
+        <VStack
+          px={5}
+          pt={4}
+          pb={2}
+          borderBottomWidth="1px"
+          borderBottomColor="gray.100"
+          alignItems="stretch"
+        >
+          <NextBreadcrumb capitalizeLinks />
+        </VStack>
+      )}
+      <VStack
+        px={hasBreadCrumb ? 5 : 0}
+        pt={hasBreadCrumb ? 4 : 0}
+        pb={hasBreadCrumb ? 6 : 0}
+        alignItems="stretch"
+        w="full"
+      >
+        {children}
+      </VStack>
     </VStack>
   );
 }
