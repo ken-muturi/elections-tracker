@@ -109,7 +109,7 @@ export default async function PublicElectionResultsPage({
         <ResultsSummary results={results} />
 
         {/* ── Position-level results ─────────────────────────── */}
-        <PositionResults results={results} />
+        <PositionResults results={results} electionId={id} />
 
         {/* ── Disclaimer ─────────────────────────────────────── */}
         <Box textAlign="center" pt={4}>
