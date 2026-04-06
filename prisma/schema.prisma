@@ -90,10 +90,11 @@ model User {
   pollingStationDeleter PollingStation[] @relation("pollingStationDeleter")
 
   // Election system
-  electionsCreated Election[]     @relation("electionCreator")
-  streamResults    StreamResult[] @relation("streamResultAgent")
-  levelResults     LevelResult[]  @relation("levelResultValidator")
-  agentAssignments AgentStream[]  @relation("agentStreamUser")
+  electionsCreated Election[]          @relation("electionCreator")
+  streamResults    StreamResult[]      @relation("streamResultAgent")
+  levelResults     LevelResult[]       @relation("levelResultValidator")
+  agentAssignments AgentStream[]       @relation("agentStreamUser")
+  formImages       ResultFormImage[]   @relation("formImageUploader")
 
   @@map("users")
 }
@@ -236,6 +237,7 @@ model Stream {
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum AggregationLevel {
+  POLLING_STATION
   WARD
   CONSTITUENCY
   COUNTY
@@ -286,6 +288,7 @@ model ElectionPosition {
   candidates    Candidate[]
   streamResults StreamResult[]
   levelResults  LevelResult[]
+  formImages    ResultFormImage[]
 
   /// One position type per election (case-insensitive enforced in service layer)
   @@index([electionId])
@@ -376,6 +379,36 @@ model StreamCandidateVote {
   @@index([candidateId])
   @@unique([streamResultId, candidateId])
   @@map("stream_candidate_votes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Result form images  (photos of physical result forms)
+//
+// Agents upload images of the official tally forms (34A, 35A, etc.) at the
+// polling-station level.  Although data entry is per-stream, the physical form
+// covers the whole polling station.  Images are linked to the stream where the
+// upload originated so we know who captured it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model ResultFormImage {
+  id         String           @id @default(cuid()) @db.VarChar(50)
+  positionId String           @map("position_id") @db.VarChar(50)
+  /// Geographic level: POLLING_STATION → Form A, CONSTITUENCY/WARD → Form B, COUNTY/NATIONAL → Form C
+  level      AggregationLevel
+  /// Polymorphic FK — id of the entity at this level (pollingStation.id, ward.id, etc.)
+  entityId   String           @map("entity_id") @db.VarChar(50)
+  /// Kenyan election form identifier, e.g. "34A", "35A", "34B", "34C"
+  formType   String           @map("form_type") @db.VarChar(20)
+  imageUrl   String           @map("image_url") @db.VarChar(500)
+  uploadedBy String           @map("uploaded_by") @db.VarChar(50)
+  uploadedAt DateTime         @default(now()) @map("uploaded_at")
+  notes      String?          @db.Text
+
+  position ElectionPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  uploader User             @relation("formImageUploader", fields: [uploadedBy], references: [id])
+
+  @@index([positionId, level, entityId])
+  @@map("result_form_images")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

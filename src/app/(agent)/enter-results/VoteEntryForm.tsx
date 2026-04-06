@@ -9,6 +9,7 @@ import {
 import { upsertStreamResult, submitStreamResult } from "@/services/StreamResults"
 import useSyncMutation from "@/hooks/hooks/useSyncMutation"
 import StatusBadge from "./StatusBadge"
+import FormImageUpload from "./FormImageUpload"
 import type { Position, StreamResult, StreamInfo, Candidate } from "./types"
 
 type VoteEntryFormProps = {
@@ -311,6 +312,14 @@ export default function VoteEntryForm({
           borderColor="gray.200"
         />
       </Box>
+
+      {/* Form image upload */}
+      <FormImageUpload
+        positionId={position.id}
+        positionType={position.type}
+        level="POLLING_STATION"
+        entityId={ps.id}
+      />
 
       {/* Messages */}
       {saveMutation.error && (

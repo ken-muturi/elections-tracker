@@ -149,7 +149,17 @@ export const computeAggregateFromStreams = async (
     // Determine which stream results roll up to this entity
     let streamResults: any[] = []
 
-    if (level === "WARD") {
+    if (level === "POLLING_STATION") {
+      // Get all streams in this polling station
+      streamResults = await prisma.streamResult.findMany({
+        where: {
+          positionId,
+          stream: { pollingStationId: entityId },
+          status: { in: ["SUBMITTED", "VERIFIED"] },
+        },
+        include: { votes: true },
+      })
+    } else if (level === "WARD") {
       // Get all streams in all polling stations in this ward
       const stations = await prisma.pollingStation.findMany({
         where: { wardId: entityId, deletedAt: null },
@@ -440,6 +450,53 @@ export const getElectionResults = async (electionId: string) => {
         levelValidations: position.levelResults.length,
       };
     });
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+// ─── Batch level-entry queries (for drill-down display) ─────────────────────
+
+export type LevelEntryData = {
+  entityId: string
+  totalVotes: number | null
+  rejectedVotes: number | null
+  status: string
+  candidates: { candidateId: string; votes: number }[]
+}
+
+/**
+ * Fetch LevelResult entries for multiple entities at a given level + position.
+ * Returns a map of entityId → entry data (or empty map if none exist).
+ * Used by the drill-down to show "entered at this level" alongside aggregated totals.
+ */
+export async function getLevelEntriesForEntities(
+  positionId: string,
+  level: AggregationLevel,
+  entityIds: string[],
+): Promise<Map<string, LevelEntryData>> {
+  try {
+    if (entityIds.length === 0) return new Map()
+
+    const results = await prisma.levelResult.findMany({
+      where: { positionId, level, entityId: { in: entityIds } },
+      include: { votes: true },
+    })
+
+    const map = new Map<string, LevelEntryData>()
+    for (const r of results) {
+      map.set(r.entityId, {
+        entityId: r.entityId,
+        totalVotes: r.totalVotes,
+        rejectedVotes: r.rejectedVotes,
+        status: r.status,
+        candidates: r.votes.map((v) => ({
+          candidateId: v.candidateId,
+          votes: v.votes,
+        })),
+      })
+    }
+    return map
   } catch (error) {
     throw new Error(handleReturnError(error))
   }

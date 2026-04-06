@@ -2,6 +2,7 @@
 
 import prisma from "@/db"
 import { handleReturnError } from "@/db/error-handling"
+import type { AggregationLevel } from "@prisma/client";
 
 /**
  * Public (no auth) drill-down results service.
@@ -16,23 +17,30 @@ import { handleReturnError } from "@/db/error-handling"
  *   • Only the columns we need are selected
  */
 
-type CandidateVoteSummary = {
+export type CandidateVoteSummary = {
   candidateId: string
   name: string
   party: string | null
   votes: number
 }
 
-type ChildResult = {
-  entityId: string
-  entityName: string
-  entityCode?: string
-  totalVotes: number
-  rejectedVotes: number
-  reportedStreams: number
-  totalStreams: number
-  candidates: CandidateVoteSummary[]
-}
+export type ChildResult = {
+  entityId: string;
+  entityName: string;
+  entityCode?: string;
+  totalVotes: number;
+  rejectedVotes: number;
+  reportedStreams: number;
+  totalStreams: number;
+  candidates: CandidateVoteSummary[];
+  /** Manually entered data at this entity's level (null if not yet entered) */
+  enteredVotes?: {
+    totalVotes: number | null;
+    rejectedVotes: number | null;
+    status: string;
+    candidates: CandidateVoteSummary[];
+  } | null;
+};
 
 export type DrillDownResult = {
   positionId: string;
@@ -49,6 +57,13 @@ export type DrillDownResult = {
   totalStreams: number;
   candidates: CandidateVoteSummary[];
   children: ChildResult[];
+  /** Manually entered data at the parent level (null if not yet entered) */
+  enteredVotes?: {
+    totalVotes: number | null;
+    rejectedVotes: number | null;
+    status: string;
+    candidates: CandidateVoteSummary[];
+  } | null;
 };
 
 /** Candidate lookup for a position. */
@@ -73,6 +88,60 @@ function buildCandidateSummaries(
       votes: voteMap.get(c.id) ?? 0,
     }))
     .sort((a, b) => b.votes - a.votes)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Helper: fetch level-entered data for entities
+// ═══════════════════════════════════════════════════════════════════════════
+
+type EnteredVotes = {
+  totalVotes: number | null
+  rejectedVotes: number | null
+  status: string
+  candidates: CandidateVoteSummary[]
+}
+
+/**
+ * Batch-fetch manually entered LevelResult data for a set of entities.
+ * Returns a Map<entityId, EnteredVotes>.
+ */
+async function fetchLevelEntries(
+  positionId: string,
+  level: AggregationLevel,
+  entityIds: string[],
+  allCandidates: { id: string; name: string; party: string | null }[],
+): Promise<Map<string, EnteredVotes>> {
+  if (entityIds.length === 0) return new Map()
+
+  const results = await prisma.levelResult.findMany({
+    where: { positionId, level, entityId: { in: entityIds } },
+    include: { votes: true },
+  })
+
+  const map = new Map<string, EnteredVotes>()
+  for (const r of results) {
+    const voteMap = new Map<string, number>()
+    for (const v of r.votes) voteMap.set(v.candidateId, v.votes)
+
+    map.set(r.entityId, {
+      totalVotes: r.totalVotes,
+      rejectedVotes: r.rejectedVotes,
+      status: r.status,
+      candidates: buildCandidateSummaries(allCandidates, voteMap),
+    })
+  }
+  return map
+}
+
+/** Fetch a single entity's level entry (for parent-level display). */
+async function fetchSingleLevelEntry(
+  positionId: string,
+  level: AggregationLevel,
+  entityId: string,
+  allCandidates: { id: string; name: string; party: string | null }[],
+): Promise<EnteredVotes | null> {
+  const map = await fetchLevelEntries(positionId, level, [entityId], allCandidates)
+  return map.get(entityId) ?? null
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -229,6 +298,13 @@ export async function getDrillDownNational(
       0,
     );
 
+    // Fetch level-entered data for children (counties) and parent (national)
+    const countyIds = activeCounties.map((c) => c.id);
+    const [childEntries, parentEntry] = await Promise.all([
+      fetchLevelEntries(positionId, "COUNTY", countyIds, candidates),
+      fetchSingleLevelEntry(positionId, "NATIONAL", "national", candidates),
+    ]);
+
     const children: ChildResult[] = activeCounties.map((county) => {
       const cVotes = votesByCounty.get(county.id) ?? [];
       const cResults = resultsByCounty.get(county.id) ?? [];
@@ -251,6 +327,7 @@ export async function getDrillDownNational(
         reportedStreams: cResults.length,
         totalStreams: streamsByCounty.get(county.id) ?? 0,
         candidates: buildCandidateSummaries(candidates, cMap),
+        enteredVotes: childEntries.get(county.id) ?? null,
       };
     });
 
@@ -269,6 +346,7 @@ export async function getDrillDownNational(
       totalStreams,
       candidates: buildCandidateSummaries(candidates, overallVoteMap),
       children,
+      enteredVotes: parentEntry,
     };
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -418,6 +496,13 @@ export async function getDrillDownCounty(
       0,
     );
 
+    // Fetch level-entered data for children (constituencies) and parent (county)
+    const constituencyIds = activeConstituencies.map((c) => c.id);
+    const [childEntries, parentEntry] = await Promise.all([
+      fetchLevelEntries(positionId, "CONSTITUENCY", constituencyIds, candidates),
+      fetchSingleLevelEntry(positionId, "COUNTY", countyId, candidates),
+    ]);
+
     const children: ChildResult[] = activeConstituencies.map((con) => {
       const cVotes = votesByCon.get(con.id) ?? [];
       const cResults = resultsByCon.get(con.id) ?? [];
@@ -439,6 +524,7 @@ export async function getDrillDownCounty(
         reportedStreams: cResults.length,
         totalStreams: streamsByConstituency.get(con.id) ?? 0,
         candidates: buildCandidateSummaries(candidates, cMap),
+        enteredVotes: childEntries.get(con.id) ?? null,
       };
     });
 
@@ -460,6 +546,7 @@ export async function getDrillDownCounty(
       totalStreams,
       candidates: buildCandidateSummaries(candidates, overallVoteMap),
       children,
+      enteredVotes: parentEntry,
     };
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -591,6 +678,12 @@ export async function getDrillDownConstituency(
       0,
     );
 
+    // Fetch level-entered data for children (wards) and parent (constituency)
+    const [childEntries, parentEntry] = await Promise.all([
+      fetchLevelEntries(positionId, "WARD", wardIds, candidates),
+      fetchSingleLevelEntry(positionId, "CONSTITUENCY", constituencyId, candidates),
+    ]);
+
     const children: ChildResult[] = wards.map((ward) => {
       const wVotes = votesByWard.get(ward.id) ?? [];
       const wResults = resultsByWard.get(ward.id) ?? [];
@@ -612,6 +705,7 @@ export async function getDrillDownConstituency(
         reportedStreams: wResults.length,
         totalStreams: streamsByWard.get(ward.id) ?? 0,
         candidates: buildCandidateSummaries(candidates, wMap),
+        enteredVotes: childEntries.get(ward.id) ?? null,
       };
     });
 
@@ -638,6 +732,7 @@ export async function getDrillDownConstituency(
       totalStreams,
       candidates: buildCandidateSummaries(candidates, overallVoteMap),
       children,
+      enteredVotes: parentEntry,
     };
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -744,6 +839,12 @@ export async function getDrillDownWard(
       overallRejected += sr.rejectedVotes ?? 0;
     }
 
+    // Fetch level-entered data for children (stations) and parent (ward)
+    const [childEntries, parentEntry] = await Promise.all([
+      fetchLevelEntries(positionId, "POLLING_STATION", stationIds, candidates),
+      fetchSingleLevelEntry(positionId, "WARD", wardId, candidates),
+    ]);
+
     const children: ChildResult[] = stations.map((station) => {
       const sVotes = votesByStation.get(station.id) ?? [];
       const sResults = resultsByStation.get(station.id) ?? [];
@@ -765,6 +866,7 @@ export async function getDrillDownWard(
         reportedStreams: sResults.length,
         totalStreams: station.streams.length,
         candidates: buildCandidateSummaries(candidates, sMap),
+        enteredVotes: childEntries.get(station.id) ?? null,
       };
     })
 
@@ -796,6 +898,7 @@ export async function getDrillDownWard(
       totalStreams,
       candidates: buildCandidateSummaries(candidates, overallVoteMap),
       children,
+      enteredVotes: parentEntry,
     };
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -892,6 +995,12 @@ export async function getDrillDownStation(
       overallRejected += sr.rejectedVotes ?? 0;
     }
 
+    // Fetch POLLING_STATION level-entered data for the parent station
+    // (streams are leaf level — no LevelResult for them)
+    const parentEntry = await fetchSingleLevelEntry(
+      positionId, "POLLING_STATION", stationId, candidates,
+    );
+
     const children: ChildResult[] = streams.map((stream) => {
       const sVotes = votesByStream.get(stream.id) ?? [];
       const sResults = resultsByStream.get(stream.id) ?? [];
@@ -945,6 +1054,7 @@ export async function getDrillDownStation(
       totalStreams: streams.length,
       candidates: buildCandidateSummaries(candidates, overallVoteMap),
       children,
+      enteredVotes: parentEntry,
     };
   } catch (error) {
     throw new Error(handleReturnError(error))

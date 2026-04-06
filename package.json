@@ -22,6 +22,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.10.0",
     "@aws-sdk/client-s3": "^3.787.0",
+    "@aws-sdk/s3-request-presigner": "^3.1024.0",
     "@chakra-ui/react": "^3.24.2",
     "@ctrl/mac-address": "^3.1.0",
     "@emotion/react": "^11.14.0",
