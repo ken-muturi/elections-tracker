@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { getStreamResultsForStream } from "@/services/AgentAssignments"
 import ElectionSelector from "./ElectionSelector"
 import StreamSelector from "./StreamSelector"
@@ -34,18 +35,47 @@ export default function EnterResultsClient({
   const [adminActiveStream, setAdminActiveStream] =
     useState<AdminSearchStream | null>(null)
 
-  /* ── Results cache (mutable across steps) ──────────────── */
-  const [resultsCache, setResultsCache] = useState<
-    Record<string, StreamResult[]>
-  >(() => {
-    const cache: Record<string, StreamResult[]> = {}
+  /* ── Results cache via React Query ─────────────────────── */
+  const queryClient = useQueryClient()
+
+  // Seed query cache with server-fetched results on first render
+  useState(() => {
     for (const e of electionData) {
       for (const [streamId, results] of Object.entries(e.streamResultsMap)) {
-        cache[streamId] = results
+        queryClient.setQueryData<StreamResult[]>(
+          ["stream-results", streamId],
+          results,
+        )
       }
     }
-    return cache
   })
+
+  // Fetch results for the selected stream (auto-cached by React Query)
+  const { data: streamResults = [] } = useQuery<StreamResult[]>({
+    queryKey: ["stream-results", selectedStream],
+    queryFn: () =>
+      getStreamResultsForStream(selectedStream!) as Promise<StreamResult[]>,
+    enabled: !!selectedStream,
+    staleTime: 5 * 60 * 1000, // 5 min — avoid re-fetching within a session
+  })
+
+  // Also build the full cache map for child components that need it
+  const resultsCache = useMemo(() => {
+    const cache: Record<string, StreamResult[]> = {}
+    for (const e of electionData) {
+      for (const streamId of Object.keys(e.streamResultsMap)) {
+        const cached = queryClient.getQueryData<StreamResult[]>([
+          "stream-results",
+          streamId,
+        ])
+        if (cached) cache[streamId] = cached
+      }
+    }
+    if (selectedStream && streamResults.length > 0) {
+      cache[selectedStream] = streamResults
+    }
+    return cache
+  }, [electionData, queryClient, selectedStream, streamResults])
 
   /* ── Derived data ──────────────────────────────────────── */
   const activeElection = electionData.find(
@@ -61,31 +91,15 @@ export default function EnterResultsClient({
     (p) => p.id === selectedPosition,
   )
 
-  const streamResults = selectedStream
-    ? (resultsCache[selectedStream] ?? [])
-    : []
-
   /* ── Handlers ──────────────────────────────────────────── */
 
   const handleSelectStream = useCallback(
-    async (streamId: string, adminStream?: AdminSearchStream) => {
+    (streamId: string, adminStream?: AdminSearchStream) => {
       setSelectedStream(streamId)
       if (adminStream) setAdminActiveStream(adminStream)
-
-      // Lazy-load existing results for the selected stream
-      if (!resultsCache[streamId]) {
-        try {
-          const results = await getStreamResultsForStream(streamId)
-          setResultsCache((prev) => ({
-            ...prev,
-            [streamId]: results as unknown as StreamResult[],
-          }))
-        } catch {
-          // No results yet — fine
-        }
-      }
+      // useQuery will automatically fetch results for the new streamId
     },
-    [resultsCache],
+    [],
   )
 
   const handleBackToElections = useCallback(() => {
@@ -104,16 +118,17 @@ export default function EnterResultsClient({
   const handleSaved = useCallback(
     (result: StreamResult) => {
       if (!selectedStream) return
-      setResultsCache((prev) => {
-        const existing = prev[selectedStream] ?? []
-        const filtered = existing.filter(
-          (r) => r.positionId !== result.positionId,
-        )
-        filtered.push(result)
-        return { ...prev, [selectedStream]: filtered }
-      })
+      queryClient.setQueryData<StreamResult[]>(
+        ["stream-results", selectedStream],
+        (prev = []) => {
+          const filtered = prev.filter(
+            (r) => r.positionId !== result.positionId,
+          )
+          return [...filtered, result]
+        },
+      )
     },
-    [selectedStream],
+    [selectedStream, queryClient],
   )
 
   /* ── Step 1: Election selection ────────────────────────── */

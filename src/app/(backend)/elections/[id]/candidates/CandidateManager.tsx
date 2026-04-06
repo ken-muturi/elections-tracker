@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState } from "react"
 import { Box, Text, VStack, HStack } from "@chakra-ui/react"
 import {
   FiPlus, FiUpload, FiCheckCircle,
 } from "react-icons/fi"
 import { createCandidate, updateCandidate, deleteCandidate } from "@/services/Elections"
 import type { Candidate } from "@prisma/client"
-import { ENTITY_LABEL } from "./constants"
+import useSyncMutation from "@/hooks/hooks/useSyncMutation"
 import CandidateRow from "./CandidateRow"
 import AddCandidateForm from "./AddCandidateForm"
 import CsvImportDialog from "./CsvImportDialog"
@@ -19,75 +19,77 @@ export default function CandidateManager({
   initialCandidates,
 }: CandidateManagerProps) {
   const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates)
-  const [isPending, startTransition] = useTransition()
   const [showAdd, setShowAdd] = useState(false)
-  const [error, setError] = useState("")
   const [csvOpen, setCsvOpen] = useState(false)
   const [importCount, setImportCount] = useState(0)
 
   const needsEntityId = aggregationLevel !== "NATIONAL"
 
+  /* ── Mutations ─────────────────────────────────────────── */
+
+  const addMutation = useSyncMutation(
+    async (data: { name: string; party?: string; entityId?: string }) => {
+      return createCandidate({
+        positionId,
+        name: data.name,
+        party: data.party,
+        entityId: data.entityId,
+        sortOrder: candidates.length,
+      })
+    },
+    {
+      onSuccess: (created) => {
+        setCandidates((prev) => [...prev, created])
+        setShowAdd(false)
+      },
+    },
+  )
+
+  const editMutation = useSyncMutation(
+    async ({ id, data }: { id: string; data: { name: string; party?: string; entityId?: string } }) => {
+      return updateCandidate(id, {
+        name: data.name,
+        party: data.party,
+        entityId: needsEntityId ? data.entityId : undefined,
+      })
+    },
+    {
+      onSuccess: (updated) => {
+        setCandidates((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      },
+    },
+  )
+
+  const deleteMutation = useSyncMutation(
+    async (id: string) => {
+      await deleteCandidate(id)
+      return id
+    },
+    {
+      onSuccess: (id) => {
+        setCandidates((prev) => prev.filter((c) => c.id !== id))
+      },
+    },
+  )
+
   /* ── Handlers ──────────────────────────────────────────── */
 
   const handleAdd = (data: { name: string; party?: string; entityId?: string }) => {
-    if (!data.name) {
-      setError("Name is required.")
-      return
-    }
-    if (needsEntityId && !data.entityId) {
-      setError(`${ENTITY_LABEL[aggregationLevel]} is required.`)
-      return
-    }
-    setError("")
-    startTransition(async () => {
-      try {
-        const created = await createCandidate({
-          positionId,
-          name: data.name,
-          party: data.party,
-          entityId: data.entityId,
-          sortOrder: candidates.length,
-        })
-        setCandidates((prev) => [...prev, created])
-        setShowAdd(false)
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Failed to add candidate.")
-      }
-    })
+    if (!data.name) return
+    if (needsEntityId && !data.entityId) return
+    addMutation.mutate(data)
   }
 
   const handleEdit = (
     id: string,
     data: { name: string; party?: string; entityId?: string },
   ) => {
-    if (!data.name) {
-      setError("Name is required.")
-      return
-    }
-    setError("")
-    startTransition(async () => {
-      try {
-        const updated = await updateCandidate(id, {
-          name: data.name,
-          party: data.party,
-          entityId: needsEntityId ? data.entityId : undefined,
-        })
-        setCandidates((prev) => prev.map((c) => (c.id === id ? updated : c)))
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Failed to update candidate.")
-      }
-    })
+    if (!data.name) return
+    editMutation.mutate({ id, data })
   }
 
   const handleDelete = (id: string) => {
-    startTransition(async () => {
-      try {
-        await deleteCandidate(id)
-        setCandidates((prev) => prev.filter((c) => c.id !== id))
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Failed to delete candidate.")
-      }
-    })
+    deleteMutation.mutate(id)
   }
 
   const handleCsvImported = (created: Candidate[]) => {
@@ -95,6 +97,9 @@ export default function CandidateManager({
     setImportCount(created.length)
     setTimeout(() => setImportCount(0), 5000)
   }
+
+  const isPending = addMutation.isPending || editMutation.isPending || deleteMutation.isPending
+  const error = addMutation.error?.message || editMutation.error?.message || deleteMutation.error?.message || ""
 
   /* ── Render ────────────────────────────────────────────── */
 
@@ -131,7 +136,7 @@ export default function CandidateManager({
             onAdd={handleAdd}
             onCancel={() => {
               setShowAdd(false)
-              setError("")
+              addMutation.reset()
             }}
           />
         )}
@@ -167,7 +172,7 @@ export default function CandidateManager({
               as="button"
               onClick={() => {
                 setShowAdd(true)
-                setError("")
+                addMutation.reset()
               }}
               display="inline-flex"
               alignItems="center"

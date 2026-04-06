@@ -1,30 +1,90 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
-  Box,
-  Text,
-  VStack,
-  HStack,
-  Heading,
-  Input,
-  createToaster,
-  Table,
   Badge,
-  Flex,
   Button,
+  HStack,
+  createToaster,
 } from "@chakra-ui/react";
+import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PollingStation } from "@prisma/client";
 import {
   getPollingStations,
   deletePollingStation,
 } from "@/services/PollingStations";
+import { TableGroupable } from "@/components/Generic/TableGroupable";
 import PollingStationForm from "./Form";
 import FullPageLoader from "@/components/Generic/FullPageLoader";
 
 const toaster = createToaster({ placement: "top-end" });
+const columnHelper = createColumnHelper<PollingStation>();
+
+/* ── Column definitions ────────────────────────────────── */
+
+const getColumns = (
+  onEdit: (station: PollingStation) => void,
+  onDelete: (id: string) => void,
+): ColumnDef<PollingStation, any>[] => [
+  columnHelper.accessor("id", {
+    header: "#",
+    enableColumnFilter: false,
+    enableHiding: false,
+    enableGrouping: false,
+    size: 40,
+    cell: (cell) => cell.row.index + 1,
+  }),
+  columnHelper.accessor("code", {
+    header: "Code",
+    size: 100,
+    cell: (cell) => <Badge colorPalette="blue">{cell.getValue()}</Badge>,
+  }),
+  columnHelper.accessor("name", {
+    header: "Name",
+    cell: (cell) => <span style={{ fontWeight: 500 }}>{cell.getValue()}</span>,
+  }),
+  columnHelper.accessor("county", {
+    header: "County",
+  }),
+  columnHelper.accessor("constituency", {
+    header: "Constituency",
+  }),
+  columnHelper.accessor("ward", {
+    header: "Ward",
+  }),
+  columnHelper.accessor("registeredVoters", {
+    header: "Reg. Voters",
+    enableGrouping: false,
+    cell: (cell) => cell.getValue()?.toLocaleString() ?? "-",
+  }),
+  columnHelper.display({
+    id: "actions",
+    header: "Actions",
+    enableColumnFilter: false,
+    enableSorting: false,
+    enableHiding: false,
+    enableGrouping: false,
+    cell: ({ row }) => (
+      <HStack gap={2}>
+        <Button size="xs" variant="outline" onClick={() => onEdit(row.original)}>
+          Edit
+        </Button>
+        <Button
+          size="xs"
+          variant="outline"
+          colorPalette="red"
+          onClick={() => onDelete(row.original.id)}
+        >
+          Delete
+        </Button>
+      </HStack>
+    ),
+  }),
+];
+
+/* ── Main component ────────────────────────────────────── */
 
 const PollingStationsTable = ({
   stations: initialStations,
@@ -34,7 +94,6 @@ const PollingStationsTable = ({
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editStation, setEditStation] = useState<PollingStation | null>(null);
-  const [search, setSearch] = useState("");
 
   const { data: stations, isLoading } = useQuery({
     queryKey: ["polling-stations"],
@@ -46,9 +105,7 @@ const PollingStationsTable = ({
     try {
       await deletePollingStation(id);
       queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
-      toaster.success({
-        title: "Polling station deleted",
-      });
+      toaster.success({ title: "Polling station deleted" });
     } catch (e: any) {
       toaster.error({
         title: "Error deleting station",
@@ -57,13 +114,12 @@ const PollingStationsTable = ({
     }
   };
 
-  const filtered = (stations || []).filter(
-    (s) =>
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.code.toLowerCase().includes(search.toLowerCase()) ||
-      s.county.toLowerCase().includes(search.toLowerCase()) ||
-      s.constituency.toLowerCase().includes(search.toLowerCase()) ||
-      s.ward.toLowerCase().includes(search.toLowerCase())
+  const handleEdit = (station: PollingStation) => setEditStation(station);
+
+  const columns = useMemo(
+    () => getColumns(handleEdit, handleDelete),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
   if (showForm || editStation) {
@@ -82,103 +138,19 @@ const PollingStationsTable = ({
   return (
     <>
       {isLoading && <FullPageLoader />}
-      <VStack gap={4} w="full" alignItems="start" p={4}>
-        <Flex
-          w="full"
-          justifyContent="space-between"
-          alignItems="center"
-          flexWrap="wrap"
-          gap={3}
-        >
-          <Box>
-            <Heading size="lg">Polling Stations</Heading>
-            <Text color="gray.500" fontSize="sm">
-              Manage polling stations for election result collection
-            </Text>
-          </Box>
-          <Button
-            colorPalette="blue"
-            onClick={() => setShowForm(true)}
-          >
+      <TableGroupable<PollingStation>
+        title="Polling Stations"
+        data={stations || []}
+        columnInfo={columns}
+        exportCsv={true}
+        defaultGrouping={[]}
+        loading={isLoading}
+        headingContent={
+          <Button colorPalette="blue" onClick={() => setShowForm(true)}>
             + Add Polling Station
           </Button>
-        </Flex>
-
-        <Input
-          placeholder="Search by name, code, county, constituency, or ward..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          maxW="400px"
-          size="sm"
-        />
-
-        <Box w="full" overflowX="auto">
-          <Table.Root size="sm" striped>
-            <Table.Header>
-              <Table.Row>
-                <Table.ColumnHeader>#</Table.ColumnHeader>
-                <Table.ColumnHeader>Code</Table.ColumnHeader>
-                <Table.ColumnHeader>Name</Table.ColumnHeader>
-                <Table.ColumnHeader>County</Table.ColumnHeader>
-                <Table.ColumnHeader>Constituency</Table.ColumnHeader>
-                <Table.ColumnHeader>Ward</Table.ColumnHeader>
-                <Table.ColumnHeader>Reg. Voters</Table.ColumnHeader>
-                <Table.ColumnHeader>Actions</Table.ColumnHeader>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {filtered.length === 0 ? (
-                <Table.Row>
-                  <Table.Cell colSpan={8}>
-                    <Text textAlign="center" color="gray.400" py={4}>
-                      No polling stations found
-                    </Text>
-                  </Table.Cell>
-                </Table.Row>
-              ) : (
-                filtered.map((station, index) => (
-                  <Table.Row key={station.id}>
-                    <Table.Cell>{index + 1}</Table.Cell>
-                    <Table.Cell>
-                      <Badge colorPalette="blue">{station.code}</Badge>
-                    </Table.Cell>
-                    <Table.Cell fontWeight="500">{station.name}</Table.Cell>
-                    <Table.Cell>{station.county}</Table.Cell>
-                    <Table.Cell>{station.constituency}</Table.Cell>
-                    <Table.Cell>{station.ward}</Table.Cell>
-                    <Table.Cell>
-                      {station.registeredVoters?.toLocaleString() ?? "-"}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <HStack gap={2}>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => setEditStation(station)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          colorPalette="red"
-                          onClick={() => handleDelete(station.id)}
-                        >
-                          Delete
-                        </Button>
-                      </HStack>
-                    </Table.Cell>
-                  </Table.Row>
-                ))
-              )}
-            </Table.Body>
-          </Table.Root>
-        </Box>
-
-        <Text fontSize="xs" color="gray.400">
-          Total: {filtered.length} polling stations
-        </Text>
-      </VStack>
+        }
+      />
     </>
   );
 };

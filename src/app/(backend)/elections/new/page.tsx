@@ -5,13 +5,13 @@ import {
 } from "@chakra-ui/react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState, useTransition } from "react"
+import { useState } from "react"
 import { createElection, type PositionInput } from "@/services/Elections"
 import { KNOWN_POSITIONS, AGGREGATION_LEVELS, AGGREGATION_LEVEL_LABEL } from "@/constants/elections"
-import { AggregationLevel } from "@prisma/client"
 import { FiArrowLeft, FiPlus, FiTrash2, FiChevronDown } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 import { LEVEL_COLOR } from "@/components/Elections/constants"
+import useSyncMutation from "@/hooks/hooks/useSyncMutation"
 
 const DEFAULT_POSITIONS: PositionInput[] = Object.entries(KNOWN_POSITIONS).map(([type, meta], i) => ({
   type,
@@ -23,14 +23,27 @@ const DEFAULT_POSITIONS: PositionInput[] = Object.entries(KNOWN_POSITIONS).map((
 
 export default function NewElectionPage() {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
 
   const [title, setTitle]               = useState("")
   const [year, setYear]                 = useState(new Date().getFullYear().toString())
   const [electionDate, setElectionDate] = useState("")
   const [description, setDescription]  = useState("")
   const [positions, setPositions]       = useState<PositionInput[]>(DEFAULT_POSITIONS)
-  const [error, setError]               = useState("")
+  const [validationError, setValidationError] = useState("")
+
+  const createMutation = useSyncMutation(
+    async (input: { title: string; year: number; electionDate: Date; description?: string; positions: PositionInput[] }) => {
+      return createElection(input)
+    },
+    {
+      onSuccess: (election) => {
+        router.push(`/elections/${election.id}`)
+      },
+    },
+  )
+
+  const isPending = createMutation.isPending
+  const error = validationError || createMutation.error?.message || ""
 
   // ── Position helpers ──────────────────────────────────────────────────────
 
@@ -76,35 +89,28 @@ export default function NewElectionPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !year || !electionDate) {
-      setError("Title, year, and election date are required.")
+      setValidationError("Title, year, and election date are required.")
       return
     }
     if (positions.length === 0) {
-      setError("Add at least one position.")
+      setValidationError("Add at least one position.")
       return
     }
     for (const p of positions) {
-      if (!p.type.trim()) { setError("All positions must have a type/key."); return }
-      if (!p.title.trim()) { setError(`Position "${p.type}" needs a display title.`); return }
+      if (!p.type.trim()) { setValidationError("All positions must have a type/key."); return }
+      if (!p.title.trim()) { setValidationError(`Position "${p.type}" needs a display title.`); return }
     }
     const types = positions.map((p) => p.type.trim().toUpperCase())
     const dupes = types.filter((t, i) => types.indexOf(t) !== i)
-    if (dupes.length) { setError(`Duplicate position types: ${dupes.join(", ")}`); return }
+    if (dupes.length) { setValidationError(`Duplicate position types: ${dupes.join(", ")}`); return }
 
-    setError("")
-    startTransition(async () => {
-      try {
-        const election = await createElection({
-          title: title.trim(),
-          year: parseInt(year),
-          electionDate: new Date(electionDate),
-          description: description.trim() || undefined,
-          positions,
-        })
-        router.push(`/elections/${election.id}`)
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "Failed to create election.")
-      }
+    setValidationError("")
+    createMutation.mutate({
+      title: title.trim(),
+      year: parseInt(year),
+      electionDate: new Date(electionDate),
+      description: description.trim() || undefined,
+      positions,
     })
   }
 

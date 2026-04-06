@@ -8,6 +8,7 @@ import { FiChevronRight, FiMapPin } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 import type { DrillDownResult } from "@/services/PublicResults"
 import { LEVEL_COLOR, NEXT_ACTION } from "./constants"
+import useSyncMutation from "@/hooks/hooks/useSyncMutation"
 
 export default function DrillDown({
   initial,
@@ -18,14 +19,11 @@ export default function DrillDown({
 }) {
   const [data, setData] = useState<DrillDownResult>(initial)
   const [history, setHistory] = useState<DrillDownResult[]>([])
-  const [loading, setLoading] = useState(false)
 
-  /** Navigate deeper into a child entity. */
-  const drill = async (childId: string) => {
-    const nextAction = NEXT_ACTION[data.level]
-    if (!nextAction) return // already at leaf
-    setLoading(true)
-    try {
+  const drillMutation = useSyncMutation(
+    async (childId: string) => {
+      const nextAction = NEXT_ACTION[data.level]
+      if (!nextAction) throw new Error("Already at leaf level")
       const qs = new URLSearchParams({
         action: nextAction,
         id: childId,
@@ -33,12 +31,20 @@ export default function DrillDown({
         electionId,
       })
       const res = await fetch(`/api/public-results?${qs}`)
-      const json: DrillDownResult = await res.json()
-      setHistory((prev) => [...prev, data])
-      setData(json)
-    } finally {
-      setLoading(false)
-    }
+      return res.json() as Promise<DrillDownResult>
+    },
+    {
+      onSuccess: (json) => {
+        setHistory((prev) => [...prev, data])
+        setData(json)
+      },
+    },
+  )
+
+  /** Navigate deeper into a child entity. */
+  const drill = (childId: string) => {
+    if (!NEXT_ACTION[data.level]) return
+    drillMutation.mutate(childId)
   }
 
   /** Navigate up via breadcrumb. */
@@ -183,7 +189,7 @@ export default function DrillDown({
               _hover={canDrill ? { borderColor: lc.border, boxShadow: `0 0 0 1px ${lc.border}` } : {}}
               transition="all 0.15s"
               onClick={canDrill ? () => drill(child.entityId) : undefined}
-              opacity={loading ? 0.6 : 1}
+              opacity={drillMutation.isPending ? 0.6 : 1}
             >
               {/* Child header */}
               <Box px={5} py={3} bg="gray.50" borderBottomWidth="1px" borderBottomColor="gray.100">
