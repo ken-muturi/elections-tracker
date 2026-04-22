@@ -1,26 +1,25 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-"use server"
+"use server";
 
-import prisma from "@/db"
-import { handleReturnError } from "@/db/error-handling"
-import { getCurrentUser } from "./UserSessison"
-import { ResultStatus } from "@prisma/client"
+import prisma from "@/db";
+import { handleReturnError } from "@/db/error-handling";
+import { getCurrentUser } from "./UserSessison";
+import { ResultStatus } from "@prisma/client";
 
 export type CandidateVoteInput = {
-  candidateId: string
-  votes: number
-}
+  candidateId: string;
+  votes: number;
+};
 
 export type StreamResultInput = {
-  streamId: string
-  positionId: string
-  votes: CandidateVoteInput[]
-  totalVotes?: number
-  rejectedVotes?: number
-  notes?: string
-  imageUrl?: string
-  voiceUrl?: string
-}
+  streamId: string;
+  positionId: string;
+  votes: CandidateVoteInput[];
+  totalVotes?: number;
+  rejectedVotes?: number;
+  notes?: string;
+  imageUrl?: string;
+  voiceUrl?: string;
+};
 
 /**
  * Upsert a stream result (create or update).
@@ -28,31 +27,39 @@ export type StreamResultInput = {
  * Everything runs inside a single Prisma transaction for atomicity.
  * When status is SUBMITTED, `submittedAt` is set automatically.
  */
-export const upsertStreamResult = async (input: StreamResultInput, status: ResultStatus = "DRAFT") => {
+export const upsertStreamResult = async (
+  input: StreamResultInput,
+  status: ResultStatus = "DRAFT",
+) => {
   try {
-    const user = await getCurrentUser()
+    const user = await getCurrentUser();
 
     // ── Authorization: agent must be assigned to this stream, OR be admin ──
-    const role = (user.role ?? "").toLowerCase()
-    const isAdmin = role === "admin" || role === "super admin"
+    const role = (user.role ?? "").toLowerCase();
+    const isAdmin = role === "admin" || role === "super admin";
 
     if (!isAdmin) {
       const assignment = await prisma.agentStream.findFirst({
         where: { streamId: input.streamId, agentId: user.id },
-      })
+      });
       if (!assignment) {
-        throw new Error("You are not assigned to this stream.")
+        throw new Error("You are not assigned to this stream.");
       }
     }
 
-    const submittedAt = status === "SUBMITTED" ? new Date() : undefined
+    const submittedAt = status === "SUBMITTED" ? new Date() : undefined;
 
     return await prisma.$transaction(async (tx) => {
       const existing = await tx.streamResult.findUnique({
-        where: { streamId_positionId: { streamId: input.streamId, positionId: input.positionId } },
-      })
+        where: {
+          streamId_positionId: {
+            streamId: input.streamId,
+            positionId: input.positionId,
+          },
+        },
+      });
 
-      let resultId: string
+      let resultId: string;
 
       if (existing) {
         await tx.streamResult.update({
@@ -67,8 +74,8 @@ export const upsertStreamResult = async (input: StreamResultInput, status: Resul
             voiceUrl: input.voiceUrl,
             ...(submittedAt ? { submittedAt } : {}),
           },
-        })
-        resultId = existing.id
+        });
+        resultId = existing.id;
       } else {
         const created = await tx.streamResult.create({
           data: {
@@ -83,28 +90,37 @@ export const upsertStreamResult = async (input: StreamResultInput, status: Resul
             voiceUrl: input.voiceUrl,
             ...(submittedAt ? { submittedAt } : {}),
           },
-        })
-        resultId = created.id
+        });
+        resultId = created.id;
       }
 
       // Upsert individual candidate votes
       for (const cv of input.votes) {
         await tx.streamCandidateVote.upsert({
-          where: { streamResultId_candidateId: { streamResultId: resultId, candidateId: cv.candidateId } },
-          create: { streamResultId: resultId, candidateId: cv.candidateId, votes: cv.votes },
+          where: {
+            streamResultId_candidateId: {
+              streamResultId: resultId,
+              candidateId: cv.candidateId,
+            },
+          },
+          create: {
+            streamResultId: resultId,
+            candidateId: cv.candidateId,
+            votes: cv.votes,
+          },
           update: { votes: cv.votes },
-        })
+        });
       }
 
       return await tx.streamResult.findUnique({
         where: { id: resultId },
         include: { votes: { include: { candidate: true } } },
-      })
-    })
+      });
+    });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 /**
  * @deprecated Use upsertStreamResult with status "SUBMITTED" instead.
@@ -115,19 +131,25 @@ export const submitStreamResult = async (streamResultId: string) => {
     return await prisma.streamResult.update({
       where: { id: streamResultId },
       data: { status: "SUBMITTED", submittedAt: new Date() },
-    })
+    });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
-export const updateStreamResultStatus = async (id: string, status: ResultStatus) => {
+export const updateStreamResultStatus = async (
+  id: string,
+  status: ResultStatus,
+) => {
   try {
-    return await prisma.streamResult.update({ where: { id }, data: { status } })
+    return await prisma.streamResult.update({
+      where: { id },
+      data: { status },
+    });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 /**
  * Get all stream results for an election position, grouped by stream.
@@ -142,8 +164,11 @@ export const getStreamResultsByPosition = async (positionId: string) => {
           include: {
             pollingStation: {
               select: {
-                name: true, code: true,
-                county: true, constituency: true, ward: true,
+                name: true,
+                code: true,
+                county: true,
+                constituency: true,
+                ward: true,
                 wardRef: { select: { id: true, name: true, code: true } },
               },
             },
@@ -153,11 +178,11 @@ export const getStreamResultsByPosition = async (positionId: string) => {
         agent: { select: { firstname: true, othernames: true } },
       },
       orderBy: { submittedAt: "desc" },
-    })
+    });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 /**
  * Get stream results entered by a specific agent for a given election.
@@ -174,7 +199,13 @@ export const getAgentResults = async (electionId: string, agentId: string) => {
         stream: {
           include: {
             pollingStation: {
-              select: { name: true, code: true, county: true, constituency: true, ward: true },
+              select: {
+                name: true,
+                code: true,
+                county: true,
+                constituency: true,
+                ward: true,
+              },
             },
           },
         },
@@ -182,11 +213,11 @@ export const getAgentResults = async (electionId: string, agentId: string) => {
         votes: { include: { candidate: true } },
       },
       orderBy: { submittedAt: "desc" },
-    })
+    });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 /** Get a single stream result (for pre-filling the entry form) */
 export const getStreamResult = async (streamId: string, positionId: string) => {
@@ -194,17 +225,20 @@ export const getStreamResult = async (streamId: string, positionId: string) => {
     return await prisma.streamResult.findUnique({
       where: { streamId_positionId: { streamId, positionId } },
       include: { votes: { include: { candidate: true } } },
-    })
+    });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 /**
  * Aggregate stream results up to polling-station level for a position.
  * Returns a map of candidateId → total votes across all streams in the station.
  */
-export const aggregateToStation = async (pollingStationId: string, positionId: string) => {
+export const aggregateToStation = async (
+  pollingStationId: string,
+  positionId: string,
+) => {
   try {
     const streams = await prisma.stream.findMany({
       where: { pollingStationId, isActive: true },
@@ -214,20 +248,23 @@ export const aggregateToStation = async (pollingStationId: string, positionId: s
           include: { votes: true },
         },
       },
-    })
+    });
 
-    const totals = new Map<string, number>()
-    let totalVotes = 0
-    let rejectedVotes = 0
-    let reportedStreams = 0
+    const totals = new Map<string, number>();
+    let totalVotes = 0;
+    let rejectedVotes = 0;
+    let reportedStreams = 0;
 
     for (const stream of streams) {
       for (const result of stream.streamResults) {
-        reportedStreams++
-        totalVotes += result.totalVotes ?? 0
-        rejectedVotes += result.rejectedVotes ?? 0
+        reportedStreams++;
+        totalVotes += result.totalVotes ?? 0;
+        rejectedVotes += result.rejectedVotes ?? 0;
         for (const vote of result.votes) {
-          totals.set(vote.candidateId, (totals.get(vote.candidateId) ?? 0) + vote.votes)
+          totals.set(
+            vote.candidateId,
+            (totals.get(vote.candidateId) ?? 0) + vote.votes,
+          );
         }
       }
     }
@@ -237,12 +274,14 @@ export const aggregateToStation = async (pollingStationId: string, positionId: s
       reportedStreams,
       totalVotes,
       rejectedVotes,
-      candidateTotals: Array.from(totals.entries()).map(([candidateId, votes]) => ({
-        candidateId,
-        votes,
-      })),
-    }
+      candidateTotals: Array.from(totals.entries()).map(
+        ([candidateId, votes]) => ({
+          candidateId,
+          votes,
+        }),
+      ),
+    };
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
