@@ -34,12 +34,7 @@ export default async function DrillDownPage({
   if (!election) notFound()
 
   return (
-    <Box
-      maxW="7xl"
-      mx="auto"
-      px={{ base: 4, md: 8 }}
-      py={{ base: 6, md: 10 }}
-    >
+    <Box w="8xl" mx="auto" px={{ base: 4, md: 8 }} py={{ base: 6, md: 10 }}>
       <VStack gap={6} alignItems="stretch" w="full">
         {/* ── Back + header ──────────────────────────────── */}
         <VStack alignItems="flex-start" gap={3}>
@@ -95,5 +90,5 @@ export default async function DrillDownPage({
         </Box>
       </VStack>
     </Box>
-  )
+  );
 }

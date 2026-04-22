@@ -270,6 +270,235 @@ export const computeAggregateFromStreams = async (
 }
 
 /**
+ * Lightweight summary for every position in an election — stream stats only,
+ * no candidate breakdown. Used to populate the position tab strip on the
+ * public results page without loading all candidate data upfront.
+ */
+export const getElectionPositionsSummary = async (electionId: string) => {
+  try {
+    const positions = await prisma.electionPosition.findMany({
+      where: { electionId },
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        aggregationLevel: true,
+        _count: {
+          select: {
+            levelResults: { where: { status: { in: ["SUBMITTED", "VERIFIED"] } } },
+          },
+        },
+      },
+    });
+
+    const positionIds = positions.map((p) => p.id);
+    const streamStats = await prisma.streamResult.groupBy({
+      by: ["positionId"],
+      where: { positionId: { in: positionIds }, status: { in: ["SUBMITTED", "VERIFIED"] } },
+      _count: { id: true },
+      _sum: { totalVotes: true, rejectedVotes: true },
+    });
+
+    const streamStatMap = new Map(
+      streamStats.map((r) => [
+        r.positionId,
+        {
+          totalReported: r._count.id,
+          totalVotes: r._sum.totalVotes ?? 0,
+          rejectedVotes: r._sum.rejectedVotes ?? 0,
+        },
+      ]),
+    );
+
+    return positions.map((p) => ({
+      positionId: p.id,
+      positionType: p.type,
+      positionTitle: p.title,
+      aggregationLevel: p.aggregationLevel,
+      streamStats: streamStatMap.get(p.id) ?? {
+        totalReported: 0,
+        totalVotes: 0,
+        rejectedVotes: 0,
+      },
+      levelValidations: p._count.levelResults,
+    }));
+  } catch (error) {
+    throw new Error(handleReturnError(error));
+  }
+};
+
+/**
+ * Full candidate results for a single position — called on demand from the
+ * client when the user selects a tab. Returns the same shape as one entry
+ * from getElectionResults. Only fetches geo data relevant to the position's
+ * aggregation level.
+ */
+export const getElectionResultsByPosition = async (
+  electionId: string,
+  positionId: string,
+) => {
+  try {
+    const position = await prisma.electionPosition.findUnique({
+      where: { id: positionId },
+      include: {
+        candidates: { orderBy: { sortOrder: "asc" } },
+        levelResults: {
+          where: { status: { in: ["SUBMITTED", "VERIFIED"] } },
+          include: { votes: true },
+        },
+      },
+    });
+
+    if (!position) return null;
+
+    const level = position.aggregationLevel;
+
+    type GeoInfo = { name: string; countyName: string | null; constituencyName: string | null };
+
+    // Build a normalised geo map that includes parent names for hierarchical display.
+    // Only fetch the table(s) actually needed for this position's aggregation level.
+    const geoPromise: Promise<(GeoInfo & { id: string })[]> =
+      level === "COUNTY"
+        ? prisma.county
+            .findMany({ select: { id: true, name: true } })
+            .then((rows) => rows.map((r) => ({ id: r.id, name: r.name, countyName: null, constituencyName: null })))
+        : level === "CONSTITUENCY"
+          ? prisma.constituency
+              .findMany({ select: { id: true, name: true, county: { select: { name: true } } } })
+              .then((rows) =>
+                rows.map((r) => ({ id: r.id, name: r.name, countyName: r.county.name, constituencyName: null })),
+              )
+          : level === "WARD"
+            ? prisma.ward
+                .findMany({
+                  where: { electionId },
+                  select: {
+                    id: true,
+                    name: true,
+                    constituency: { select: { name: true, county: { select: { name: true } } } },
+                  },
+                })
+                .then((rows) =>
+                  rows.map((r) => ({
+                    id: r.id,
+                    name: r.name,
+                    countyName: r.constituency.county.name,
+                    constituencyName: r.constituency.name,
+                  })),
+                )
+            : Promise.resolve([]);
+
+    const [geoRows, candidateVoteTotals, streamStatRows] = await Promise.all([
+      geoPromise,
+      prisma.streamCandidateVote.groupBy({
+        by: ["candidateId"],
+        where: {
+          streamResult: { positionId, status: { in: ["SUBMITTED", "VERIFIED"] } },
+        },
+        _sum: { votes: true },
+      }),
+      prisma.streamResult.groupBy({
+        by: ["positionId"],
+        where: { positionId, status: { in: ["SUBMITTED", "VERIFIED"] } },
+        _count: { id: true },
+        _sum: { totalVotes: true, rejectedVotes: true },
+      }),
+    ]);
+
+    const geoInfoById = new Map(geoRows.map((r) => [r.id, r as GeoInfo]));
+    const candidateVoteMap = new Map(candidateVoteTotals.map((r) => [r.candidateId, r._sum.votes ?? 0]));
+
+    const levelAgg = new Map<string, number>();
+    const levelTotals = new Map<string, { totalVotes: number; rejectedVotes: number }>();
+    for (const lr of position.levelResults) {
+      for (const v of lr.votes) {
+        levelAgg.set(v.candidateId, (levelAgg.get(v.candidateId) ?? 0) + v.votes);
+      }
+      const existing = levelTotals.get(lr.entityId) ?? { totalVotes: 0, rejectedVotes: 0 };
+      levelTotals.set(lr.entityId, {
+        totalVotes: existing.totalVotes + (lr.totalVotes ?? 0),
+        rejectedVotes: existing.rejectedVotes + (lr.rejectedVotes ?? 0),
+      });
+    }
+
+    const resolveGeoInfo = (entityId: string | null): GeoInfo => {
+      if (level === "NATIONAL" || entityId === null)
+        return { name: "National", countyName: null, constituencyName: null };
+      return geoInfoById.get(entityId) ?? { name: entityId, countyName: null, constituencyName: null };
+    };
+
+    const entityMap = new Map<string, {
+      entityId: string;
+      entityName: string;
+      countyName: string | null;
+      constituencyName: string | null;
+      candidates: { id: string; name: string; party: string | null; streamVotes: number; levelVotes: number }[];
+    }>();
+
+    for (const c of position.candidates) {
+      const rawEntityId = level === "NATIONAL" ? "national" : (c.entityId ?? "national");
+      const geo = resolveGeoInfo(rawEntityId === "national" ? null : rawEntityId);
+      if (!entityMap.has(rawEntityId)) {
+        entityMap.set(rawEntityId, {
+          entityId: rawEntityId,
+          entityName: geo.name,
+          countyName: geo.countyName,
+          constituencyName: geo.constituencyName,
+          candidates: [],
+        });
+      }
+      entityMap.get(rawEntityId)!.candidates.push({
+        id: c.id,
+        name: c.name,
+        party: c.party,
+        streamVotes: candidateVoteMap.get(c.id) ?? 0,
+        levelVotes: levelAgg.get(c.id) ?? 0,
+      });
+    }
+
+    for (const entity of entityMap.values()) {
+      entity.candidates.sort((a, b) => b.streamVotes - a.streamVotes);
+    }
+
+    const entities = Array.from(entityMap.values())
+      .map((entity) => {
+        const totals = levelTotals.get(entity.entityId) ?? { totalVotes: 0, rejectedVotes: 0 };
+        return {
+          entityId: entity.entityId,
+          entityName: entity.entityName,
+          countyName: entity.countyName,
+          constituencyName: entity.constituencyName,
+          candidates: entity.candidates,
+          totalVotes: totals.totalVotes,
+          rejectedVotes: totals.rejectedVotes,
+        };
+      })
+      .sort((a, b) => a.entityName.localeCompare(b.entityName));
+
+    const statsRow = streamStatRows[0];
+    const streamStats = statsRow
+      ? {
+          totalReported: statsRow._count.id,
+          totalVotes: statsRow._sum.totalVotes ?? 0,
+          rejectedVotes: statsRow._sum.rejectedVotes ?? 0,
+        }
+      : { totalReported: 0, totalVotes: 0, rejectedVotes: 0 };
+
+    return {
+      positionId: position.id,
+      positionType: position.type,
+      positionTitle: position.title,
+      aggregationLevel: level,
+      entities,
+      streamStats,
+      levelValidations: position.levelResults.length,
+    };
+  } catch (error) {
+    throw new Error(handleReturnError(error));
+  }
+};
+
+/**
  * Full election results view — candidate totals at each position's natural level.
  * MCA per ward, MP per constituency, etc.
  * This is the main public results endpoint.

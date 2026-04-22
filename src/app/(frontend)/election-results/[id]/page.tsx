@@ -2,8 +2,8 @@ import { Box, Heading, Text, VStack, HStack, Flex } from "@chakra-ui/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublicElectionById } from "@/services/Elections";
-import { getElectionResults } from "@/services/LevelResults";
-import { ResultsSummary, PositionResults } from "@/components/Elections";
+import { getElectionPositionsSummary } from "@/services/LevelResults";
+import { ResultsSummary, PositionSelector } from "@/components/Elections";
 
 import { FiArrowLeft } from "react-icons/fi";
 import { MdHowToVote } from "react-icons/md";
@@ -29,15 +29,15 @@ export default async function PublicElectionResultsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [election, results] = await Promise.all([
+  const [election, summaries] = await Promise.all([
     getPublicElectionById(id).catch(() => null),
-    getElectionResults(id).catch(() => []),
+    getElectionPositionsSummary(id).catch(() => []),
   ]);
 
   if (!election) notFound();
 
   return (
-    <Box maxW="7xl" mx="auto" px={{ base: 4, md: 8 }} py={{ base: 6, md: 10 }}>
+    <Box w="8xl" mx="auto" px={{ base: 4, md: 8 }} py={{ base: 6, md: 10 }}>
       <VStack gap={6} alignItems="stretch" w="full">
         {/* ── Back + header ──────────────────────────────────── */}
         <VStack alignItems="flex-start" gap={3}>
@@ -106,10 +106,10 @@ export default async function PublicElectionResultsPage({
         </VStack>
 
         {/* ── Summary stats ──────────────────────────────────── */}
-        <ResultsSummary results={results} />
+        <ResultsSummary results={summaries} />
 
         {/* ── Position-level results ─────────────────────────── */}
-        <PositionResults results={results} electionId={id} />
+        <PositionSelector summaries={summaries} electionId={id} />
 
         {/* ── Disclaimer ─────────────────────────────────────── */}
         <Box textAlign="center" pt={4}>

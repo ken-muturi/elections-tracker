@@ -12,6 +12,8 @@ export type ResultStat = {
   entities: {
     entityId: string
     entityName: string
+    countyName?: string | null
+    constituencyName?: string | null
     candidates: {
       id: string
       name: string
@@ -30,8 +32,11 @@ export type ResultStat = {
   levelValidations: number
 }
 
+/** ResultStat without the candidate/entity breakdown — used for the tab strip. */
+export type PositionSummary = Omit<ResultStat, "entities">
+
 type ResultsSummaryProps = {
-  results: ResultStat[]
+  results: PositionSummary[]
 }
 
 export default function ResultsSummary({ results }: ResultsSummaryProps) {

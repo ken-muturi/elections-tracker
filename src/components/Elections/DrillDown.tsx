@@ -2,7 +2,7 @@
 
 import React, { useState } from "react"
 import {
-  Box, VStack, HStack, Text, Heading, SimpleGrid, Flex, Badge,
+  Box, VStack, HStack, Text, Heading, SimpleGrid, Flex, Badge, Spinner,
 } from "@chakra-ui/react"
 import { FiChevronRight, FiMapPin, FiAlertTriangle } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
@@ -206,7 +206,21 @@ export default function DrillDown({
       </Box>
 
       {/* ── Children cards ──────────────────────────────── */}
-      <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
+      <Box position="relative">
+        {drillMutation.isPending && (
+          <Flex
+            position="absolute"
+            top={0} left={0} right={0} bottom={0}
+            zIndex={1}
+            bg="rgba(255,255,255,0.75)"
+            borderRadius="2xl"
+            align="center"
+            justify="center"
+          >
+            <Spinner size="lg" color="#798217" />
+          </Flex>
+        )}
+        <SimpleGrid columns={{ base: 1, md: 2 }} gap={4} opacity={drillMutation.isPending ? 0.4 : 1} transition="opacity 0.15s">
         {data.children.map((child) => {
           const maxVotes = child.candidates[0]?.votes ?? 1
           const childTotal = child.candidates.reduce((s, c) => s + c.votes, 0)
@@ -220,7 +234,6 @@ export default function DrillDown({
               _hover={canDrill ? { borderColor: lc.border, boxShadow: `0 0 0 1px ${lc.border}` } : {}}
               transition="all 0.15s"
               onClick={canDrill ? () => drill(child.entityId) : undefined}
-              opacity={drillMutation.isPending ? 0.6 : 1}
             >
               {/* Child header */}
               <Box px={5} py={3} bg="gray.50" borderBottomWidth="1px" borderBottomColor="gray.100">
@@ -306,6 +319,7 @@ export default function DrillDown({
           )
         })}
       </SimpleGrid>
+      </Box>
 
       {data.rejectedVotes > 0 && (
         <Box px={5} py={3} bg="#fef9f0" borderRadius="xl" borderWidth="1px" borderColor="#fef3c7">
