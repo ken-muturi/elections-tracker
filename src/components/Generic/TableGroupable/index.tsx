@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { ReactNode, useCallback, useMemo, useState } from 'react';
+import React, { ReactNode, useCallback, useMemo, useState } from "react";
 import {
   Column,
   ColumnDef,
@@ -20,7 +20,7 @@ import {
   SortingState,
   useReactTable,
   VisibilityState,
-} from '@tanstack/react-table';
+} from "@tanstack/react-table";
 
 import {
   Box,
@@ -46,6 +46,7 @@ import { HiOutlineBarsArrowDown, HiOutlineBarsArrowUp } from "react-icons/hi2";
 
 import Pagination from "./Pagination";
 import Filter from "./Filter";
+import { ChildHeader, ChildRow } from "./ExpandedRowContent";
 import {
   ExportToCSV,
   ExportToPDF,
@@ -81,7 +82,7 @@ const Loader = () => (
   </Box>
 );
 
-export function TableGroupable<TData>({
+export function TableGroupable<TData, TChildColumn = unknown>({
   data,
   title,
   headingContent,
@@ -98,6 +99,8 @@ export function TableGroupable<TData>({
   showGroupCount = true,
   loading = false,
   scrollable = true,
+  childColumnsInfo,
+  getChildRows,
 }: {
   title?: ReactNode;
   headingContent?: ReactNode;
@@ -115,6 +118,8 @@ export function TableGroupable<TData>({
   loading?: boolean;
   scrollable?: boolean;
   advancedSearchButton?: ReactNode;
+  childColumnsInfo?: ColumnDef<TChildColumn>[];
+  getChildRows?: (row: TData) => TChildColumn[];
 }) {
   const { translate } = useUX();
   const columns = useMemo<ColumnDef<TData>[]>(
@@ -124,7 +129,7 @@ export function TableGroupable<TData>({
           ? d
           : { ...d, filterFn: "multiSelectFilter" };
       }),
-    [columnInfo]
+    [columnInfo],
   );
 
   const [pagination, setPagination] = useState<PaginationState>({
@@ -147,6 +152,9 @@ export function TableGroupable<TData>({
     Column<TData> | undefined
   >(undefined);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [expandedChildRows, setExpandedChildRows] = useState<Set<string>>(
+    new Set(),
+  );
   // const [, setHoveredColumn] = useState<number | undefined>(undefined);
   const { fuzzyFilter, multiSelectFilter } = getFilterFunctions<TData>();
 
@@ -204,17 +212,40 @@ export function TableGroupable<TData>({
   });
 
   const renderTable = (
-    <Table.Root size="sm" stickyHeader>
-      <Table.Header>
+    <Table.Root
+      size="sm"
+      stickyHeader
+      variant="outline"
+      style={{
+        borderRadius: "12px",
+        overflow: "hidden",
+        border: "1px solid #e5e7eb",
+      }}
+    >
+      <Table.Header bg="#f8fafc">
         {table.getHeaderGroups().map((headerGroup, hgindex) => (
-          <Table.Row key={hgindex} bg="bg.subtle">
+          <Table.Row
+            key={hgindex}
+            bg="#f8fafc"
+            borderBottomWidth="2px"
+            borderBottomColor="gray.200"
+          >
             {headerGroup.headers.map((header, hindex) => {
               return (
                 <Table.ColumnHeader
                   key={hindex}
                   className={header.column?.id ?? ""}
                   colSpan={header.colSpan}
-                  style={{ ...getCommonPinningStyles(header.column) }}
+                  py="2px"
+                  px={2}
+                  fontSize="xs"
+                  fontWeight="semibold"
+                  style={{
+                    ...getCommonPinningStyles(header.column),
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                    color: "#374151",
+                  }}
                 >
                   {header.isPlaceholder ? null : (
                     <HStack gap={0} w="full">
@@ -240,7 +271,7 @@ export function TableGroupable<TData>({
                       >
                         {flexRender(
                           header.column.columnDef.header,
-                          header.getContext()
+                          header.getContext(),
                         )}
                       </Box>
                       <Spacer />
@@ -340,22 +371,49 @@ export function TableGroupable<TData>({
               {loading ? (
                 <Loader />
               ) : (
-                <Text>{translate(dictionary.noRecordsFound)}</Text>
+                <Text fontSize="xs" textAlign="center" color="gray.500">
+                  {translate(dictionary.noRecordsFound)}
+                </Text>
               )}
             </Table.Cell>
           </Table.Row>
         ) : (
-          table.getRowModel().rows.map((row, rindex) => {
-            return (
-              <Table.Row key={rindex}>
+          table.getRowModel().rows.flatMap((row, rindex) => {
+            const visibleCellCount = row.getVisibleCells().length;
+            const isChildExpanded = expandedChildRows.has(row.id);
+            const toggleChildExpanded = () =>
+              setExpandedChildRows((prev) => {
+                const next = new Set(prev);
+                if (next.has(row.id)) next.delete(row.id);
+                else next.add(row.id);
+                return next;
+              });
+            const childItems =
+              isChildExpanded && childColumnsInfo && getChildRows
+                ? getChildRows(row.original)
+                : [];
+
+            const parentRow = (
+              <Table.Row
+                key={`row-${rindex}`}
+                _hover={{ bg: "#f8fafc" }}
+                transition="background 0.15s"
+                borderBottomWidth="1px"
+                borderBottomColor="gray.100"
+              >
                 {row.getVisibleCells().map((cell, cindex) => {
                   const hasMeta = cell.getContext().cell.column.columnDef.meta;
                   return (
                     <Table.Cell
-                      // fontSize="xs"
                       key={cindex}
                       className={`${cell.column.id ?? ""}`}
-                      style={{ ...getCommonPinningStyles(cell.column) }}
+                      fontSize="xs"
+                      py="2px"
+                      px={2}
+                      style={{
+                        ...getCommonPinningStyles(cell.column),
+                        color: "#1f2937",
+                      }}
                       {...(hasMeta && {
                         ...hasMeta.getCellContext(cell.getContext()),
                       })}
@@ -373,7 +431,7 @@ export function TableGroupable<TData>({
                           <Text fontWeight="bold">
                             {flexRender(
                               cell.column.columnDef.cell,
-                              cell.getContext()
+                              cell.getContext(),
                             )}
                             {showGroupCount && (
                               <>&nbsp; ({row.subRows.length}) </>
@@ -386,13 +444,29 @@ export function TableGroupable<TData>({
                         flexRender(
                           cell.column.columnDef.aggregatedCell ??
                             cell.column.columnDef.cell,
-                          cell.getContext()
+                          cell.getContext(),
                         )
-                      ) : cell.getIsPlaceholder() ? null : ( // For cells with repeated values, render null
-                        // Otherwise, just render the regular cell
+                      ) : cell.getIsPlaceholder() ? null : cindex === 0 && // Otherwise, just render the regular cell
+                        childColumnsInfo ? (
+                        <HStack gap={1}>
+                          <HeaderButton
+                            iconObj={
+                              isChildExpanded ? FaCaretDown : FaCaretRight
+                            }
+                            onClick={toggleChildExpanded}
+                            aria-label={translate(dictionary.expandCollapse)}
+                            size="xs"
+                            color={isChildExpanded ? "blue.500" : "gray.400"}
+                          />
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </HStack>
+                      ) : (
                         flexRender(
                           cell.column.columnDef.cell,
-                          cell.getContext()
+                          cell.getContext(),
                         )
                       )}
                     </Table.Cell>
@@ -400,6 +474,28 @@ export function TableGroupable<TData>({
                 })}
               </Table.Row>
             );
+
+            const childHeaderRow =
+              childItems.length > 0 ? (
+                <ChildHeader<TChildColumn>
+                  key={`child-header-${rindex}`}
+                  childColumns={childColumnsInfo!}
+                  totalColumnCount={visibleCellCount}
+                />
+              ) : null;
+
+            const childDataRows = childItems.map((item, cidx) => (
+              <ChildRow<TChildColumn>
+                key={`child-${rindex}-${cidx}`}
+                item={item}
+                childColumns={childColumnsInfo!}
+                totalColumnCount={visibleCellCount}
+              />
+            ));
+
+            return [parentRow, childHeaderRow, ...childDataRows].filter(
+              Boolean,
+            ) as React.ReactElement[];
           })
         )}
       </Table.Body>
@@ -407,88 +503,122 @@ export function TableGroupable<TData>({
   );
 
   return (
-    <VStack w="full" alignItems="left" gap={2}>
-      <Stack w="full" direction={{ base: "column", md: "row" }}>
-        {title && (
-          <Box fontWeight="semibold" fontSize="lg">
-            {title}
-          </Box>
-        )}
-        <Spacer />
-        {headingContent}
-        <HStack display={{ base: "none", md: "block" }} gap={1}>
-          {exportCsv && (
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() =>
-                ExportToCSV(
-                  getTableDataForExport(data, columns),
-                  `${title}_${Date.now()}_table.csv`
-                )
-              }
-            >
-              <MdDownload />
-              {translate(dictionary.downloadCSV)}
-            </Button>
-          )}
-
-          {exportPdf && (
-            <Button
-              size="xs"
-              variant="outline"
-              onClick={() =>
-                ExportToPDF(
-                  getTableDataForExport(data, columns),
-                  `${title}_${Date.now()}_table.pdf`
-                )
-              }
-            >
-              <MdDownload />
-              {translate(dictionary.downloadPDF)}
-            </Button>
-          )}
-        </HStack>
-      </Stack>
-      {searchable && (
-        <HStack gap="2" w="full">
-          <Filter<TData>
-            column={columnToFilter}
-            table={table}
-            globalFilter={globalFilter}
-            setGlobalFilter={setGlobalFilter}
-          />
-          {advancedSearchButton && <Box>{advancedSearchButton}</Box>}
-          {Object.keys(columnVisibility).length && (
-            <Box>
-              <Button
-                size="xs"
-                p="2"
-                onClick={() => {
-                  setColumnVisibility(stableVisibleColumns);
-                }}
-              >
-                {translate(dictionary.resetColumns)}
-              </Button>
+    <VStack w="full" alignItems="stretch" gap={2}>
+      {/* Enhanced Header */}
+      <Box
+      // bg="white"
+      // p={4}
+      // py={2}
+      // borderRadius="xl"
+      // borderWidth="1px"
+      // borderColor="gray.100"
+      // boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)"
+      >
+        <Stack
+          w="full"
+          direction={{ base: "column", md: "row" }}
+          gap={3}
+          alignItems={{ base: "stretch", md: "center" }}
+        >
+          {title && (
+            <Box fontWeight="800" fontSize="xl" color="gray.900">
+              {title}
             </Box>
           )}
-        </HStack>
-      )}
+          <Spacer />
+          {/* Search and Filters */}
+          {searchable && (
+            <Box>
+              <HStack gap={3} w="full" flexWrap="wrap">
+                <Box flex={1} minW="250px">
+                  <Filter<TData>
+                    column={columnToFilter}
+                    table={table}
+                    globalFilter={globalFilter}
+                    setGlobalFilter={setGlobalFilter}
+                  />
+                </Box>
+                {advancedSearchButton && <Box>{advancedSearchButton}</Box>}
+                {Boolean(Object.keys(columnVisibility).length) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    colorPalette="gray"
+                    onClick={() => {
+                      setColumnVisibility(stableVisibleColumns);
+                    }}
+                  >
+                    {translate(dictionary.resetColumns)}
+                  </Button>
+                )}
+              </HStack>
+            </Box>
+          )}
 
-      {scrollable && (
-        <Box
-          w="full"
-          overflowX="auto"
-          style={{
-            scrollbarWidth: "thin",
-            scrollbarColor: "#aab7cf transparent",
-          }}
-        >
-          {renderTable}
-        </Box>
-      )}
+          {headingContent}
 
-      {!scrollable && renderTable}
+          <HStack display={{ base: "none", md: "flex" }} gap={2}>
+            {exportCsv && (
+              <Button
+                size="xs"
+                variant="outline"
+                colorPalette="gray"
+                onClick={() =>
+                  ExportToCSV(
+                    getTableDataForExport(data, columns),
+                    `${title}_${Date.now()}_table.csv`,
+                  )
+                }
+              >
+                <MdDownload />
+                {translate(dictionary.downloadCSV)}
+              </Button>
+            )}
+
+            {exportPdf && (
+              <Button
+                size="xs"
+                variant="outline"
+                colorPalette="gray"
+                onClick={() =>
+                  ExportToPDF(
+                    getTableDataForExport(data, columns),
+                    `${title}_${Date.now()}_table.pdf`,
+                  )
+                }
+              >
+                <MdDownload />
+                {translate(dictionary.downloadPDF)}
+              </Button>
+            )}
+          </HStack>
+        </Stack>
+      </Box>
+
+      {/* Table Container */}
+      <Box
+        bg="white"
+        borderRadius="xl"
+        borderWidth="1px"
+        borderColor="gray.100"
+        overflow="hidden"
+        boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)"
+      >
+        {scrollable ? (
+          <Box
+            w="full"
+            overflowX="auto"
+            style={{
+              scrollbarWidth: "thin",
+              scrollbarColor: "#cbd5e1 #f1f5f9",
+            }}
+          >
+            {renderTable}
+          </Box>
+        ) : (
+          renderTable
+        )}
+      </Box>
 
       <Pagination<TData> totalRows={data.length} table={table} />
     </VStack>

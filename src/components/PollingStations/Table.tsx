@@ -10,24 +10,34 @@ import {
 } from "@chakra-ui/react";
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { PollingStation } from "@prisma/client";
+import { PollingStation, Stream } from "@prisma/client";
 import {
   getPollingStations,
   deletePollingStation,
+  togglePollingStationActive,
+  toggleStreamActive,
 } from "@/services/PollingStations";
 import { TableGroupable } from "@/components/Generic/TableGroupable";
 import PollingStationForm from "./Form";
+import StreamForm from "./StreamForm";
 import FullPageLoader from "@/components/Generic/FullPageLoader";
+import StyledIconButton from "@/components/Generic/StyledIconButton";
+import { FaEdit, FaTrash } from "react-icons/fa";
+import { Switch } from "@/components/ui/switch";
+import { getStreamColumns } from "./StreamColumns";
 
 const toaster = createToaster({ placement: "top-end" });
-const columnHelper = createColumnHelper<PollingStation>();
+type PollingStationWithStreams = PollingStation & { streams: Stream[] };
+
+const columnHelper = createColumnHelper<PollingStationWithStreams>();
 
 /* ── Column definitions ────────────────────────────────── */
 
 const getColumns = (
-  onEdit: (station: PollingStation) => void,
+  onEdit: (station: PollingStationWithStreams) => void,
   onDelete: (id: string) => void,
-): ColumnDef<PollingStation, any>[] => [
+  onToggleActive: (id: string, isActive: boolean) => Promise<void>,
+): ColumnDef<PollingStationWithStreams, any>[] => [
   columnHelper.accessor("id", {
     header: "#",
     enableColumnFilter: false,
@@ -59,6 +69,20 @@ const getColumns = (
     enableGrouping: false,
     cell: (cell) => cell.getValue()?.toLocaleString() ?? "-",
   }),
+  columnHelper.accessor("isActive", {
+    header: "Status",
+    enableGrouping: false,
+    enableSorting: true,
+    size: 100,
+    cell: ({ row }) => (
+      <Switch
+        checked={row.original.isActive}
+        onCheckedChange={(e) => onToggleActive(row.original.id, e.checked)}
+        colorPalette={row.original.isActive ? "green" : "gray"}
+        size="sm"
+      />
+    ),
+  }),
   columnHelper.display({
     id: "actions",
     header: "Actions",
@@ -68,17 +92,26 @@ const getColumns = (
     enableGrouping: false,
     cell: ({ row }) => (
       <HStack gap={2}>
-        <Button size="xs" variant="outline" onClick={() => onEdit(row.original)}>
-          Edit
-        </Button>
-        <Button
-          size="xs"
-          variant="outline"
-          colorPalette="red"
-          onClick={() => onDelete(row.original.id)}
+        <StyledIconButton
+          variant="edit"
+          aria-label="Edit polling station"
+          onClick={() => onEdit(row.original)}
         >
-          Delete
-        </Button>
+          <FaEdit />
+        </StyledIconButton>
+        <StyledIconButton
+          variant="delete"
+          aria-label="Delete polling station"
+          onClick={() => {
+            if (
+              confirm("Are you sure you want to delete this polling station?")
+            ) {
+              onDelete(row.original.id);
+            }
+          }}
+        >
+          <FaTrash />
+        </StyledIconButton>
       </HStack>
     ),
   }),
@@ -89,15 +122,18 @@ const getColumns = (
 const PollingStationsTable = ({
   stations: initialStations,
 }: {
-  stations: PollingStation[];
+  stations: PollingStationWithStreams[];
 }) => {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [editStation, setEditStation] = useState<PollingStation | null>(null);
+  const [editStation, setEditStation] =
+    useState<PollingStationWithStreams | null>(null);
+  const [editStream, setEditStream] = useState<Stream | null>(null);
 
   const { data: stations, isLoading } = useQuery({
     queryKey: ["polling-stations"],
-    queryFn: async () => (await getPollingStations()) as PollingStation[],
+    queryFn: async () =>
+      (await getPollingStations()) as PollingStationWithStreams[],
     initialData: initialStations,
   });
 
@@ -114,10 +150,45 @@ const PollingStationsTable = ({
     }
   };
 
-  const handleEdit = (station: PollingStation) => setEditStation(station);
+  const handleEdit = (station: PollingStationWithStreams) =>
+    setEditStation(station);
+
+  const handleToggleActive = async (id: string, isActive: boolean) => {
+    try {
+      await togglePollingStationActive(id, isActive);
+      queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
+    } catch (e: any) {
+      toaster.error({
+        title: "Error updating status",
+        description: e.message,
+      });
+    }
+  };
+
+  const handleToggleStream = async (id: string, isActive: boolean) => {
+    try {
+      await toggleStreamActive(id, isActive);
+      queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
+    } catch (e: any) {
+      toaster.error({
+        title: "Error updating stream status",
+        description: e.message,
+      });
+    }
+  };
 
   const columns = useMemo(
-    () => getColumns(handleEdit, handleDelete),
+    () => getColumns(handleEdit, handleDelete, handleToggleActive),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const streamColumns = useMemo(
+    () =>
+      getStreamColumns({
+        onToggleActive: handleToggleStream,
+        onEdit: setEditStream,
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
@@ -138,15 +209,31 @@ const PollingStationsTable = ({
   return (
     <>
       {isLoading && <FullPageLoader />}
-      <TableGroupable<PollingStation>
+      {editStream && (
+        <StreamForm
+          stream={editStream}
+          onClose={() => {
+            setEditStream(null);
+            queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
+          }}
+        />
+      )}
+      <TableGroupable<PollingStationWithStreams, Stream>
         title="Polling Stations"
         data={stations || []}
         columnInfo={columns}
         exportCsv={true}
         defaultGrouping={[]}
         loading={isLoading}
+        expandedRows={true}
+        childColumnsInfo={streamColumns}
+        getChildRows={(row) => row.streams ?? []}
         headingContent={
-          <Button colorPalette="blue" onClick={() => setShowForm(true)}>
+          <Button
+            size="xs"
+            colorPalette="blue"
+            onClick={() => setShowForm(true)}
+          >
             + Add Polling Station
           </Button>
         }

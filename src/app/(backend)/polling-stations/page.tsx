@@ -1,12 +1,13 @@
 import { Box } from "@chakra-ui/react";
 import { getPollingStations } from "@/services/PollingStations";
 import PollingStationsTable from "@/components/PollingStations/Table";
-import { PollingStation } from "@prisma/client";
+import { PollingStation, Stream } from "@prisma/client";
 
+type PollingStationWithStreams = PollingStation & { streams: Stream[] };
 
 async function getStations() {
   try {
-    return (await getPollingStations()) as PollingStation[];
+    return (await getPollingStations()) as PollingStationWithStreams[];
   } catch (error) {
     if (error instanceof Error) {
       return `Error: ${error.message}`;

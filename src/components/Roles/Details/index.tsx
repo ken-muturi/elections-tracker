@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import FullPageLoader from '../../Generic/FullPageLoader';
 import { TableGroupable } from '../../Generic/TableGroupable';
 import Columns from './Columns';
-import { Button } from '@chakra-ui/react';
+import { Button, HStack } from "@chakra-ui/react";
 import { FaPlus } from 'react-icons/fa';
 import { RoleDetail } from '../type';
 import { getRoles } from '@/services/Roles';
@@ -50,9 +50,11 @@ const Details = () => {
                 title="Add User Access"
                 mainContent={<Form />}
               >
-                <Button variant="solid" size="sm">
-                  <FaPlus />
-                  Add User Access
+                <Button colorPalette="purple" size="xs">
+                  <HStack gap={1.5}>
+                    <FaPlus fontSize="0.85rem" />
+                    <span>Add Role</span>
+                  </HStack>
                 </Button>
               </Modal>
             </>

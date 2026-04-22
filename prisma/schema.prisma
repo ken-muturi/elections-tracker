@@ -181,6 +181,7 @@ model PollingStation {
   constituency     String  @db.VarChar(100)
   ward             String  @db.VarChar(100)
   registeredVoters Int?    @map("registered_voters")
+  isActive         Boolean @default(true) @map("is_active")
 
   createdAt DateTime  @default(now()) @map("created_at")
   createdBy String    @map("created_by") @db.VarChar(50)
@@ -197,6 +198,7 @@ model PollingStation {
   streams Stream[]
 
   @@index([wardId])
+  @@index([isActive])
   @@unique([wardId, code])
   @@map("polling_stations")
 }

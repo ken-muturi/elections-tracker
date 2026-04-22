@@ -7,7 +7,7 @@ import { pick, } from 'lodash';
 import FullPageLoader from '../../Generic/FullPageLoader';
 import { TableGroupable } from '../../Generic/TableGroupable';
 import Columns from './Columns';
-import { Button } from "@chakra-ui/react";
+import { Button, HStack } from "@chakra-ui/react";
 import { FaPlus } from "react-icons/fa";
 import Filters, { FilterProps } from "../Filters";
 import { UserDetail, UserWithRelations } from "../type";
@@ -89,9 +89,11 @@ const Details = ({ users: initalUsers, roles }: DetailProps) => {
                 vh="90vh"
                 mainContent={<Form roles={roles} />}
               >
-                <Button variant="solid" colorScheme="green" as="a" size="xs">
-                  <FaPlus />
-                  Add
+                <Button colorPalette="blue" size="xs">
+                  <HStack gap={1.5}>
+                    <FaPlus fontSize="0.85rem" />
+                    <span>Add User</span>
+                  </HStack>
                 </Button>
               </Modal>
             </>

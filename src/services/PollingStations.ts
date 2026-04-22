@@ -24,7 +24,8 @@ export const getPollingStations = async (
     return await prisma.pollingStation.findMany({
       where: { deletedAt: null, ...where },
       orderBy: { name: "asc" },
-    })
+      include: { streams: { orderBy: { name: "asc" } } },
+    });
   } catch (error) {
     const message = handleReturnError(error)
     console.error("Error getting polling stations:", message)
@@ -142,3 +143,57 @@ export const getConstituencies = async (county?: string) => {
     throw new Error(message)
   }
 }
+
+export const togglePollingStationActive = async (
+  id: string,
+  isActive: boolean,
+) => {
+  try {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("User not authenticated");
+
+    return await prisma.pollingStation.update({
+      where: { id },
+      data: {
+        isActive,
+        updatedBy: user.id,
+      },
+    });
+  } catch (error) {
+    const message = handleReturnError(error);
+    console.error("Error toggling polling station active status:", message);
+    throw new Error(message);
+  }
+};
+
+export type StreamForm = {
+  name: string;
+  code: string;
+  registeredVoters?: number | null;
+};
+
+export const updateStream = async (id: string, data: StreamForm) => {
+  try {
+    return await prisma.stream.update({
+      where: { id },
+      data,
+    });
+  } catch (error) {
+    const message = handleReturnError(error);
+    console.error("Error updating stream:", message);
+    throw new Error(message);
+  }
+};
+
+export const toggleStreamActive = async (id: string, isActive: boolean) => {
+  try {
+    return await prisma.stream.update({
+      where: { id },
+      data: { isActive },
+    });
+  } catch (error) {
+    const message = handleReturnError(error);
+    console.error("Error toggling stream active status:", message);
+    throw new Error(message);
+  }
+};
