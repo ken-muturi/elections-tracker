@@ -23,71 +23,93 @@ export type LevelResultInput = {
   voiceUrl?: string
 }
 
+/**
+ * Upsert a level result (create or update).
+ * Wrapped in a Prisma transaction for atomicity.
+ * When status is SUBMITTED, `submittedAt` is set automatically.
+ */
 export const upsertLevelResult = async (input: LevelResultInput, status: ResultStatus = "DRAFT") => {
   try {
     const user = await getCurrentUser()
 
-    const existing = await prisma.levelResult.findUnique({
-      where: {
-        positionId_level_entityId: {
-          positionId: input.positionId,
-          level: input.level,
-          entityId: input.entityId,
-        },
-      },
-    })
-
-    let resultId: string
-
-    if (existing) {
-      await prisma.levelResult.update({
-        where: { id: existing.id },
-        data: {
-          validatorId: user.id,
-          status,
-          totalVotes: input.totalVotes,
-          rejectedVotes: input.rejectedVotes,
-          notes: input.notes,
-          imageUrl: input.imageUrl,
-          voiceUrl: input.voiceUrl,
-        },
-      })
-      resultId = existing.id
-    } else {
-      const created = await prisma.levelResult.create({
-        data: {
-          positionId: input.positionId,
-          level: input.level,
-          entityId: input.entityId,
-          validatorId: user.id,
-          status,
-          totalVotes: input.totalVotes,
-          rejectedVotes: input.rejectedVotes,
-          notes: input.notes,
-          imageUrl: input.imageUrl,
-          voiceUrl: input.voiceUrl,
-        },
-      })
-      resultId = created.id
+    // ── Authorization: must be admin / super admin ──
+    const role = (user.role ?? "").toLowerCase()
+    const isAdmin = role === "admin" || role === "super admin"
+    if (!isAdmin) {
+      throw new Error("Only administrators can enter level results.")
     }
 
-    for (const cv of input.votes) {
-      await prisma.levelCandidateVote.upsert({
-        where: { levelResultId_candidateId: { levelResultId: resultId, candidateId: cv.candidateId } },
-        create: { levelResultId: resultId, candidateId: cv.candidateId, votes: cv.votes },
-        update: { votes: cv.votes },
-      })
-    }
+    const submittedAt = status === "SUBMITTED" ? new Date() : undefined
 
-    return await prisma.levelResult.findUnique({
-      where: { id: resultId },
-      include: { votes: { include: { candidate: true } } },
+    return await prisma.$transaction(async (tx) => {
+      const existing = await tx.levelResult.findUnique({
+        where: {
+          positionId_level_entityId: {
+            positionId: input.positionId,
+            level: input.level,
+            entityId: input.entityId,
+          },
+        },
+      })
+
+      let resultId: string
+
+      if (existing) {
+        await tx.levelResult.update({
+          where: { id: existing.id },
+          data: {
+            validatorId: user.id,
+            status,
+            totalVotes: input.totalVotes,
+            rejectedVotes: input.rejectedVotes,
+            notes: input.notes,
+            imageUrl: input.imageUrl,
+            voiceUrl: input.voiceUrl,
+            ...(submittedAt ? { submittedAt } : {}),
+          },
+        })
+        resultId = existing.id
+      } else {
+        const created = await tx.levelResult.create({
+          data: {
+            positionId: input.positionId,
+            level: input.level,
+            entityId: input.entityId,
+            validatorId: user.id,
+            status,
+            totalVotes: input.totalVotes,
+            rejectedVotes: input.rejectedVotes,
+            notes: input.notes,
+            imageUrl: input.imageUrl,
+            voiceUrl: input.voiceUrl,
+            ...(submittedAt ? { submittedAt } : {}),
+          },
+        })
+        resultId = created.id
+      }
+
+      for (const cv of input.votes) {
+        await tx.levelCandidateVote.upsert({
+          where: { levelResultId_candidateId: { levelResultId: resultId, candidateId: cv.candidateId } },
+          create: { levelResultId: resultId, candidateId: cv.candidateId, votes: cv.votes },
+          update: { votes: cv.votes },
+        })
+      }
+
+      return await tx.levelResult.findUnique({
+        where: { id: resultId },
+        include: { votes: { include: { candidate: true } } },
+      })
     })
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
 }
 
+/**
+ * @deprecated Use upsertLevelResult with status "SUBMITTED" instead.
+ * Kept for backward compatibility.
+ */
 export const submitLevelResult = async (levelResultId: string) => {
   try {
     return await prisma.levelResult.update({

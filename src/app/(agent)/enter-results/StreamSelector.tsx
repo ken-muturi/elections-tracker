@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Box, Text, VStack, HStack, Input, Flex } from "@chakra-ui/react";
 import { FiMapPin, FiCheck, FiArrowLeft, FiSearch } from "react-icons/fi";
 import { MdHowToVote } from "react-icons/md";
@@ -265,11 +265,11 @@ export default function StreamSelector({
   const searched = debouncedQuery.trim().length >= 2 && !searching;
 
   // Debounced search
-  let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSearchChange = (value: string) => {
     setSearchQuery(value);
-    if (searchTimeout) clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => setDebouncedQuery(value), 400);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => setDebouncedQuery(value), 400);
   };
 
   const handleBackClick = () => {

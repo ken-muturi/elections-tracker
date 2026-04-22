@@ -129,10 +129,14 @@ export default async function EnterResultsPage({
         string,
         Awaited<ReturnType<typeof getStreamResultsForStream>>
       > = {};
-      for (const a of e.streams) {
-        streamResultsMap[a.streamId] = await getStreamResultsForStream(
-          a.streamId,
-        );
+      const entries = await Promise.all(
+        e.streams.map(async (a) => {
+          const results = await getStreamResultsForStream(a.streamId);
+          return [a.streamId, results] as const;
+        }),
+      );
+      for (const [streamId, results] of entries) {
+        streamResultsMap[streamId] = results;
       }
       return {
         election: e.election,

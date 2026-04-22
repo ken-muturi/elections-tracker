@@ -5,8 +5,7 @@ import {
   Box, Text, VStack, HStack, Input, Flex, SimpleGrid, Badge,
 } from "@chakra-ui/react"
 import {
-  FiArrowLeft, FiSearch, FiMapPin,
-  FiSave, FiSend, FiAlertCircle, FiCheckCircle, FiLoader,
+  FiArrowLeft, FiSearch, FiMapPin, FiLoader,
 } from "react-icons/fi"
 
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -15,13 +14,14 @@ import {
   searchEntitiesAtLevel,
   getLevelResult,
   upsertLevelResult,
-  submitLevelResult,
   computeAggregateFromStreams,
   type LevelEntity,
 } from "@/services/LevelResults"
 import { getFormTypeForLevel, AGGREGATION_LEVEL_LABEL, LEVEL_SUFFIX } from "@/constants/elections"
 import FormImageUpload from "./FormImageUpload"
 import StatusBadge from "./StatusBadge"
+import VoteTable from "./VoteTable"
+import type { AggregateInfo } from "./VoteTable"
 import { CARD_STYLES } from "./constants"
 import type { Position } from "./types"
 import type { AggregationLevel } from "@prisma/client"
@@ -480,7 +480,7 @@ function LevelVoteEntryForm({
         votes: votes[c.id] ?? 0,
       }))
 
-      const result = await upsertLevelResult(
+      await upsertLevelResult(
         {
           positionId: position.id,
           level,
@@ -493,11 +493,7 @@ function LevelVoteEntryForm({
         andSubmit ? "SUBMITTED" : "DRAFT",
       )
 
-      if (andSubmit && result) {
-        await submitLevelResult(result.id)
-      }
-
-      return { result, andSubmit }
+      return { andSubmit }
     },
     {
       onSuccess: ({ andSubmit }) => {
@@ -524,9 +520,14 @@ function LevelVoteEntryForm({
   }
 
   /* ── Aggregate comparison helper ───────────────────────── */
-  const aggMap = useMemo(() => {
-    if (!aggregate) return new Map<string, number>()
-    return new Map(aggregate.candidateTotals.map((c) => [c.candidateId, c.votes]))
+  const aggInfo = useMemo((): AggregateInfo | undefined => {
+    if (!aggregate || aggregate.streamCount === 0) return undefined
+    return {
+      streamCount: aggregate.streamCount,
+      totalVotes: aggregate.totalVotes,
+      rejectedVotes: aggregate.rejectedVotes,
+      candidateTotals: new Map(aggregate.candidateTotals.map((c) => [c.candidateId, c.votes])),
+    }
   }, [aggregate])
 
   return (
@@ -555,181 +556,32 @@ function LevelVoteEntryForm({
         )}
       </HStack>
 
-      {/* Aggregate comparison banner */}
-      {aggregate && aggregate.streamCount > 0 && (
-        <Box bg="#f0f9ff" borderRadius="xl" p={4} borderWidth="1px" borderColor="#bae6fd">
-          <Text fontSize="xs" fontWeight="700" color="#0369a1" mb={2}>
-            System Aggregate ({aggregate.streamCount} stream{aggregate.streamCount !== 1 ? "s" : ""})
-          </Text>
-          <HStack gap={6} flexWrap="wrap">
-            <VStack gap={0} alignItems="flex-start">
-              <Text fontSize="2xs" color="#0284c7">Total Votes</Text>
-              <Text fontSize="md" fontWeight="800" color="#0c4a6e">
-                {aggregate.totalVotes.toLocaleString()}
-              </Text>
-            </VStack>
-            <VStack gap={0} alignItems="flex-start">
-              <Text fontSize="2xs" color="#0284c7">Rejected</Text>
-              <Text fontSize="md" fontWeight="800" color="#0c4a6e">
-                {aggregate.rejectedVotes.toLocaleString()}
-              </Text>
-            </VStack>
-          </HStack>
-        </Box>
-      )}
-
-      {/* Candidates table */}
-      <Box bg="white" borderRadius="xl" borderWidth="1px" borderColor="gray.100"
-        boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)" overflow="hidden">
-        {/* Heading */}
-        <HStack px={5} py={3} bg="#f8fafc" borderBottomWidth="1px" borderBottomColor="gray.100">
-          <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase" letterSpacing="wide" flex={1}>
-            Candidate
-          </Text>
-          {aggregate && aggregate.streamCount > 0 && (
-            <Text fontSize="xs" fontWeight="700" color="#0284c7" textTransform="uppercase" letterSpacing="wide" w="90px" textAlign="right">
-              Aggregated
-            </Text>
-          )}
-          <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase" letterSpacing="wide" w="120px" textAlign="right">
-            Form {formCode}
-          </Text>
-        </HStack>
-
-        {position.candidates.map((c, i) => {
-          const aggVotes = aggMap.get(c.id)
-          const enteredVotes = votes[c.id] ?? 0
-          const mismatch = aggVotes != null && enteredVotes > 0 && enteredVotes !== aggVotes
-
-          return (
-            <HStack key={c.id} px={5} py={3.5} gap={3}
-              borderBottomWidth={i < position.candidates.length - 1 ? "1px" : "0"}
-              borderBottomColor="gray.50"
-              bg={mismatch ? "#fffbeb" : undefined}
-            >
-              <VStack alignItems="flex-start" gap={0} flex={1}>
-                <Text fontSize="sm" fontWeight="600" color="gray.900">{c.name}</Text>
-                {c.party && <Text fontSize="xs" color="gray.400">{c.party}</Text>}
-              </VStack>
-              {aggregate && aggregate.streamCount > 0 && (
-                <Text fontSize="sm" fontWeight="600" color="#0284c7" w="90px" textAlign="right">
-                  {aggVotes != null ? aggVotes.toLocaleString() : "—"}
-                </Text>
-              )}
-              <Input
-                type="number" min={0} w="120px" textAlign="right"
-                fontWeight="700" fontSize="md"
-                value={votes[c.id] ?? 0}
-                onChange={(e) => setVotes((prev) => ({
-                  ...prev, [c.id]: Math.max(0, parseInt(e.target.value) || 0),
-                }))}
-                disabled={isSubmitted}
-                borderColor={mismatch ? "#f59e0b" : "gray.200"}
-                _hover={{ borderColor: mismatch ? "#d97706" : "gray.300" }}
-                _focus={{ borderColor: mismatch ? "#f59e0b" : "#0ea5e9", boxShadow: `0 0 0 1px ${mismatch ? "#f59e0b" : "#0ea5e9"}` }}
-              />
-            </HStack>
-          )
-        })}
-
-        {/* Rejected votes */}
-        <HStack px={5} py={3.5} bg="#fef7ed" borderTopWidth="1px" borderTopColor="gray.100">
-          <Text fontSize="sm" fontWeight="600" color="#92400e" flex={1}>Rejected Ballots</Text>
-          {aggregate && aggregate.streamCount > 0 && (
-            <Text fontSize="sm" fontWeight="600" color="#0284c7" w="90px" textAlign="right">
-              {aggregate.rejectedVotes.toLocaleString()}
-            </Text>
-          )}
-          <Input
-            type="number" min={0} w="120px" textAlign="right"
-            fontWeight="700" fontSize="md" value={rejectedVotes}
-            onChange={(e) => setRejectedVotes(Math.max(0, parseInt(e.target.value) || 0))}
-            disabled={isSubmitted}
-            borderColor="#fde68a" bg="white"
-            _focus={{ borderColor: "#f59e0b", boxShadow: "0 0 0 1px #f59e0b" }}
+      <VoteTable
+        candidates={position.candidates}
+        votes={votes}
+        onVoteChange={(id, val) => setVotes((prev) => ({ ...prev, [id]: val }))}
+        rejectedVotes={rejectedVotes}
+        onRejectedVotesChange={setRejectedVotes}
+        notes={notes}
+        onNotesChange={setNotes}
+        isSubmitted={isSubmitted}
+        grandTotal={grandTotal}
+        error={saveMutation.error}
+        success={success}
+        isPending={saveMutation.isPending}
+        onSaveDraft={() => saveResult(false)}
+        onSubmit={() => saveResult(true)}
+        aggregate={aggInfo}
+        votesColumnLabel={`Form ${formCode}`}
+        formImageUpload={
+          <FormImageUpload
+            positionId={position.id}
+            positionType={position.type}
+            level={level}
+            entityId={entity.id}
           />
-        </HStack>
-
-        {/* Total */}
-        <HStack px={5} py={3} bg="#f1f5f9" borderTopWidth="1px" borderTopColor="gray.200">
-          <Text fontSize="sm" fontWeight="800" color="gray.700" flex={1}>TOTAL</Text>
-          {aggregate && aggregate.streamCount > 0 && (
-            <Text fontSize="md" fontWeight="800" color="#0284c7" w="90px" textAlign="right">
-              {aggregate.totalVotes.toLocaleString()}
-            </Text>
-          )}
-          <Text fontSize="lg" fontWeight="800" color="gray.900" w="120px" textAlign="right">
-            {grandTotal.toLocaleString()}
-          </Text>
-        </HStack>
-      </Box>
-
-      {/* Notes */}
-      <Box>
-        <Text fontSize="xs" fontWeight="600" color="gray.500" mb={1.5}>Notes (optional)</Text>
-        <Input
-          placeholder="Any observations or notes…"
-          value={notes} onChange={(e) => setNotes(e.target.value)}
-          disabled={isSubmitted} fontSize="sm" borderColor="gray.200"
-        />
-      </Box>
-
-      {/* Form image upload */}
-      <FormImageUpload
-        positionId={position.id}
-        positionType={position.type}
-        level={level}
-        entityId={entity.id}
+        }
       />
-
-      {/* Messages */}
-      {saveMutation.error && (
-        <Box px={4} py={3} bg="#fef2f2" borderRadius="lg">
-          <HStack gap={1.5}>
-            <FiAlertCircle fontSize="0.8rem" color="#dc2626" />
-            <Text fontSize="sm" color="#dc2626">{saveMutation.error.message}</Text>
-          </HStack>
-        </Box>
-      )}
-      {success && (
-        <Box px={4} py={3} bg="#d1fae5" borderRadius="lg">
-          <HStack gap={1.5}>
-            <FiCheckCircle fontSize="0.8rem" color="#065f46" />
-            <Text fontSize="sm" color="#065f46" fontWeight="600">{success}</Text>
-          </HStack>
-        </Box>
-      )}
-
-      {/* Actions */}
-      {!isSubmitted && (
-        <HStack gap={3} justify="flex-end">
-          <Box as="button" onClick={() => saveResult(false)}
-            px={5} py={2.5} borderRadius="lg" borderWidth="1px" borderColor="gray.200"
-            fontSize="sm" fontWeight="600" color="gray.600" cursor="pointer"
-            _hover={{ bg: "gray.50" }} transition="all 0.15s"
-            opacity={saveMutation.isPending ? 0.6 : 1}>
-            <HStack gap={1.5}><FiSave fontSize="0.85rem" /><Text>Save Draft</Text></HStack>
-          </Box>
-          <Box as="button" onClick={() => saveResult(true)}
-            px={5} py={2.5} borderRadius="lg" bg="#0f172a" color="white"
-            fontSize="sm" fontWeight="700" cursor="pointer"
-            _hover={{ bg: "#1e293b" }} transition="all 0.15s"
-            opacity={saveMutation.isPending ? 0.6 : 1}>
-            <HStack gap={1.5}><FiSend fontSize="0.85rem" /><Text>Submit Results</Text></HStack>
-          </Box>
-        </HStack>
-      )}
-
-      {isSubmitted && (
-        <Box px={4} py={3} bg="#dbeafe" borderRadius="lg">
-          <HStack gap={1.5}>
-            <FiCheckCircle fontSize="0.8rem" color="#1e40af" />
-            <Text fontSize="sm" color="#1e40af" fontWeight="600">
-              These results have been submitted and cannot be edited.
-            </Text>
-          </HStack>
-        </Box>
-      )}
     </VStack>
   )
 }

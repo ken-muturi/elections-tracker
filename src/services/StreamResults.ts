@@ -25,66 +25,91 @@ export type StreamResultInput = {
 /**
  * Upsert a stream result (create or update).
  * Votes for each candidate are upserted individually so partial saves work.
+ * Everything runs inside a single Prisma transaction for atomicity.
+ * When status is SUBMITTED, `submittedAt` is set automatically.
  */
 export const upsertStreamResult = async (input: StreamResultInput, status: ResultStatus = "DRAFT") => {
   try {
     const user = await getCurrentUser()
 
-    const existing = await prisma.streamResult.findUnique({
-      where: { streamId_positionId: { streamId: input.streamId, positionId: input.positionId } },
-    })
+    // ── Authorization: agent must be assigned to this stream, OR be admin ──
+    const role = (user.role ?? "").toLowerCase()
+    const isAdmin = role === "admin" || role === "super admin"
 
-    let resultId: string
-
-    if (existing) {
-      await prisma.streamResult.update({
-        where: { id: existing.id },
-        data: {
-          agentId: user.id,
-          status,
-          totalVotes: input.totalVotes,
-          rejectedVotes: input.rejectedVotes,
-          notes: input.notes,
-          imageUrl: input.imageUrl,
-          voiceUrl: input.voiceUrl,
-        },
+    if (!isAdmin) {
+      const assignment = await prisma.agentStream.findFirst({
+        where: { streamId: input.streamId, agentId: user.id },
       })
-      resultId = existing.id
-    } else {
-      const created = await prisma.streamResult.create({
-        data: {
-          streamId: input.streamId,
-          positionId: input.positionId,
-          agentId: user.id,
-          status,
-          totalVotes: input.totalVotes,
-          rejectedVotes: input.rejectedVotes,
-          notes: input.notes,
-          imageUrl: input.imageUrl,
-          voiceUrl: input.voiceUrl,
-        },
-      })
-      resultId = created.id
+      if (!assignment) {
+        throw new Error("You are not assigned to this stream.")
+      }
     }
 
-    // Upsert individual candidate votes
-    for (const cv of input.votes) {
-      await prisma.streamCandidateVote.upsert({
-        where: { streamResultId_candidateId: { streamResultId: resultId, candidateId: cv.candidateId } },
-        create: { streamResultId: resultId, candidateId: cv.candidateId, votes: cv.votes },
-        update: { votes: cv.votes },
-      })
-    }
+    const submittedAt = status === "SUBMITTED" ? new Date() : undefined
 
-    return await prisma.streamResult.findUnique({
-      where: { id: resultId },
-      include: { votes: { include: { candidate: true } } },
+    return await prisma.$transaction(async (tx) => {
+      const existing = await tx.streamResult.findUnique({
+        where: { streamId_positionId: { streamId: input.streamId, positionId: input.positionId } },
+      })
+
+      let resultId: string
+
+      if (existing) {
+        await tx.streamResult.update({
+          where: { id: existing.id },
+          data: {
+            agentId: user.id,
+            status,
+            totalVotes: input.totalVotes,
+            rejectedVotes: input.rejectedVotes,
+            notes: input.notes,
+            imageUrl: input.imageUrl,
+            voiceUrl: input.voiceUrl,
+            ...(submittedAt ? { submittedAt } : {}),
+          },
+        })
+        resultId = existing.id
+      } else {
+        const created = await tx.streamResult.create({
+          data: {
+            streamId: input.streamId,
+            positionId: input.positionId,
+            agentId: user.id,
+            status,
+            totalVotes: input.totalVotes,
+            rejectedVotes: input.rejectedVotes,
+            notes: input.notes,
+            imageUrl: input.imageUrl,
+            voiceUrl: input.voiceUrl,
+            ...(submittedAt ? { submittedAt } : {}),
+          },
+        })
+        resultId = created.id
+      }
+
+      // Upsert individual candidate votes
+      for (const cv of input.votes) {
+        await tx.streamCandidateVote.upsert({
+          where: { streamResultId_candidateId: { streamResultId: resultId, candidateId: cv.candidateId } },
+          create: { streamResultId: resultId, candidateId: cv.candidateId, votes: cv.votes },
+          update: { votes: cv.votes },
+        })
+      }
+
+      return await tx.streamResult.findUnique({
+        where: { id: resultId },
+        include: { votes: { include: { candidate: true } } },
+      })
     })
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
 }
 
+/**
+ * @deprecated Use upsertStreamResult with status "SUBMITTED" instead.
+ * Kept for backward compatibility — now a no-op since upsert sets submittedAt.
+ */
 export const submitStreamResult = async (streamResultId: string) => {
   try {
     return await prisma.streamResult.update({

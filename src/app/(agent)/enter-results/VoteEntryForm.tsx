@@ -1,15 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { Box, Text, VStack, HStack, Input } from "@chakra-ui/react"
-import {
-  FiArrowLeft, FiSave, FiSend,
-  FiAlertCircle, FiCheckCircle,
-} from "react-icons/fi"
-import { upsertStreamResult, submitStreamResult } from "@/services/StreamResults"
+import { Box, Text, VStack, HStack } from "@chakra-ui/react"
+import { FiArrowLeft } from "react-icons/fi"
+import { upsertStreamResult } from "@/services/StreamResults"
 import useSyncMutation from "@/hooks/hooks/useSyncMutation"
 import StatusBadge from "./StatusBadge"
 import FormImageUpload from "./FormImageUpload"
+import VoteTable from "./VoteTable"
 import type { Position, StreamResult, StreamInfo, Candidate } from "./types"
 
 type VoteEntryFormProps = {
@@ -74,10 +72,6 @@ export default function VoteEntryForm({
         },
         andSubmit ? "SUBMITTED" : "DRAFT",
       )
-
-      if (andSubmit && result) {
-        await submitStreamResult(result.id)
-      }
 
       return { result, andSubmit }
     },
@@ -157,250 +151,30 @@ export default function VoteEntryForm({
         )}
       </HStack>
 
-      {/* Candidates table */}
-      <Box
-        bg="white"
-        borderRadius="xl"
-        borderWidth="1px"
-        borderColor="gray.100"
-        boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)"
-        overflow="hidden"
-      >
-        {/* Heading */}
-        <HStack
-          px={5}
-          py={3}
-          bg="#f8fafc"
-          borderBottomWidth="1px"
-          borderBottomColor="gray.100"
-        >
-          <Text
-            fontSize="xs"
-            fontWeight="700"
-            color="gray.500"
-            textTransform="uppercase"
-            letterSpacing="wide"
-            flex={1}
-          >
-            Candidate
-          </Text>
-          <Text
-            fontSize="xs"
-            fontWeight="700"
-            color="gray.500"
-            textTransform="uppercase"
-            letterSpacing="wide"
-            w="120px"
-            textAlign="right"
-          >
-            Votes
-          </Text>
-        </HStack>
-
-        {position.candidates.map((c, i) => (
-          <HStack
-            key={c.id}
-            px={5}
-            py={3.5}
-            gap={3}
-            borderBottomWidth={
-              i < position.candidates.length - 1 ? "1px" : "0"
-            }
-            borderBottomColor="gray.50"
-          >
-            <VStack alignItems="flex-start" gap={0} flex={1}>
-              <Text fontSize="sm" fontWeight="600" color="gray.900">
-                {c.name}
-              </Text>
-              {c.party && (
-                <Text fontSize="xs" color="gray.400">
-                  {c.party}
-                </Text>
-              )}
-            </VStack>
-            <Input
-              type="number"
-              min={0}
-              w="120px"
-              textAlign="right"
-              fontWeight="700"
-              fontSize="md"
-              value={votes[c.id] ?? 0}
-              onChange={(e) =>
-                setVotes((prev) => ({
-                  ...prev,
-                  [c.id]: Math.max(0, parseInt(e.target.value) || 0),
-                }))
-              }
-              disabled={isSubmitted}
-              borderColor="gray.200"
-              _hover={{ borderColor: "gray.300" }}
-              _focus={{
-                borderColor: "#0ea5e9",
-                boxShadow: "0 0 0 1px #0ea5e9",
-              }}
-            />
-          </HStack>
-        ))}
-
-        {/* Rejected votes */}
-        <HStack
-          px={5}
-          py={3.5}
-          bg="#fef7ed"
-          borderTopWidth="1px"
-          borderTopColor="gray.100"
-        >
-          <Text fontSize="sm" fontWeight="600" color="#92400e" flex={1}>
-            Rejected Ballots
-          </Text>
-          <Input
-            type="number"
-            min={0}
-            w="120px"
-            textAlign="right"
-            fontWeight="700"
-            fontSize="md"
-            value={rejectedVotes}
-            onChange={(e) =>
-              setRejectedVotes(Math.max(0, parseInt(e.target.value) || 0))
-            }
-            disabled={isSubmitted}
-            borderColor="#fde68a"
-            bg="white"
-            _focus={{
-              borderColor: "#f59e0b",
-              boxShadow: "0 0 0 1px #f59e0b",
-            }}
+      <VoteTable
+        candidates={position.candidates}
+        votes={votes}
+        onVoteChange={(id, val) => setVotes((prev) => ({ ...prev, [id]: val }))}
+        rejectedVotes={rejectedVotes}
+        onRejectedVotesChange={setRejectedVotes}
+        notes={notes}
+        onNotesChange={setNotes}
+        isSubmitted={isSubmitted}
+        grandTotal={grandTotal}
+        error={saveMutation.error}
+        success={success}
+        isPending={saveMutation.isPending}
+        onSaveDraft={() => saveResult(false)}
+        onSubmit={() => saveResult(true)}
+        formImageUpload={
+          <FormImageUpload
+            positionId={position.id}
+            positionType={position.type}
+            level="POLLING_STATION"
+            entityId={ps.id}
           />
-        </HStack>
-
-        {/* Total */}
-        <HStack
-          px={5}
-          py={3}
-          bg="#f1f5f9"
-          borderTopWidth="1px"
-          borderTopColor="gray.200"
-        >
-          <Text fontSize="sm" fontWeight="800" color="gray.700" flex={1}>
-            TOTAL
-          </Text>
-          <Text
-            fontSize="lg"
-            fontWeight="800"
-            color="gray.900"
-            w="120px"
-            textAlign="right"
-          >
-            {grandTotal.toLocaleString()}
-          </Text>
-        </HStack>
-      </Box>
-
-      {/* Notes */}
-      <Box>
-        <Text fontSize="xs" fontWeight="600" color="gray.500" mb={1.5}>
-          Notes (optional)
-        </Text>
-        <Input
-          placeholder="Any observations or notes…"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          disabled={isSubmitted}
-          fontSize="sm"
-          borderColor="gray.200"
-        />
-      </Box>
-
-      {/* Form image upload */}
-      <FormImageUpload
-        positionId={position.id}
-        positionType={position.type}
-        level="POLLING_STATION"
-        entityId={ps.id}
+        }
       />
-
-      {/* Messages */}
-      {saveMutation.error && (
-        <Box px={4} py={3} bg="#fef2f2" borderRadius="lg">
-          <HStack gap={1.5}>
-            <FiAlertCircle fontSize="0.8rem" color="#dc2626" />
-            <Text fontSize="sm" color="#dc2626">
-              {saveMutation.error.message}
-            </Text>
-          </HStack>
-        </Box>
-      )}
-      {success && (
-        <Box px={4} py={3} bg="#d1fae5" borderRadius="lg">
-          <HStack gap={1.5}>
-            <FiCheckCircle fontSize="0.8rem" color="#065f46" />
-            <Text fontSize="sm" color="#065f46" fontWeight="600">
-              {success}
-            </Text>
-          </HStack>
-        </Box>
-      )}
-
-      {/* Actions */}
-      {!isSubmitted && (
-        <HStack gap={3} justify="flex-end">
-          <Box
-            as="button"
-            onClick={() => saveResult(false)}
-            px={5}
-            py={2.5}
-            borderRadius="lg"
-            borderWidth="1px"
-            borderColor="gray.200"
-            fontSize="sm"
-            fontWeight="600"
-            color="gray.600"
-            cursor="pointer"
-            _hover={{ bg: "gray.50" }}
-            transition="all 0.15s"
-            opacity={saveMutation.isPending ? 0.6 : 1}
-          >
-            <HStack gap={1.5}>
-              <FiSave fontSize="0.85rem" />
-              <Text>Save Draft</Text>
-            </HStack>
-          </Box>
-
-          <Box
-            as="button"
-            onClick={() => saveResult(true)}
-            px={5}
-            py={2.5}
-            borderRadius="lg"
-            bg="#0f172a"
-            color="white"
-            fontSize="sm"
-            fontWeight="700"
-            cursor="pointer"
-            _hover={{ bg: "#1e293b" }}
-            transition="all 0.15s"
-            opacity={saveMutation.isPending ? 0.6 : 1}
-          >
-            <HStack gap={1.5}>
-              <FiSend fontSize="0.85rem" />
-              <Text>Submit Results</Text>
-            </HStack>
-          </Box>
-        </HStack>
-      )}
-
-      {isSubmitted && (
-        <Box px={4} py={3} bg="#dbeafe" borderRadius="lg">
-          <HStack gap={1.5}>
-            <FiCheckCircle fontSize="0.8rem" color="#1e40af" />
-            <Text fontSize="sm" color="#1e40af" fontWeight="600">
-              These results have been submitted and cannot be edited.
-            </Text>
-          </HStack>
-        </Box>
-      )}
     </VStack>
   )
 }

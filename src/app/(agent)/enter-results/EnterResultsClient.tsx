@@ -7,19 +7,15 @@ import {
   Text,
   VStack,
   HStack,
-  Flex,
-  SimpleGrid,
-  Badge,
 } from "@chakra-ui/react";
-import { FiArrowLeft, FiLayers } from "react-icons/fi";
-import { MdHowToVote } from "react-icons/md";
+import { FiArrowLeft } from "react-icons/fi";
 import { getStreamResultsForStream } from "@/services/AgentAssignments"
 import ElectionSelector from "./ElectionSelector"
 import StreamSelector from "./StreamSelector"
 import PositionSelector from "./PositionSelector"
 import VoteEntryForm from "./VoteEntryForm"
 import LevelEntryClient from "./LevelEntryClient";
-import { CARD_STYLES } from "./constants";
+
 import type {
   ElectionData, Position, StreamResult, AdminSearchStream, StreamInfo,
 } from "./types"
@@ -100,7 +96,8 @@ export default function EnterResultsClient({
   const [selectedPosition, setSelectedPosition] = useState<string | null>(null);
 
   // Admin: entry mode — "stream" (Form A) or "level" (Form B/C)
-  const [entryMode, setEntryMode] = useState<"stream" | "level" | null>(null);
+  // Default to "stream" so tabs render immediately without a mode-picker step
+  const [entryMode, setEntryMode] = useState<"stream" | "level">("stream");
 
   // Admin: the full stream object (for display) selected via search
   const [adminActiveStream, setAdminActiveStream] =
@@ -213,8 +210,8 @@ export default function EnterResultsClient({
     );
   }
 
-  /* ── Step 2 (admin): Choose mode — stream entry vs level entry ── */
-  if (isAdmin && !entryMode && selectedElection && activeElection) {
+  /* ── Step 2 (admin): Tab bar — stream entry vs level entry ── */
+  if (isAdmin && selectedElection && activeElection && !selectedStream) {
     return (
       <VStack gap={4} alignItems="stretch">
         <HStack gap={2}>
@@ -233,114 +230,61 @@ export default function EnterResultsClient({
               {activeElection.election.title}
             </Text>
             <Text fontSize="xs" color="gray.400">
-              Choose how you want to enter results
+              Enter results for this election
             </Text>
           </VStack>
         </HStack>
 
-        <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
-          {/* Stream entry (Form A) */}
-          <Box
-            as="button"
-            onClick={() => setEntryMode("stream")}
-            {...CARD_STYLES}
-            p={6}
-          >
-            <HStack gap={4} align="flex-start">
-              <Flex
-                w={12}
-                h={12}
-                borderRadius="xl"
-                flexShrink={0}
-                bg="#f0f9ff"
-                align="center"
-                justify="center"
-              >
-                <MdHowToVote fontSize="1.4rem" color="#0284c7" />
-              </Flex>
-              <VStack alignItems="flex-start" gap={1}>
-                <Text fontWeight="700" fontSize="md" color="gray.900">
-                  Stream Entry
-                </Text>
-                <Text fontSize="xs" color="gray.500" lineHeight="1.5">
-                  Enter raw vote counts per polling station stream — Form A
-                </Text>
-                <Badge
-                  size="xs"
-                  variant="subtle"
-                  colorPalette="blue"
-                  fontSize="9px"
-                  mt={1}
-                >
-                  Form 34A, 35A, etc.
-                </Badge>
-              </VStack>
-            </HStack>
-          </Box>
+        {/* ── Tab bar ── */}
+        <HStack
+          gap={0}
+          bg="gray.100"
+          borderRadius="xl"
+          p={1}
+        >
+          {([
+            { key: "stream" as const, label: "Stream Entry (Form A)" },
+            { key: "level" as const, label: "Level Tally (Form B/C)" },
+          ]).map(({ key, label }) => (
+            <Box
+              key={key}
+              as="button"
+              onClick={() => setEntryMode(key)}
+              flex={1}
+              py={2}
+              borderRadius="lg"
+              fontSize="sm"
+              fontWeight="600"
+              textAlign="center"
+              cursor="pointer"
+              transition="all 0.15s"
+              bg={entryMode === key ? "white" : "transparent"}
+              color={entryMode === key ? "gray.900" : "gray.500"}
+              boxShadow={entryMode === key ? "0 1px 3px rgba(0,0,0,0.08)" : "none"}
+              _hover={{ color: "gray.900" }}
+            >
+              {label}
+            </Box>
+          ))}
+        </HStack>
 
-          {/* Level entry (Form B/C) */}
-          <Box
-            as="button"
-            onClick={() => setEntryMode("level")}
-            {...CARD_STYLES}
-            p={6}
-          >
-            <HStack gap={4} align="flex-start">
-              <Flex
-                w={12}
-                h={12}
-                borderRadius="xl"
-                flexShrink={0}
-                bg="#fce7f3"
-                align="center"
-                justify="center"
-              >
-                <FiLayers fontSize="1.4rem" color="#9d174d" />
-              </Flex>
-              <VStack alignItems="flex-start" gap={1}>
-                <Text fontWeight="700" fontSize="md" color="gray.900">
-                  Level Tally Entry
-                </Text>
-                <Text fontSize="xs" color="gray.500" lineHeight="1.5">
-                  Enter aggregated tally results at ward, constituency, county,
-                  or national level
-                </Text>
-                <HStack gap={1}>
-                  <Badge
-                    size="xs"
-                    variant="subtle"
-                    colorPalette="pink"
-                    fontSize="9px"
-                    mt={1}
-                  >
-                    Form B
-                  </Badge>
-                  <Badge
-                    size="xs"
-                    variant="subtle"
-                    colorPalette="pink"
-                    fontSize="9px"
-                    mt={1}
-                  >
-                    Form C
-                  </Badge>
-                </HStack>
-              </VStack>
-            </HStack>
-          </Box>
-        </SimpleGrid>
+        {/* ── Tab content ── */}
+        {entryMode === "stream" ? (
+          <StreamSelector
+            isAdmin
+            election={activeElection}
+            resultsCache={resultsCache}
+            onSelectStream={handleSelectStream}
+            onBack={handleBackToElections}
+          />
+        ) : (
+          <LevelEntryClient
+            electionId={activeElection.election.id}
+            positions={activeElection.positions}
+            onBack={handleBackToElections}
+          />
+        )}
       </VStack>
-    );
-  }
-
-  /* ── Admin Level Entry flow (Form B/C) ─────────────────── */
-  if (isAdmin && entryMode === "level" && activeElection) {
-    return (
-      <LevelEntryClient
-        electionId={activeElection.election.id}
-        positions={activeElection.positions}
-        onBack={() => setEntryMode(null)}
-      />
     );
   }
 
@@ -352,7 +296,7 @@ export default function EnterResultsClient({
         election={activeElection}
         resultsCache={resultsCache}
         onSelectStream={handleSelectStream}
-        onBack={isAdmin ? () => setEntryMode(null) : handleBackToElections}
+        onBack={handleBackToElections}
       />
     );
   }
