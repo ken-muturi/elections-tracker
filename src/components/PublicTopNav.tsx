@@ -66,6 +66,27 @@ export default function PublicTopNav() {
         </Link>
         {/* Right — Auth links */}
         <HStack gap={3} ml="auto">
+          {/* Election Tracker link */}
+          <Link href="/election-results">
+            <HStack
+              gap={2}
+              px={3}
+              py={1.5}
+              borderRadius="full"
+              bg="white"
+              borderWidth="1px"
+              borderColor="gray.200"
+              _hover={{ borderColor: "gray.300", bg: "gray.50" }}
+              transition="all 0.15s"
+              display={{ base: "none", md: "flex" }}
+            >
+              <MdHowToVote fontSize="0.85rem" color="#0f172a" />
+              <Text fontSize="xs" color="gray.700" fontWeight="700">
+                Election Tracker
+              </Text>
+            </HStack>
+          </Link>
+
           {/* Hesabu link */}
           <Link href="/hesabu">
             <HStack
