@@ -27,6 +27,7 @@ import { LEVEL_COLOR, NEXT_ACTION } from "../constants"
 import useSyncMutation from "@/hooks/hooks/useSyncMutation"
 import LeadersCard from "./LeadersCard"
 import ChildCard from "./ChildCard"
+import { buildColorMap } from "./candidateColors"
 
 const DRILL_FN: Record<
   string,
@@ -80,6 +81,7 @@ export default function DrillDown({
 
   const canDrill = !!NEXT_ACTION[data.level]
   const lc = LEVEL_COLOR[data.level] ?? LEVEL_COLOR.NATIONAL
+  const colorMap = buildColorMap(data.candidates)
 
   return (
     <VStack gap={5} align="stretch">
@@ -148,57 +150,57 @@ export default function DrillDown({
       </HStack>
 
       {/* ── Overall leaders ─────────────────────────────── */}
-      <LeadersCard data={data} lc={lc} />
+      <LeadersCard data={data} lc={lc} colorMap={colorMap} />
 
-      {/* ── Children section header ─────────────────────── */}
+      {/* ── Location context (clickable back) — only when drilled in ── */}
       {data.parentName && (
         <HStack
-          px={4} py={2.5}
+          px={4} py={2}
           bg={lc.bg} borderRadius="xl"
-          justify="space-between" flexWrap="wrap" gap={2}
+          gap={2}
+          cursor={parentCrumb ? "pointer" : "default"}
+          _hover={parentCrumb ? { opacity: 0.8 } : {}}
+          transition="opacity 0.15s"
+          onClick={parentCrumb ? () => navigateTo(parentCrumb) : undefined}
+          role={parentCrumb ? "button" : undefined}
         >
-          <HStack
-            gap={2} flex={1}
-            cursor={parentCrumb ? "pointer" : "default"}
-            _hover={parentCrumb ? { opacity: 0.8 } : {}}
-            transition="opacity 0.15s"
-            onClick={parentCrumb ? () => navigateTo(parentCrumb) : undefined}
-            role={parentCrumb ? "button" : undefined}
-          >
-            {parentCrumb && <FiChevronLeft fontSize="0.9rem" color={lc.color} />}
-            <FiMapPin fontSize="0.8rem" color={lc.color} />
-            <Text fontSize="sm" fontWeight="700" color={lc.color}>
-              {data.parentName}
-            </Text>
-            <Text fontSize="xs" color={lc.color} opacity={0.7}>
-              — {data.children.length} {data.levelLabel.toLowerCase()}
-            </Text>
-          </HStack>
-
-          {/* View toggle */}
-          <HStack gap={1}>
-            <Text fontSize="xs" color={lc.color} opacity={0.7} mr={1}>
-              {data.reportedStreams}/{data.totalStreams} streams
-            </Text>
-            {(["cards", "map"] as const).map((v) => (
-              <HStack
-                key={v}
-                as="button"
-                gap={1} px={2.5} py={1} borderRadius="full"
-                bg={view === v ? lc.color : "transparent"}
-                color={view === v ? "white" : lc.color}
-                fontSize="xs" fontWeight="700"
-                cursor="pointer"
-                transition="all 0.15s"
-                onClick={() => setView(v)}
-              >
-                {v === "cards" ? <FiList fontSize="0.75rem" /> : <FiMap fontSize="0.75rem" />}
-                <Text textTransform="capitalize">{v}</Text>
-              </HStack>
-            ))}
-          </HStack>
+          {parentCrumb && <FiChevronLeft fontSize="0.9rem" color={lc.color} />}
+          <FiMapPin fontSize="0.8rem" color={lc.color} />
+          <Text fontSize="sm" fontWeight="700" color={lc.color}>
+            {data.parentName}
+          </Text>
+          <Text fontSize="xs" color={lc.color} opacity={0.7}>
+            — {data.children.length} {data.levelLabel.toLowerCase()}
+          </Text>
         </HStack>
       )}
+
+      {/* ── Cards / Map toggle — always visible ─────────── */}
+      <HStack justify="space-between" align="center">
+        <Text fontSize="xs" color="gray.500">
+          {data.children.length} {data.levelLabel.toLowerCase()} ·{" "}
+          {data.reportedStreams}/{data.totalStreams} streams reported
+        </Text>
+        <HStack gap={1} p={1} bg="gray.100" borderRadius="full">
+          {(["cards", "map"] as const).map((v) => (
+            <HStack
+              key={v}
+              as="button"
+              gap={1.5} px={3} py={1.5} borderRadius="full"
+              bg={view === v ? "white" : "transparent"}
+              color={view === v ? "gray.800" : "gray.400"}
+              fontSize="xs" fontWeight="700"
+              cursor="pointer"
+              boxShadow={view === v ? "sm" : "none"}
+              transition="all 0.15s"
+              onClick={() => setView(v)}
+            >
+              {v === "cards" ? <FiList fontSize="0.75rem" /> : <FiMap fontSize="0.75rem" />}
+              <Text textTransform="capitalize">{v}</Text>
+            </HStack>
+          ))}
+        </HStack>
+      </HStack>
 
       {/* ── Children — cards or map ─────────────────────── */}
       <Box position="relative">
@@ -228,6 +230,7 @@ export default function DrillDown({
                 child={child}
                 canDrill={canDrill}
                 lc={lc}
+                colorMap={colorMap}
                 onDrill={drill}
               />
             ))}

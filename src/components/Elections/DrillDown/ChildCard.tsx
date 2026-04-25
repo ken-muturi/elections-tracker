@@ -10,11 +10,13 @@ export default function ChildCard({
   child,
   canDrill,
   lc,
+  colorMap,
   onDrill,
 }: {
   child: ChildResult
   canDrill: boolean
   lc: LcColors
+  colorMap: Map<string, string>
   onDrill: (id: string) => void
 }) {
   const maxVotes = child.candidates[0]?.votes ?? 1
@@ -50,6 +52,7 @@ export default function ChildCard({
         {child.candidates.slice(0, 4).map((cand, idx) => {
           const pct = maxVotes > 0 ? (cand.votes / maxVotes) * 100 : 0
           const isLeader = idx === 0 && cand.votes > 0
+          const candColor = colorMap.get(cand.candidateId) ?? lc.border
           return (
             <Box
               key={cand.candidateId} px={5} py={2}
@@ -66,7 +69,7 @@ export default function ChildCard({
                   )}
                 </HStack>
                 <HStack gap={2} flexShrink={0}>
-                  <Text fontSize="xs" fontWeight="700" color={isLeader ? "#798217" : "gray.600"}>
+                  <Text fontSize="xs" fontWeight="700" color="gray.700">
                     {cand.votes.toLocaleString()}
                   </Text>
                   {childTotal > 0 && (
@@ -79,7 +82,7 @@ export default function ChildCard({
               <Box h="3px" bg="gray.100" borderRadius="full" overflow="hidden">
                 <Box
                   h="full" w={`${pct}%`}
-                  bg={isLeader ? "#C9D927" : lc.border}
+                  bg={candColor}
                   borderRadius="full" transition="width 0.4s ease"
                 />
               </Box>

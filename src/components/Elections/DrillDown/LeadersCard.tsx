@@ -10,9 +10,11 @@ type LcColors = { bg: string; color: string; border: string }
 export default function LeadersCard({
   data,
   lc,
+  colorMap,
 }: {
   data: DrillDownResult
   lc: LcColors
+  colorMap: Map<string, string>
 }) {
   const formRef = data.enteredVotes ? getIEBCFormRef(data.positionType, data.level) : null
 
@@ -46,6 +48,7 @@ export default function LeadersCard({
         {data.candidates.slice(0, 5).map((cand, idx) => {
           const pct = data.totalVotes > 0 ? (cand.votes / data.totalVotes) * 100 : 0
           const isLeader = idx === 0 && cand.votes > 0
+          const candColor = colorMap.get(cand.candidateId) ?? lc.border
           return (
             <Box
               key={cand.candidateId} px={5} py={2.5}
@@ -56,9 +59,10 @@ export default function LeadersCard({
                 <Flex
                   w={6} h={6} borderRadius="full" flexShrink={0}
                   align="center" justify="center"
-                  bg={isLeader ? "#C9D927" : "gray.100"}
+                  bg={candColor}
                   fontSize="xs" fontWeight="800"
-                  color={isLeader ? "#0f172a" : "gray.500"}
+                  color={isLeader ? "#0f172a" : "white"}
+                  style={{ opacity: isLeader ? 1 : 0.85 }}
                 >
                   {idx + 1}
                 </Flex>
@@ -73,7 +77,7 @@ export default function LeadersCard({
                       )}
                     </HStack>
                     <HStack gap={2} flexShrink={0}>
-                      <Text fontSize="sm" fontWeight="700" color={isLeader ? "#798217" : "gray.700"}>
+                      <Text fontSize="sm" fontWeight="700" color="gray.700">
                         {cand.votes.toLocaleString()}
                       </Text>
                       <Text fontSize="xs" color="gray.400" w="36px" textAlign="right">
@@ -84,7 +88,7 @@ export default function LeadersCard({
                   <Box h="4px" bg="gray.100" borderRadius="full" overflow="hidden">
                     <Box
                       h="full" w={`${pct}%`}
-                      bg={isLeader ? "#C9D927" : lc.border}
+                      bg={candColor}
                       borderRadius="full" transition="width 0.4s ease"
                     />
                   </Box>
