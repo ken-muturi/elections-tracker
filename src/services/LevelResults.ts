@@ -54,39 +54,45 @@ export const upsertLevelResult = async (input: LevelResultInput, status: ResultS
 
       let resultId: string
 
-      if (existing) {
-        await tx.levelResult.update({
-          where: { id: existing.id },
-          data: {
-            validatorId: user.id,
-            status,
-            totalVotes: input.totalVotes,
-            rejectedVotes: input.rejectedVotes,
-            notes: input.notes,
-            imageUrl: input.imageUrl,
-            voiceUrl: input.voiceUrl,
-            ...(submittedAt ? { submittedAt } : {}),
-          },
-        })
-        resultId = existing.id
-      } else {
-        const created = await tx.levelResult.create({
-          data: {
-            positionId: input.positionId,
-            level: input.level,
-            entityId: input.entityId,
-            validatorId: user.id,
-            status,
-            totalVotes: input.totalVotes,
-            rejectedVotes: input.rejectedVotes,
-            notes: input.notes,
-            imageUrl: input.imageUrl,
-            voiceUrl: input.voiceUrl,
-            ...(submittedAt ? { submittedAt } : {}),
-          },
-        })
-        resultId = created.id
+    if (existing) {
+      // Prevent overwriting a VERIFIED result unless you are a super admin
+      if (existing.status === "VERIFIED" && role !== "super admin") {
+        throw new Error(
+          "This result has been verified and can only be modified by a super admin.",
+        );
       }
+      await tx.levelResult.update({
+        where: { id: existing.id },
+        data: {
+          validatorId: user.id,
+          status,
+          totalVotes: input.totalVotes,
+          rejectedVotes: input.rejectedVotes,
+          notes: input.notes,
+          imageUrl: input.imageUrl,
+          voiceUrl: input.voiceUrl,
+          ...(submittedAt ? { submittedAt } : {}),
+        },
+      });
+      resultId = existing.id;
+    } else {
+      const created = await tx.levelResult.create({
+        data: {
+          positionId: input.positionId,
+          level: input.level,
+          entityId: input.entityId,
+          validatorId: user.id,
+          status,
+          totalVotes: input.totalVotes,
+          rejectedVotes: input.rejectedVotes,
+          notes: input.notes,
+          imageUrl: input.imageUrl,
+          voiceUrl: input.voiceUrl,
+          ...(submittedAt ? { submittedAt } : {}),
+        },
+      });
+      resultId = created.id;
+    }
 
       for (const cv of input.votes) {
         await tx.levelCandidateVote.upsert({
@@ -112,6 +118,10 @@ export const upsertLevelResult = async (input: LevelResultInput, status: ResultS
  */
 export const submitLevelResult = async (levelResultId: string) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can submit level results.");
     return await prisma.levelResult.update({
       where: { id: levelResultId },
       data: { status: "SUBMITTED", submittedAt: new Date() },
@@ -123,6 +133,10 @@ export const submitLevelResult = async (levelResultId: string) => {
 
 export const updateLevelResultStatus = async (id: string, status: ResultStatus) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can update result status.");
     return await prisma.levelResult.update({ where: { id }, data: { status } })
   } catch (error) {
     throw new Error(handleReturnError(error))

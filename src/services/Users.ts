@@ -6,6 +6,7 @@ import prisma from '@/db';
 import { handleReturnError } from "@/db/error-handling";
 import { genSaltSync, hashSync } from "bcryptjs";
 import { omit } from "lodash";
+import { getCurrentUser } from "./UserSessison";
 
 export async function getUsers(
   whereClause?: Record<string, any>,
@@ -19,6 +20,13 @@ export async function getUsers(
           role: {
             select: {
               title: true,
+            },
+          },
+          party: {
+            select: {
+              id: true,
+              name: true,
+              abbreviation: true,
             },
           },
         }
@@ -79,7 +87,9 @@ export async function createUser(
 ) {
   try {
     const salt = genSaltSync(10);
-    const defaultPassword = process.env.DEFAULT_USER_PASSWORD || "war.child";
+    const defaultPassword = process.env.DEFAULT_USER_PASSWORD;
+    if (!defaultPassword)
+      throw new Error("DEFAULT_USER_PASSWORD environment variable is not set.");
     return await prisma.user.create({
       data: {
         ...data,
@@ -102,6 +112,10 @@ export async function createUser(
 }
 export async function updateUser(id: string, data: Partial<UserForm>) {
   try {
+    const currentUser = await getCurrentUser();
+    const role = (currentUser.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can update users.");
     const details: Partial<UserForm> = omit(data, [
       "password",
       "confirmPassword",
@@ -125,6 +139,10 @@ export async function updateUser(id: string, data: Partial<UserForm>) {
 
 export const deleteUser = async (id: string) => {
   try {
+    const currentUser = await getCurrentUser();
+    const role = (currentUser.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can delete users.");
     return prisma.user.update({
       where: { id },
       data: {
@@ -139,6 +157,10 @@ export const deleteUser = async (id: string) => {
 
 export const restoreUser = async (id: string) => {
   try {
+    const currentUser = await getCurrentUser();
+    const role = (currentUser.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can restore users.");
     return prisma.user.update({
       where: { id },
       data: {

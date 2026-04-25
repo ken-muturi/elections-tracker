@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   VStack,
@@ -11,6 +11,7 @@ import {
   Flex,
   Button,
   Text,
+  Spinner,
 } from "@chakra-ui/react";
 import { PollingStation } from "@prisma/client";
 import {
@@ -18,6 +19,8 @@ import {
   updatePollingStation,
   PollingStationForm as StationFormData,
 } from "@/services/PollingStations";
+import { getElectionsLight } from "@/services/Elections";
+import { getWardsByElection } from "@/services/Hierarchy";
 
 const toaster = createToaster({ placement: "top-end" });
 
@@ -28,7 +31,44 @@ const PollingStationForm = ({
   station: PollingStation | null;
   onClose: () => void;
 }) => {
+  const isEdit = !!station;
   const [saving, setSaving] = useState(false);
+
+  // ── Election / Ward selection (new stations only) ──────────────────────
+  const [elections, setElections] = useState<
+    { id: string; title: string; year: number }[]
+  >([]);
+  const [selectedElectionId, setSelectedElectionId] = useState("");
+  const [wards, setWards] = useState<
+    {
+      id: string;
+      name: string;
+      code: string;
+      constituency: { name: string; county: { name: string } };
+    }[]
+  >([]);
+  const [wardsLoading, setWardsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isEdit) {
+      getElectionsLight()
+        .then(setElections)
+        .catch(() => {});
+    }
+  }, [isEdit]);
+
+  useEffect(() => {
+    if (!selectedElectionId) {
+      setWards([]);
+      return;
+    }
+    setWardsLoading(true);
+    getWardsByElection(selectedElectionId)
+      .then((w: any[]) => setWards(w))
+      .catch(() => {})
+      .finally(() => setWardsLoading(false));
+  }, [selectedElectionId]);
+
   const [form, setForm] = useState<StationFormData>({
     wardId: station?.wardId || "",
     name: station?.name || "",
@@ -39,13 +79,39 @@ const PollingStationForm = ({
     registeredVoters: station?.registeredVoters || null,
   });
 
-  const handleChange = (field: keyof StationFormData, value: string | number | null) => {
+  const handleChange = (
+    field: keyof StationFormData,
+    value: string | number | null,
+  ) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleWardSelect = (wardId: string) => {
+    const w = wards.find((x) => x.id === wardId);
+    setForm((prev) => ({
+      ...prev,
+      wardId,
+      ward: w?.name ?? prev.ward,
+      constituency: w?.constituency?.name ?? prev.constituency,
+      county: w?.constituency?.county?.name ?? prev.county,
+    }));
+  };
+
   const handleSave = async () => {
-    if (!form.name || !form.code || !form.county || !form.constituency || !form.ward) {
+    if (
+      !form.name ||
+      !form.code ||
+      !form.county ||
+      !form.constituency ||
+      !form.ward
+    ) {
       toaster.error({ title: "Please fill all required fields" });
+      return;
+    }
+    if (!form.wardId) {
+      toaster.error({
+        title: "Please select a ward (choose an election first)",
+      });
       return;
     }
 
@@ -75,8 +141,88 @@ const PollingStationForm = ({
         {station ? "Edit Polling Station" : "Add Polling Station"}
       </Heading>
 
+      {/* ── Election + Ward (new only) ─────────────────────────── */}
+      {!isEdit && (
+        <>
+          <Box w="full">
+            <Text fontSize="sm" fontWeight="500" mb={1}>
+              Election *
+            </Text>
+            <select
+              value={selectedElectionId}
+              onChange={(e) => {
+                setSelectedElectionId(e.target.value);
+                setForm((prev) => ({
+                  ...prev,
+                  wardId: "",
+                  ward: "",
+                  constituency: "",
+                  county: "",
+                }));
+              }}
+              style={{
+                width: "100%",
+                padding: "6px 10px",
+                fontSize: "14px",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                background: "white",
+                color: selectedElectionId ? "#1a202c" : "#a0aec0",
+              }}
+            >
+              <option value="">Select election…</option>
+              {elections.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.title} ({e.year})
+                </option>
+              ))}
+            </select>
+          </Box>
+
+          <Box w="full">
+            <Text fontSize="sm" fontWeight="500" mb={1}>
+              Ward * {wardsLoading && <Spinner size="xs" ml={1} />}
+            </Text>
+            <select
+              value={form.wardId}
+              onChange={(e) => handleWardSelect(e.target.value)}
+              disabled={!selectedElectionId || wardsLoading}
+              style={{
+                width: "100%",
+                padding: "6px 10px",
+                fontSize: "14px",
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                background: selectedElectionId ? "white" : "#f7fafc",
+                color: form.wardId ? "#1a202c" : "#a0aec0",
+                opacity: !selectedElectionId || wardsLoading ? 0.6 : 1,
+                cursor:
+                  !selectedElectionId || wardsLoading
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+            >
+              <option value="">
+                {selectedElectionId
+                  ? wardsLoading
+                    ? "Loading…"
+                    : "Select ward…"
+                  : "Select election first"}
+              </option>
+              {wards.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name} ({w.code})
+                </option>
+              ))}
+            </select>
+          </Box>
+        </>
+      )}
+
       <Box w="full">
-        <Text fontSize="sm" fontWeight="500" mb={1}>Station Code *</Text>
+        <Text fontSize="sm" fontWeight="500" mb={1}>
+          Station Code *
+        </Text>
         <Input
           placeholder="e.g. PS001"
           value={form.code}
@@ -86,7 +232,9 @@ const PollingStationForm = ({
       </Box>
 
       <Box w="full">
-        <Text fontSize="sm" fontWeight="500" mb={1}>Station Name *</Text>
+        <Text fontSize="sm" fontWeight="500" mb={1}>
+          Station Name *
+        </Text>
         <Input
           placeholder="e.g. Kenyatta Primary School"
           value={form.name}
@@ -96,7 +244,14 @@ const PollingStationForm = ({
       </Box>
 
       <Box w="full">
-        <Text fontSize="sm" fontWeight="500" mb={1}>County *</Text>
+        <Text fontSize="sm" fontWeight="500" mb={1}>
+          County *{" "}
+          {!isEdit && form.county && (
+            <Text as="span" fontSize="xs" color="gray.400">
+              (auto-filled from ward)
+            </Text>
+          )}
+        </Text>
         <Input
           placeholder="e.g. Nairobi"
           value={form.county}
@@ -106,7 +261,14 @@ const PollingStationForm = ({
       </Box>
 
       <Box w="full">
-        <Text fontSize="sm" fontWeight="500" mb={1}>Constituency *</Text>
+        <Text fontSize="sm" fontWeight="500" mb={1}>
+          Constituency *{" "}
+          {!isEdit && form.constituency && (
+            <Text as="span" fontSize="xs" color="gray.400">
+              (auto-filled from ward)
+            </Text>
+          )}
+        </Text>
         <Input
           placeholder="e.g. Westlands"
           value={form.constituency}
@@ -116,7 +278,14 @@ const PollingStationForm = ({
       </Box>
 
       <Box w="full">
-        <Text fontSize="sm" fontWeight="500" mb={1}>Ward *</Text>
+        <Text fontSize="sm" fontWeight="500" mb={1}>
+          Ward Name *{" "}
+          {!isEdit && form.ward && (
+            <Text as="span" fontSize="xs" color="gray.400">
+              (auto-filled from ward)
+            </Text>
+          )}
+        </Text>
         <Input
           placeholder="e.g. Parklands"
           value={form.ward}
@@ -126,7 +295,9 @@ const PollingStationForm = ({
       </Box>
 
       <Box w="full">
-        <Text fontSize="sm" fontWeight="500" mb={1}>Registered Voters</Text>
+        <Text fontSize="sm" fontWeight="500" mb={1}>
+          Registered Voters
+        </Text>
         <Input
           type="number"
           placeholder="e.g. 5000"
@@ -134,7 +305,7 @@ const PollingStationForm = ({
           onChange={(e) =>
             handleChange(
               "registeredVoters",
-              e.target.value ? parseInt(e.target.value) : null
+              e.target.value ? parseInt(e.target.value) : null,
             )
           }
           size="sm"
@@ -156,6 +327,6 @@ const PollingStationForm = ({
       </Flex>
     </VStack>
   );
-};
+};;
 
 export default PollingStationForm;

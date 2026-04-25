@@ -1,11 +1,11 @@
 import { Text, HStack, Select, createListCollection } from "@chakra-ui/react";
 import React, { useMemo } from "react";
-// import { useQuery } from '@tanstack/react-query'
+import { useQuery } from "@tanstack/react-query";
 import { omit } from "lodash";
-// import { getOrganizations } from "@/services/Organizations";
+import { getParties } from "@/services/Parties";
 
 export type FilterProps = {
-  organizationId?: string;
+  partyId?: string;
 };
 
 type AFiltersProps = {
@@ -14,38 +14,38 @@ type AFiltersProps = {
 };
 
 const Filters = ({ setFilters, filters }: AFiltersProps) => {
-  // TODO: Restore when Organizations service is available
-  // const { data } = useQuery({
-  //   queryKey: ["organizations"],
-  //   queryFn: async () => {
-  //     return await getOrganizations();
-  //   },
-  // });
+  const { data } = useQuery({
+    queryKey: ["parties"],
+    queryFn: getParties,
+  });
 
   const collection = useMemo(
     () =>
       createListCollection({
         items: [
           { value: "", label: "All" },
-          // ...(data?.map((org: any) => ({ value: org.id, label: org.title })) || [])
+          ...(data?.map((p: { id: string; name: string }) => ({
+            value: p.id,
+            label: p.name,
+          })) || []),
         ],
       }),
-    []
+    [data],
   );
 
   return (
     <HStack>
-      <Text fontSize="sm">Organization</Text>
+      <Text fontSize="sm">Party</Text>
       <Select.Root
         collection={collection}
         size="xs"
-        value={filters.organizationId ? [filters.organizationId] : []}
+        value={filters.partyId ? [filters.partyId] : []}
         onValueChange={(details) => {
           const value = details.value[0];
           if (value && value !== "") {
-            setFilters({ ...filters, organizationId: value });
+            setFilters({ ...filters, partyId: value });
           } else {
-            setFilters(omit(filters, ["organizationId"]));
+            setFilters(omit(filters, ["partyId"]));
           }
         }}
       >

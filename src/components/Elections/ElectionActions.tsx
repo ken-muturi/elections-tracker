@@ -57,9 +57,9 @@ export default function ElectionActions({ election, variant = "card" }: Election
         await updateElection(election.id, {
           title: title.trim(),
           year: parseInt(year, 10),
-          electionDate: new Date(electionDate),
+          electionDate: electionDate,
           description: description.trim() || undefined,
-        })
+        });
         toaster.success({ title: "Election updated" })
         setEditOpen(false)
         router.refresh()

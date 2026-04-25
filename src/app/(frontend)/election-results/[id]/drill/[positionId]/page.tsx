@@ -2,7 +2,7 @@ import { Box, Heading, Text, VStack, HStack, Flex } from "@chakra-ui/react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { getPublicElectionById } from "@/services/Elections"
-import DrillDownClient from "@/components/Elections/DrillDownClient"
+import DrillDownClient from "@/components/Elections/DrillDown/Client"
 import { FiArrowLeft } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 
@@ -25,10 +25,13 @@ export async function generateMetadata({
 
 export default async function DrillDownPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; positionId: string }>
+  searchParams: Promise<{ entityId?: string; entityLevel?: string }>
 }) {
   const { id, positionId } = await params
+  const { entityId, entityLevel } = await searchParams
   const election = await getPublicElectionById(id).catch(() => null)
 
   if (!election) notFound()
@@ -79,7 +82,12 @@ export default async function DrillDownPage({
         </VStack>
 
         {/* ── Drill-down component ───────────────────────── */}
-        <DrillDownClient electionId={id} positionId={positionId} />
+        <DrillDownClient
+          electionId={id}
+          positionId={positionId}
+          initialEntityId={entityId}
+          initialEntityLevel={entityLevel}
+        />
 
         {/* ── Disclaimer ─────────────────────────────────── */}
         <Box textAlign="center" pt={4}>

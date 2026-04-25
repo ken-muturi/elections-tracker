@@ -1,5 +1,5 @@
 import { IconType } from "react-icons";
-import { FaHome, FaUserShield, FaChartBar } from "react-icons/fa";
+import { FaHome, FaUserShield, FaChartBar, FaFlag } from "react-icons/fa";
 import { MdOutlineSpaceDashboard, MdHowToVote } from "react-icons/md";
 import { LiaUsersSolid } from "react-icons/lia";
 import { PiUsersThreeDuotone } from "react-icons/pi";
@@ -108,6 +108,13 @@ export const adminItems: NavItem[] = [
         type: "link",
         icon: FaUserShield,
         href: "/roles",
+      },
+      {
+        label: "Parties",
+        abbreviation: "parties",
+        type: "link",
+        icon: FaFlag,
+        href: "/parties",
       },
     ],
   },

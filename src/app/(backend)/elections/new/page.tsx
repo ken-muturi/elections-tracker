@@ -32,15 +32,21 @@ export default function NewElectionPage() {
   const [validationError, setValidationError] = useState("")
 
   const createMutation = useSyncMutation(
-    async (input: { title: string; year: number; electionDate: Date; description?: string; positions: PositionInput[] }) => {
-      return createElection(input)
+    async (input: {
+      title: string;
+      year: number;
+      electionDate: string;
+      description?: string;
+      positions: PositionInput[];
+    }) => {
+      return createElection(input);
     },
     {
       onSuccess: (election) => {
-        router.push(`/elections/${election.id}`)
+        router.push(`/elections/${election.id}`);
       },
     },
-  )
+  );
 
   const isPending = createMutation.isPending
   const error = validationError || createMutation.error?.message || ""
@@ -108,10 +114,10 @@ export default function NewElectionPage() {
     createMutation.mutate({
       title: title.trim(),
       year: parseInt(year),
-      electionDate: new Date(electionDate),
+      electionDate: electionDate, // ISO date string — parsed on the server side
       description: description.trim() || undefined,
       positions,
-    })
+    });
   }
 
   return (

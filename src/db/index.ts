@@ -65,12 +65,10 @@ declare global {
 }
 
 const prisma = new PrismaClient({
-  log: [
-    "query",
-    // { level: 'warn', emit: 'event' },
-    // { level: 'info', emit: 'event' },
-    { level: "error", emit: "event" },
-  ],
+  log:
+    process.env.NODE_ENV !== "production"
+      ? ["query", { level: "error", emit: "event" }]
+      : [{ level: "error", emit: "event" }],
   errorFormat: "pretty",
 });
 

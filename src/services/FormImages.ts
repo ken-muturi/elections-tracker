@@ -11,16 +11,23 @@ import type { AggregationLevel } from "@prisma/client"
 // S3 presigned URL
 // ─────────────────────────────────────────────────────────────────────────────
 
+const ALLOWED_CONTENT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+]);
+
 const s3 = new S3Client({
   region: process.env.AWS_S3_REGION || "us-east-1",
   credentials: {
-    accessKeyId: process.env.NEXT_PUBLIC_S3_AWS_ACCESS_KEY!,
-    secretAccessKey: process.env.NEXT_PUBLIC_S3_AWS_SECRET_ACCESS_KEY!,
+    accessKeyId: process.env.S3_AWS_ACCESS_KEY!,
+    secretAccessKey: process.env.S3_AWS_SECRET_ACCESS_KEY!,
   },
-})
+});
 
-const BUCKET = process.env.NEXT_PUBLIC_AWS_S3_BUCKET!
-const BUCKET_URL = process.env.NEXT_PUBLIC_AWS_S3_BUCKET_URL!
+const BUCKET = process.env.AWS_S3_BUCKET!;
+const BUCKET_URL = process.env.AWS_S3_BUCKET_URL!;
 
 function generateKey(ext: string): string {
   const rand = Math.random().toString(36).slice(2, 12)
@@ -33,6 +40,14 @@ function generateKey(ext: string): string {
  */
 export async function getFormImageUploadUrl(contentType: string, filename: string) {
   try {
+    await getCurrentUser(); // must be authenticated
+
+    if (!ALLOWED_CONTENT_TYPES.has(contentType)) {
+      throw new Error(
+        `Unsupported content type: ${contentType}. Only JPEG, PNG, WebP and HEIC images are allowed.`,
+      );
+    }
+
     const ext = filename.split(".").pop() ?? "jpg"
     const key = generateKey(ext)
 

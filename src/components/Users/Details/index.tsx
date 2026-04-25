@@ -34,9 +34,9 @@ const Details = ({ users: initalUsers, roles }: DetailProps) => {
   });
 
   let filteredData = data || [];
-  if (filters.organizationId) {
+  if (filters.partyId) {
     filteredData = filteredData.filter(
-      (d: any) => d.organizationId === filters.organizationId
+      (d: any) => d.partyId === filters.partyId,
     );
   }
   const UserDetails = filteredData.map((d: any) => {
@@ -57,7 +57,7 @@ const Details = ({ users: initalUsers, roles }: DetailProps) => {
       ]),
       fullnames: `${d.firstname} ${d.othernames}`,
       role: d.role?.title,
-      organizationTitle: d.organization?.title,
+      partyTitle: d.party?.name,
       image: d.image,
       roleId: d.roleId,
     } as UserDetail;
@@ -101,7 +101,7 @@ const Details = ({ users: initalUsers, roles }: DetailProps) => {
           columnInfo={ColumnDefinition}
           data={UserDetails}
           expandedRows={true}
-          defaultGrouping={["organizationTitle"]}
+          defaultGrouping={["partyTitle"]}
         />
       )}
     </>

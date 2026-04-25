@@ -1,0 +1,247 @@
+"use client"
+
+import React, { useState } from "react"
+import dynamic from "next/dynamic"
+import {
+  Box, VStack, HStack, Text, Heading, SimpleGrid, Flex, Badge, Spinner,
+} from "@chakra-ui/react"
+import { FiChevronRight, FiMapPin, FiChevronLeft, FiMap, FiList } from "react-icons/fi"
+import { MdHowToVote } from "react-icons/md"
+
+// Leaflet uses browser-only APIs — load it client-side only
+const DrillMap = dynamic(() => import("./DrillMap"), { ssr: false, loading: () => (
+  <Flex h="420px" borderRadius="2xl" bg="gray.50" borderWidth="1px" borderColor="gray.100"
+    align="center" justify="center">
+    <Spinner size="md" color="#798217" />
+  </Flex>
+) })
+import type { DrillDownResult } from "@/services/PublicResults"
+import {
+  getDrillDownNational,
+  getDrillDownCounty,
+  getDrillDownConstituency,
+  getDrillDownWard,
+  getDrillDownStation,
+} from "@/services/PublicResults"
+import { LEVEL_COLOR, NEXT_ACTION } from "../constants"
+import useSyncMutation from "@/hooks/hooks/useSyncMutation"
+import LeadersCard from "./LeadersCard"
+import ChildCard from "./ChildCard"
+
+const DRILL_FN: Record<
+  string,
+  (electionId: string, positionId: string, id: string) => Promise<DrillDownResult>
+> = {
+  COUNTY: getDrillDownCounty,
+  CONSTITUENCY: getDrillDownConstituency,
+  WARD: getDrillDownWard,
+  STATION: getDrillDownStation,
+}
+
+type Crumb = DrillDownResult["breadcrumb"][number]
+
+export default function DrillDown({
+  initial,
+  electionId,
+}: {
+  initial: DrillDownResult
+  electionId: string
+}) {
+  const [data, setData] = useState<DrillDownResult>(initial)
+  const [view, setView] = useState<"cards" | "map">("cards")
+
+  const navMutation = useSyncMutation(
+    async (fn: () => Promise<DrillDownResult>) => fn(),
+    { onSuccess: setData },
+  )
+
+  const drill = (childId: string) => {
+    const nextAction = NEXT_ACTION[data.level]
+    const fn = nextAction ? DRILL_FN[nextAction] : undefined
+    if (!fn) return
+    navMutation.mutate(() => fn(electionId, data.positionId, childId))
+  }
+
+  const navigateTo = (crumb: Crumb) => {
+    if (crumb.level === "NATIONAL") {
+      navMutation.mutate(() => getDrillDownNational(electionId, data.positionId))
+    } else {
+      const fn = DRILL_FN[crumb.level]
+      if (fn) navMutation.mutate(() => fn(electionId, data.positionId, crumb.id))
+    }
+  }
+
+  // Ancestors = all breadcrumb entries except the last (current), skipping the
+  // synthetic "National" root since the position title already serves as the root.
+  const ancestors = data.breadcrumb.slice(0, -1).filter((c) => c.level !== "NATIONAL")
+  const parentCrumb = data.breadcrumb.length > 1
+    ? data.breadcrumb[data.breadcrumb.length - 2]
+    : null
+
+  const canDrill = !!NEXT_ACTION[data.level]
+  const lc = LEVEL_COLOR[data.level] ?? LEVEL_COLOR.NATIONAL
+
+  return (
+    <VStack gap={5} align="stretch">
+      {/* ── Breadcrumb ──────────────────────────────────── */}
+      <HStack gap={1} flexWrap="wrap">
+        {/* Position title — always first, clicking returns to national view */}
+        <HStack gap={1}>
+          <Text
+            as="button"
+            fontSize="sm" color="blue.600" fontWeight="600"
+            cursor="pointer" _hover={{ textDecoration: "underline" }}
+            onClick={() => navigateTo({ id: "national", name: "National", level: "NATIONAL" })}
+          >
+            {data.positionTitle}
+          </Text>
+          <FiChevronRight fontSize="0.75rem" color="#9ca3af" />
+        </HStack>
+
+        {/* Geographic ancestors (county → constituency → ward …) */}
+        {ancestors.map((crumb) => (
+          <HStack key={crumb.id} gap={1}>
+            <Text
+              as="button"
+              fontSize="sm" color="blue.600" fontWeight="600"
+              cursor="pointer" _hover={{ textDecoration: "underline" }}
+              onClick={() => navigateTo(crumb)}
+            >
+              {crumb.name}
+            </Text>
+            <FiChevronRight fontSize="0.75rem" color="#9ca3af" />
+          </HStack>
+        ))}
+
+        {/* Current level — not clickable */}
+        <Text fontSize="sm" fontWeight="700" color="gray.800">
+          {data.parentName ?? "All"}
+        </Text>
+      </HStack>
+
+      {/* ── Header ──────────────────────────────────────── */}
+      <HStack justify="space-between" flexWrap="wrap" gap={3}>
+        <HStack gap={3}>
+          <Flex
+            w={10} h={10} borderRadius="lg" bg={lc.bg}
+            align="center" justify="center" flexShrink={0}
+          >
+            <MdHowToVote fontSize="1.2rem" color={lc.color} />
+          </Flex>
+          <VStack align="flex-start" gap={0}>
+            <Heading fontSize="lg" fontWeight="800" color="gray.900">
+              {data.positionTitle}
+            </Heading>
+            <Text fontSize="xs" color="gray.500">
+              Showing {data.levelLabel.toLowerCase()} ·{" "}
+              {data.reportedStreams}/{data.totalStreams} streams reported
+            </Text>
+          </VStack>
+        </HStack>
+        <Badge
+          px={2.5} py={1} borderRadius="full" bg={lc.bg} color={lc.color}
+          fontSize="9px" fontWeight="700" textTransform="uppercase"
+          letterSpacing="wide"
+        >
+          {data.levelLabel}
+        </Badge>
+      </HStack>
+
+      {/* ── Overall leaders ─────────────────────────────── */}
+      <LeadersCard data={data} lc={lc} />
+
+      {/* ── Children section header ─────────────────────── */}
+      {data.parentName && (
+        <HStack
+          px={4} py={2.5}
+          bg={lc.bg} borderRadius="xl"
+          justify="space-between" flexWrap="wrap" gap={2}
+        >
+          <HStack
+            gap={2} flex={1}
+            cursor={parentCrumb ? "pointer" : "default"}
+            _hover={parentCrumb ? { opacity: 0.8 } : {}}
+            transition="opacity 0.15s"
+            onClick={parentCrumb ? () => navigateTo(parentCrumb) : undefined}
+            role={parentCrumb ? "button" : undefined}
+          >
+            {parentCrumb && <FiChevronLeft fontSize="0.9rem" color={lc.color} />}
+            <FiMapPin fontSize="0.8rem" color={lc.color} />
+            <Text fontSize="sm" fontWeight="700" color={lc.color}>
+              {data.parentName}
+            </Text>
+            <Text fontSize="xs" color={lc.color} opacity={0.7}>
+              — {data.children.length} {data.levelLabel.toLowerCase()}
+            </Text>
+          </HStack>
+
+          {/* View toggle */}
+          <HStack gap={1}>
+            <Text fontSize="xs" color={lc.color} opacity={0.7} mr={1}>
+              {data.reportedStreams}/{data.totalStreams} streams
+            </Text>
+            {(["cards", "map"] as const).map((v) => (
+              <HStack
+                key={v}
+                as="button"
+                gap={1} px={2.5} py={1} borderRadius="full"
+                bg={view === v ? lc.color : "transparent"}
+                color={view === v ? "white" : lc.color}
+                fontSize="xs" fontWeight="700"
+                cursor="pointer"
+                transition="all 0.15s"
+                onClick={() => setView(v)}
+              >
+                {v === "cards" ? <FiList fontSize="0.75rem" /> : <FiMap fontSize="0.75rem" />}
+                <Text textTransform="capitalize">{v}</Text>
+              </HStack>
+            ))}
+          </HStack>
+        </HStack>
+      )}
+
+      {/* ── Children — cards or map ─────────────────────── */}
+      <Box position="relative">
+        {navMutation.isPending && (
+          <Flex
+            position="absolute" top={0} left={0} right={0} bottom={0}
+            zIndex={10} bg="rgba(255,255,255,0.75)" borderRadius="2xl"
+            align="center" justify="center"
+          >
+            <Spinner size="lg" color="#798217" />
+          </Flex>
+        )}
+
+        {view === "map" ? (
+          <Box opacity={navMutation.isPending ? 0.4 : 1} transition="opacity 0.15s">
+            <DrillMap data={data} lc={lc} onDrill={drill} />
+          </Box>
+        ) : (
+          <SimpleGrid
+            columns={{ base: 1, md: 2 }} gap={4}
+            opacity={navMutation.isPending ? 0.4 : 1}
+            transition="opacity 0.15s"
+          >
+            {data.children.map((child) => (
+              <ChildCard
+                key={child.entityId}
+                child={child}
+                canDrill={canDrill}
+                lc={lc}
+                onDrill={drill}
+              />
+            ))}
+          </SimpleGrid>
+        )}
+      </Box>
+
+      {data.rejectedVotes > 0 && (
+        <Box px={5} py={3} bg="#fef9f0" borderRadius="xl" borderWidth="1px" borderColor="#fef3c7">
+          <Text fontSize="xs" color="#92400e">
+            {data.rejectedVotes.toLocaleString()} rejected votes not counted above
+          </Text>
+        </Box>
+      )}
+    </VStack>
+  )
+}

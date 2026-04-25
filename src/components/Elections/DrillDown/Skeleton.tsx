@@ -1,12 +1,8 @@
 "use client"
 
-import React from "react"
-import { useQuery } from "@tanstack/react-query"
-import { Box, Flex, Text, SimpleGrid, VStack, HStack } from "@chakra-ui/react"
-import DrillDown from "./DrillDown"
-import { getDrillDownNational } from "@/services/PublicResults";
+import { Box, VStack, HStack, SimpleGrid } from "@chakra-ui/react"
 
-function DrillDownSkeleton() {
+export default function DrillDownSkeleton() {
   return (
     <VStack gap={5} align="stretch">
       {/* Breadcrumb placeholder */}
@@ -66,25 +62,4 @@ function DrillDownSkeleton() {
       </SimpleGrid>
     </VStack>
   )
-}
-
-export default function DrillDownClient({ electionId, positionId }: { electionId: string; positionId: string }) {
-  const { data: initial, isLoading, isError } = useQuery({
-    queryKey: ["public-results", electionId, positionId],
-    queryFn: () => getDrillDownNational(electionId, positionId),
-  });
-
-  if (isLoading) return <DrillDownSkeleton />
-
-  if (isError || !initial) {
-    return (
-      <Box bg="white" borderRadius="2xl" borderWidth="1px" borderColor="gray.100" p={12} textAlign="center">
-        <Flex direction="column" align="center" gap={3} color="gray.400">
-          <Text fontSize="sm">Failed to load results. Please refresh the page.</Text>
-        </Flex>
-      </Box>
-    )
-  }
-
-  return <DrillDown initial={initial} electionId={electionId} />
 }

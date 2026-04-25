@@ -62,6 +62,18 @@ export const upsertStreamResult = async (
       let resultId: string;
 
       if (existing) {
+        // Prevent overwriting a VERIFIED result unless you are a super admin
+        if (existing.status === "VERIFIED" && role !== "super admin") {
+          throw new Error(
+            "This result has been verified and can only be modified by a super admin.",
+          );
+        }
+        // Non-admin agents cannot edit SUBMITTED results either
+        if (existing.status === "SUBMITTED" && !isAdmin) {
+          throw new Error(
+            "This result has already been submitted. Contact an administrator to make changes.",
+          );
+        }
         await tx.streamResult.update({
           where: { id: existing.id },
           data: {
@@ -128,6 +140,10 @@ export const upsertStreamResult = async (
  */
 export const submitStreamResult = async (streamResultId: string) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can submit stream results.");
     return await prisma.streamResult.update({
       where: { id: streamResultId },
       data: { status: "SUBMITTED", submittedAt: new Date() },
@@ -142,6 +158,10 @@ export const updateStreamResultStatus = async (
   status: ResultStatus,
 ) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can update result status.");
     return await prisma.streamResult.update({
       where: { id },
       data: { status },

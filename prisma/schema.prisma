@@ -89,6 +89,10 @@ model User {
   pollingStationUpdater PollingStation[] @relation("pollingStationUpdater")
   pollingStationDeleter PollingStation[] @relation("pollingStationDeleter")
 
+  partyId  String? @map("party_id") @db.VarChar(50)
+
+  party    Party?  @relation(fields: [partyId], references: [id])
+
   // Election system
   electionsCreated Election[]          @relation("electionCreator")
   streamResults    StreamResult[]      @relation("streamResultAgent")
@@ -97,6 +101,147 @@ model User {
   formImages       ResultFormImage[]   @relation("formImageUploader")
 
   @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Party  (political party a user / agent belongs to)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Party {
+  id           String    @id @default(cuid()) @db.VarChar(50)
+  name         String    @db.VarChar(150)
+  abbreviation String?   @db.VarChar(20)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime? @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  users User[]
+
+  @@map("parties")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hesabu — Kenya County Budget Transparency & Citizen Accountability Platform
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One row per county per fiscal year.
+model HCounty {
+  id                     String  @id @default(cuid()) @db.VarChar(50)
+  name                   String  @db.VarChar(100)
+  code                   String  @db.VarChar(5)   // e.g. "030" for Baringo
+  fiscalYear             String  @map("fiscal_year") @db.VarChar(15) // e.g. "2025/2026"
+
+  // Budget figures (KES)
+  totalBudget            BigInt  @map("total_budget")
+  recurrentExpenditure   BigInt  @map("recurrent_expenditure")
+  developmentExpenditure BigInt  @map("development_expenditure")
+  equitableShare         BigInt  @map("equitable_share")
+
+  // Revenue figures
+  revenueTarget          BigInt  @map("revenue_target")
+  revenueCollected       BigInt  @map("revenue_collected")
+
+  // Absorption of development budget (0-100)
+  devAbsorptionRate      Float?  @map("dev_absorption_rate")
+
+  // Whether data has been verified/published
+  isDataAvailable        Boolean @default(false) @map("is_data_available")
+  dataSource             String? @db.Text @map("data_source")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  sectors HSector[]
+  wards   HWard[]
+  reports HReport[]
+
+  @@unique([code, fiscalYear])
+  @@index([fiscalYear])
+  @@map("h_counties")
+}
+
+/// Budget sector within a county for one fiscal year.
+model HSector {
+  id              String  @id @default(cuid()) @db.VarChar(50)
+  countyId        String  @map("county_id") @db.VarChar(50)
+  fiscalYear      String  @map("fiscal_year") @db.VarChar(15)
+  name            String  @db.VarChar(150)
+  icon            String? @db.VarChar(10)  // emoji icon
+  description     String? @db.Text
+
+  // Budget figures (KES)
+  allocatedAmount BigInt  @map("allocated_amount")
+  spentAmount     BigInt  @default(0) @map("spent_amount")
+
+  county  HCounty   @relation(fields: [countyId], references: [id], onDelete: Cascade)
+  reports HReport[]
+
+  @@index([countyId])
+  @@map("h_sectors")
+}
+
+/// Ward-level project delivery data.
+model HWard {
+  id                       String  @id @default(cuid()) @db.VarChar(50)
+  countyId                 String  @map("county_id") @db.VarChar(50)
+  name                     String  @db.VarChar(150)
+  subCounty                String  @map("sub_county") @db.VarChar(150)
+  population               Int
+
+  totalProjects            Int     @default(0) @map("total_projects")
+  completedProjects        Int     @default(0) @map("completed_projects")
+  pendingProjects          Int     @default(0) @map("pending_projects")
+  stalledProjects          Int     @default(0) @map("stalled_projects")
+
+  /// 0-100 score from citizen surveys
+  citizenSatisfactionScore Int     @default(0) @map("citizen_satisfaction_score")
+
+  county  HCounty   @relation(fields: [countyId], references: [id], onDelete: Cascade)
+  reports HReport[]
+
+  @@index([countyId])
+  @@map("h_wards")
+}
+
+enum HReportStatus {
+  UNRESOLVED
+  INVESTIGATING
+  RESOLVED
+}
+
+/// Citizen-filed service delivery gap report.
+model HReport {
+  id          String        @id @default(cuid()) @db.VarChar(50)
+  countyId    String        @map("county_id") @db.VarChar(50)
+  wardId      String        @map("ward_id") @db.VarChar(50)
+  sectorId    String        @map("sector_id") @db.VarChar(50)
+  title       String        @db.VarChar(300)
+  description String?       @db.Text
+  status      HReportStatus @default(UNRESOLVED)
+  votes       Int           @default(0)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  county HCounty @relation(fields: [countyId], references: [id], onDelete: Cascade)
+  ward   HWard   @relation(fields: [wardId], references: [id], onDelete: Cascade)
+  sector HSector @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+  voteRecords HVote[]
+
+  @@index([countyId, status])
+  @@index([wardId])
+  @@map("h_reports")
+}
+
+/// Tracks which session/fingerprint has voted on a report (prevents duplicates).
+model HVote {
+  id          String   @id @default(cuid()) @db.VarChar(50)
+  reportId    String   @map("report_id") @db.VarChar(50)
+  fingerprint String   @db.VarChar(100) // browser fingerprint or session id
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  report HReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, fingerprint])
+  @@index([reportId])
+  @@map("h_votes")
 }
 
 model VerificationRequest {
@@ -375,7 +520,7 @@ model StreamCandidateVote {
   votes          Int    @default(0)
 
   streamResult StreamResult @relation(fields: [streamResultId], references: [id], onDelete: Cascade)
-  candidate    Candidate    @relation(fields: [candidateId], references: [id])
+  candidate    Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 
   @@index([streamResultId])
   @@index([candidateId])
@@ -458,7 +603,7 @@ model LevelCandidateVote {
   votes         Int    @default(0)
 
   levelResult LevelResult @relation(fields: [levelResultId], references: [id], onDelete: Cascade)
-  candidate   Candidate   @relation(fields: [candidateId], references: [id])
+  candidate   Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 
   @@unique([levelResultId, candidateId])
   @@map("level_candidate_votes")

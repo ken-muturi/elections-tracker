@@ -5,6 +5,7 @@ import { FiUsers } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 import prisma from "@/db"
 import AgentAssignmentImportWrapper from "@/components/AgentAssignmentImport/PageWrapper";
+import AssignAgentForm from "@/components/AgentAssignment/AssignAgentForm";
 
 
 async function getAgentCounts() {
@@ -90,6 +91,9 @@ export default async function AgentAssignmentsPage() {
         </VStack>
         <AgentAssignmentImportWrapper elections={elections} />
       </HStack>
+
+      {/* Manual assign */}
+      <AssignAgentForm />
 
       {/* Stats */}
       <SimpleGrid columns={{ base: 2, md: 4 }} gap={4}>

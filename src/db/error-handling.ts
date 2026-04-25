@@ -28,6 +28,8 @@ export const handleReturnError = (error: any): string => {
        return `Duplicate entry detected: ${
          error.meta?.modelName ?? ""
        } '${targetFields}' field(s) contains duplicate value.`;
+     case "P2003":
+       return "Cannot delete this record because other records depend on it.";
      case "P2025":
        return "Record not found";
      default:

@@ -42,13 +42,13 @@ const Columns = ({
       size: 50,
       cell: ({ row }) => (
         <HStack gap={2} alignItems="center" py={1}>
-          <Box 
-            w="40px" 
-            h="40px" 
-            bg="gray.200" 
-            rounded="md" 
-            display="flex" 
-            alignItems="center" 
+          <Box
+            w="40px"
+            h="40px"
+            bg="gray.200"
+            rounded="md"
+            display="flex"
+            alignItems="center"
             justifyContent="center"
           >
             {/* TODO: Replace with PhotoModal component */}
@@ -61,8 +61,8 @@ const Columns = ({
     columnHelper.accessor("role", {
       header: translate(dictionary.role),
     }),
-    columnHelper.accessor("organizationTitle", {
-      header: translate(dictionary.organization),
+    columnHelper.accessor("partyTitle", {
+      header: translate(dictionary.party),
     }),
     columnHelper.accessor("gender", {
       header: translate(dictionary.gender),
@@ -123,12 +123,7 @@ const Columns = ({
     // }),
     columnHelper.accessor("id", {
       header: translate(dictionary.actions),
-      cell: (cell) => (
-        <Actions
-          roles={roles}
-          data={cell.row.original}
-        />
-      ),
+      cell: (cell) => <Actions roles={roles} data={cell.row.original} />,
     }),
   ];
 };

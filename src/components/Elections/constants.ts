@@ -37,3 +37,26 @@ export const NEXT_ACTION: Record<string, string> = {
   CONSTITUENCY: "WARD",
   WARD: "STATION",
 }
+
+/**
+ * Returns the IEBC declaration form reference for the "Entered at Level" data.
+ * Presidential results use Forms 34A/34B/34C; all other positions use 35A/35B.
+ */
+export function getIEBCFormRef(
+  positionType: string,
+  level: string,
+): { form: string; label: string } | null {
+  if (positionType === "PRESIDENT") {
+    if (level === "NATIONAL")      return { form: "Form 34C", label: "National Tally Declaration" }
+    if (level === "CONSTITUENCY")  return { form: "Form 34B", label: "Constituency Declaration" }
+    if (level === "STATION")       return { form: "Form 34A", label: "Polling Station Declaration" }
+  }
+  const stationLevels = ["STATION", "STREAM"]
+  if (stationLevels.includes(level))    return { form: "Form 35A", label: "Polling Station Declaration" }
+  if (positionType === "GOVERNOR"   && level === "COUNTY")        return { form: "Form 35B", label: "County Tally Declaration" }
+  if (positionType === "SENATOR"    && level === "COUNTY")        return { form: "Form 35B", label: "County Tally Declaration" }
+  if (positionType === "WOMEN_REP"  && level === "COUNTY")        return { form: "Form 35B", label: "County Tally Declaration" }
+  if (positionType === "MP"         && level === "CONSTITUENCY")  return { form: "Form 35B", label: "Constituency Declaration" }
+  if (positionType === "MCA"        && level === "WARD")          return { form: "Form 35B", label: "Ward Declaration" }
+  return null
+}

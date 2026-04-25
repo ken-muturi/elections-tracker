@@ -31,12 +31,13 @@ declare module "next-auth/jwt" {
   }
 }
 const DEFAULT_MAX_AGE = 30 * 60 * 2; // 60 minutes
+const SESSION_UPDATE_AGE = 5 * 60;    // refresh token every 5 minutes
 
 export const AuthOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
     maxAge: DEFAULT_MAX_AGE,
-    updateAge: DEFAULT_MAX_AGE,
+    updateAge: SESSION_UPDATE_AGE,
   },
   secret: process.env.NEXTAUTH_SECRET,
   adapter: PrismaAdapter(prisma as any),
@@ -101,7 +102,7 @@ export const AuthOptions: NextAuthOptions = {
           ...pick(token, [
             "id",
             "firstname",
-            "othernames:",
+            "othernames",
             "role",
             "email",
             "roleId",

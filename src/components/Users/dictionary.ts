@@ -91,11 +91,11 @@ export const dictionary: Record<string, PartialTranslation[]> = {
     { body: { language: "es", text: "Foto" } },
     { body: { language: "ar", text: "الصورة" } },
   ],
-  organization: [
-    { body: { language: "en", text: "Organization" } },
-    { body: { language: "fr", text: "Organisation" } },
-    { body: { language: "es", text: "Organización" } },
-    { body: { language: "ar", text: "المنظمة" } },
+  party: [
+    { body: { language: "en", text: "Party" } },
+    { body: { language: "fr", text: "Parti" } },
+    { body: { language: "es", text: "Partido" } },
+    { body: { language: "ar", text: "الحزب" } },
   ],
   save: [
     { body: { language: "en", text: "Save" } },
@@ -111,8 +111,18 @@ export const dictionary: Record<string, PartialTranslation[]> = {
   ],
   saveSuccess: [
     { body: { language: "en", text: "User details saved successfully" } },
-    { body: { language: "fr", text: "Détails de l'utilisateur sauvegardés avec succès" } },
-    { body: { language: "es", text: "Detalles del usuario guardados exitosamente" } },
+    {
+      body: {
+        language: "fr",
+        text: "Détails de l'utilisateur sauvegardés avec succès",
+      },
+    },
+    {
+      body: {
+        language: "es",
+        text: "Detalles del usuario guardados exitosamente",
+      },
+    },
     { body: { language: "ar", text: "تم حفظ تفاصيل المستخدم بنجاح" } },
   ],
   error: [
@@ -123,8 +133,18 @@ export const dictionary: Record<string, PartialTranslation[]> = {
   ],
   saveError: [
     { body: { language: "en", text: "Error saving user details" } },
-    { body: { language: "fr", text: "Erreur lors de la sauvegarde des détails de l'utilisateur" } },
-    { body: { language: "es", text: "Error al guardar los detalles del usuario" } },
+    {
+      body: {
+        language: "fr",
+        text: "Erreur lors de la sauvegarde des détails de l'utilisateur",
+      },
+    },
+    {
+      body: {
+        language: "es",
+        text: "Error al guardar los detalles del usuario",
+      },
+    },
     { body: { language: "ar", text: "خطأ في حفظ تفاصيل المستخدم" } },
   ],
   cancel: [

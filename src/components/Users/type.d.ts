@@ -11,16 +11,11 @@ export type FilterProps = {
 export type UserWithRelations = Prisma.UserGetPayload<{
   include: {
     role: { select: { title: true } };
-    organization: {
+    party: {
       select: {
         id: true;
-        title: true;
-        type: {
-          select: {
-            id: true;
-            title: true;
-          };
-        };
+        name: true;
+        abbreviation: true;
       };
     };
   };
@@ -38,6 +33,7 @@ export type UserForm = {
   phone: string;
   alternatePhone?: string;
   roleId?: string;
+  partyId?: string;
   password?: string;
   passwordConfirm?: string;
 };
@@ -55,6 +51,6 @@ export type UserDetail = {
   phone: number;
   alternatePhone: string;
   role: string;
-  organizationId?: string;
-  organizationTitle: string;
+  partyId?: string;
+  partyTitle: string;
 };

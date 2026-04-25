@@ -56,12 +56,12 @@ export type PositionInput = {
 }
 
 export type CreateElectionInput = {
-  title: string
-  year: number
-  electionDate: Date
-  description?: string
-  positions?: PositionInput[]
-}
+  title: string;
+  year: number;
+  electionDate: string; // ISO date string — Date objects don't survive the server-action serialization boundary
+  description?: string;
+  positions?: PositionInput[];
+};
 
 function validatePositionType(type: string): string {
   const normalised = type.trim().toUpperCase()
@@ -92,7 +92,7 @@ export const createElection = async (input: CreateElectionInput) => {
       data: {
         title: input.title,
         year: input.year,
-        electionDate: input.electionDate,
+        electionDate: new Date(input.electionDate),
         description: input.description,
         createdBy: user.id,
         positions: {
@@ -106,7 +106,7 @@ export const createElection = async (input: CreateElectionInput) => {
         },
       },
       include: { positions: true },
-    })
+    });
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
@@ -120,6 +120,18 @@ export const getElections = async () => {
         positions: { include: { candidates: true }, orderBy: { sortOrder: "asc" } },
         _count: { select: { agentAssignments: true, wards: true } },
       },
+    })
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+/** Lightweight election list — id/title/year/isActive only. Used in dropdowns. */
+export const getElectionsLight = async () => {
+  try {
+    return await prisma.election.findMany({
+      orderBy: [{ year: "desc" }, { electionDate: "desc" }],
+      select: { id: true, title: true, year: true, isActive: true },
     })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -148,6 +160,10 @@ export const updateElection = async (
   data: Partial<Pick<CreateElectionInput, "title" | "year" | "electionDate" | "description">> & { isActive?: boolean }
 ) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can update elections.");
     return await prisma.election.update({ where: { id }, data })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -156,6 +172,10 @@ export const updateElection = async (
 
 export const deleteElection = async (id: string) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "super admin")
+      throw new Error("Only super admins can delete elections.");
     return await prisma.election.delete({ where: { id } })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -166,6 +186,10 @@ export const deleteElection = async (id: string) => {
 
 export const addPosition = async (electionId: string, input: PositionInput) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can manage positions.");
     const type = validatePositionType(input.type)
     return await prisma.electionPosition.create({
       data: {
@@ -184,6 +208,10 @@ export const addPosition = async (electionId: string, input: PositionInput) => {
 
 export const updatePosition = async (id: string, data: Partial<PositionInput>) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can manage positions.");
     if (data.type) data = { ...data, type: validatePositionType(data.type) }
     return await prisma.electionPosition.update({ where: { id }, data })
   } catch (error) {
@@ -193,6 +221,10 @@ export const updatePosition = async (id: string, data: Partial<PositionInput>) =
 
 export const deletePosition = async (id: string) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can delete positions.");
     return await prisma.electionPosition.delete({ where: { id } })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -212,6 +244,10 @@ export type CandidateInput = {
 
 export const createCandidate = async (input: CandidateInput) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can manage candidates.");
     return await prisma.candidate.create({ data: input })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -220,6 +256,10 @@ export const createCandidate = async (input: CandidateInput) => {
 
 export const createCandidatesBulk = async (inputs: CandidateInput[]) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can manage candidates.");
     const results: Awaited<ReturnType<typeof prisma.candidate.create>>[] = []
     for (const input of inputs) {
       const created = await prisma.candidate.create({ data: input })
@@ -233,6 +273,10 @@ export const createCandidatesBulk = async (inputs: CandidateInput[]) => {
 
 export const updateCandidate = async (id: string, data: Partial<CandidateInput>) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can manage candidates.");
     return await prisma.candidate.update({ where: { id }, data })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -241,6 +285,10 @@ export const updateCandidate = async (id: string, data: Partial<CandidateInput>)
 
 export const deleteCandidate = async (id: string) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can delete candidates.");
     return await prisma.candidate.delete({ where: { id } })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -262,6 +310,10 @@ export const getCandidatesByPosition = async (positionId: string, entityId?: str
 
 export const assignAgentToStream = async (electionId: string, streamId: string, agentId: string) => {
   try {
+    const user = await getCurrentUser();
+    const role = (user.role ?? "").toLowerCase();
+    if (role !== "admin" && role !== "super admin")
+      throw new Error("Only administrators can assign agents.");
     return await prisma.agentStream.upsert({
       where: { electionId_streamId_agentId: { electionId, streamId, agentId } },
       create: { electionId, streamId, agentId },
@@ -291,6 +343,37 @@ export const getAgentAssignments = async (electionId: string) => {
     throw new Error(handleReturnError(error))
   }
 }
+
+export const getStreamsByElection = async (electionId: string) => {
+  try {
+    return await prisma.stream.findMany({
+      where: {
+        isActive: true,
+        pollingStation: { wardRef: { electionId } },
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        pollingStation: {
+          select: {
+            name: true,
+            ward: true,
+            constituency: true,
+            county: true,
+          },
+        },
+      },
+      orderBy: [
+        { pollingStation: { ward: "asc" } },
+        { pollingStation: { name: "asc" } },
+        { code: "asc" },
+      ],
+    });
+  } catch (error) {
+    throw new Error(handleReturnError(error));
+  }
+};
 
 export const getAgentStreams = async (electionId: string, agentId: string) => {
   try {

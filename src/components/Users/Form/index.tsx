@@ -24,6 +24,8 @@ import { omit } from "lodash";
 import * as Yup from "yup";
 import { handleReturnError } from "@/db/error-handling";
 import { createUser, updateUser } from "@/services/Users";
+import { useQuery } from "@tanstack/react-query";
+import { getParties } from "@/services/Parties";
 import { useQueryClient } from "@tanstack/react-query";
 // import { uploadFile } from "@/utils/s3"; // TODO: Implement S3 upload utility
 import FilePreview from "@/components/Generic/Dropzone/FilePreview";
@@ -53,7 +55,7 @@ const schema = Yup.object({
   phone: Yup.string().required("Phone field is required"),
   alternatePhone: Yup.string().required("Alternate Phone field is required"),
   roleId: Yup.string().required("Role is required"),
-  organizationId: Yup.string().required("Organization is required"),
+  partyId: Yup.string().required("Party is required"),
   image: Yup.string(),
 });
 
@@ -72,6 +74,10 @@ const Form = ({
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | undefined>();
   const [isSavings, setIsSaving] = useState(false);
+  const { data: organizations = [], isLoading: orgsLoading } = useQuery({
+    queryKey: ["parties"],
+    queryFn: getParties,
+  });
 
   useEffect(() => {
     if (user) {
@@ -85,7 +91,7 @@ const Form = ({
         phone: user.phone,
         alternatePhone: user.alternatePhone,
         roleId: user.roleId,
-        organizationId: user.organizationId,
+        partyId: user.partyId,
       } as UserForm);
     }
   }, [user]);
@@ -176,10 +182,14 @@ const Form = ({
                 variant="filled"
               />
               <CustomSelect
-                label="Organization"
-                name="organizationId"
+                label="Party"
+                name="partyId"
                 required
-                options={[]} // TODO: Add organizations data
+                options={
+                  orgsLoading
+                    ? []
+                    : organizations.map((o) => ({ value: o.id, label: o.name }))
+                }
               />
               <CustomInput
                 name="email"
