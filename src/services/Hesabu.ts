@@ -192,6 +192,23 @@ export const getHistoricalTrend = async (code: string): Promise<TrendPoint[]> =>
   }
 }
 
+export type CountyOption = { code: string; name: string };
+
+/** Unique counties that have at least one year of data, sorted by name. */
+export const getUniqueCounties = async (): Promise<CountyOption[]> => {
+  try {
+    const records = await prisma.hCounty.findMany({
+      where: { isDataAvailable: true },
+      distinct: ["code"],
+      orderBy: { name: "asc" },
+      select: { code: true, name: true },
+    });
+    return records;
+  } catch (error) {
+    throw new Error(handleReturnError(error));
+  }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Ward queries
 // ─────────────────────────────────────────────────────────────────────────────

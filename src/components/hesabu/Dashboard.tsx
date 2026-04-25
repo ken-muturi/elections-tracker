@@ -2,12 +2,18 @@
 
 import { useState } from "react"
 import { Box, Text, HStack, VStack } from "@chakra-ui/react"
-import { CountyFull, ReportData, TrendPoint } from "@/services/Hesabu"
+import {
+  CountyFull,
+  ReportData,
+  TrendPoint,
+  CountyOption,
+} from "@/services/Hesabu";
 import { KPICards } from "@/components/hesabu/KPICards"
 import { BudgetOverview } from "@/components/hesabu/BudgetOverview"
 import { WardComparison } from "@/components/hesabu/WardComparison"
 import { CitizenReports } from "@/components/hesabu/CitizenReports"
 import { YearSelector } from "@/components/hesabu/YearSelector"
+import { CountySelector } from "@/components/hesabu/CountySelector";
 
 type Tab = "budget" | "wards" | "reports"
 
@@ -20,24 +26,34 @@ const pct = (a: bigint, b: bigint) =>
   b > 0n ? Math.round((Number(a) / Number(b)) * 100) : 0
 
 type Props = {
-  county: CountyFull
-  reports: ReportData[]
-  availableYears: string[]
-  currentYear: string
-  trendData: TrendPoint[]
-}
+  county: CountyFull;
+  reports: ReportData[];
+  availableYears: string[];
+  currentYear: string;
+  trendData: TrendPoint[];
+  uniqueCounties: CountyOption[];
+  currentCountyCode: string;
+};
 
-export const HesabuDashboard = ({ county, reports, availableYears, currentYear, trendData }: Props) => {
-  const [activeTab, setActiveTab] = useState<Tab>("budget")
+export const HesabuDashboard = ({
+  county,
+  reports,
+  availableYears,
+  currentYear,
+  trendData,
+  uniqueCounties,
+  currentCountyCode,
+}: Props) => {
+  const [activeTab, setActiveTab] = useState<Tab>("budget");
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: "budget", label: "Budget Overview", icon: "🏛️" },
     { id: "wards", label: "Ward Comparison", icon: "🗺️" },
     { id: "reports", label: "Citizen Reports", icon: "🚩" },
-  ]
+  ];
 
-  const recurrentPct = pct(county.recurrentExpenditure, county.totalBudget)
-  const devPct = pct(county.developmentExpenditure, county.totalBudget)
+  const recurrentPct = pct(county.recurrentExpenditure, county.totalBudget);
+  const devPct = pct(county.developmentExpenditure, county.totalBudget);
 
   return (
     <Box bg="#f8fafc" minH="100vh" color="#0f172a">
@@ -47,7 +63,13 @@ export const HesabuDashboard = ({ county, reports, availableYears, currentYear, 
         px={{ base: 4, md: 8 }}
         py={6}
       >
-        <HStack gap={4} maxW="1200px" mx="auto" justify="space-between" flexWrap="wrap">
+        <HStack
+          gap={4}
+          maxW="1200px"
+          mx="auto"
+          justify="space-between"
+          flexWrap="wrap"
+        >
           <HStack gap={4}>
             <Box
               w="48px"
@@ -78,11 +100,21 @@ export const HesabuDashboard = ({ county, reports, availableYears, currentYear, 
                 textTransform="uppercase"
                 letterSpacing="widest"
               >
-                County Budget Transparency Tracker &mdash; FY {county.fiscalYear}
+                County Budget Transparency Tracker &mdash; FY{" "}
+                {county.fiscalYear}
               </Text>
             </VStack>
           </HStack>
-          <YearSelector availableYears={availableYears} currentYear={currentYear} />
+          <HStack gap={2} flexWrap="wrap">
+            <CountySelector
+              counties={uniqueCounties}
+              currentCode={currentCountyCode}
+            />
+            <YearSelector
+              availableYears={availableYears}
+              currentYear={currentYear}
+            />
+          </HStack>
         </HStack>
       </Box>
 
@@ -141,7 +173,7 @@ export const HesabuDashboard = ({ county, reports, availableYears, currentYear, 
             bg="gray.50"
           >
             {tabs.map((tab) => {
-              const isActive = activeTab === tab.id
+              const isActive = activeTab === tab.id;
               return (
                 <Box
                   key={tab.id}
@@ -162,13 +194,19 @@ export const HesabuDashboard = ({ county, reports, availableYears, currentYear, 
                 >
                   {tab.icon} {tab.label}
                 </Box>
-              )
+              );
             })}
           </HStack>
 
           {/* Tab content */}
           <Box p={{ base: 4, md: 6 }}>
-            {activeTab === "budget" && <BudgetOverview county={county} trendData={trendData} currentYear={currentYear} />}
+            {activeTab === "budget" && (
+              <BudgetOverview
+                county={county}
+                trendData={trendData}
+                currentYear={currentYear}
+              />
+            )}
             {activeTab === "wards" && <WardComparison county={county} />}
             {activeTab === "reports" && (
               <CitizenReports county={county} initialReports={reports} />
@@ -178,10 +216,11 @@ export const HesabuDashboard = ({ county, reports, availableYears, currentYear, 
 
         {/* Footer */}
         <Text fontSize="xs" color="gray.400" textAlign="center" mt={6}>
-          Data sourced from {county.dataSource ?? "official county budget documents"} &bull;
-          Last updated FY {county.fiscalYear} &bull; Built with Hesabu platform
+          Data sourced from{" "}
+          {county.dataSource ?? "official county budget documents"} &bull; Last
+          updated FY {county.fiscalYear} &bull; Built with Hesabu platform
         </Text>
       </Box>
     </Box>
-  )
-}
+  );
+};

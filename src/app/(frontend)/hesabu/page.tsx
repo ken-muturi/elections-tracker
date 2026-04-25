@@ -4,7 +4,8 @@ import {
   getReportsByCounty,
   getAvailableFiscalYears,
   getHistoricalTrend,
-} from "@/services/Hesabu"
+  getUniqueCounties,
+} from "@/services/Hesabu";
 import { HesabuDashboard } from "@/components/hesabu/Dashboard"
 
 export const metadata = {
@@ -14,25 +15,38 @@ export const metadata = {
 }
 
 type Props = {
-  searchParams: Promise<{ year?: string }>
-}
+  searchParams: Promise<{ year?: string; county?: string }>;
+};
 
 export default async function HesabuPage({ searchParams }: Props) {
-  const { year: yearParam } = await searchParams
+  const { year: yearParam, county: countyParam } = await searchParams;
 
-  // Available years for Baringo — descending
-  const availableYears = await getAvailableFiscalYears("030")
+  // Default to Wajir (008) — showcases ASAL data; Baringo (030) also available
+  const countyCode = countyParam ?? "008";
 
-  // Default to most recent year with data
+  // Run county list + years in parallel
+  const [uniqueCounties, availableYears] = await Promise.all([
+    getUniqueCounties(),
+    getAvailableFiscalYears(countyCode),
+  ]);
+
+  // If requested county has no data yet, fall back to Baringo
+  const resolvedCode = availableYears.length > 0 ? countyCode : "030";
+  const resolvedYears =
+    availableYears.length > 0
+      ? availableYears
+      : await getAvailableFiscalYears("030");
+
+  // Default to most recent available year
   const fiscalYear =
-    yearParam && availableYears.includes(yearParam)
+    yearParam && resolvedYears.includes(yearParam)
       ? yearParam
-      : (availableYears[0] ?? "2025/2026")
+      : (resolvedYears[0] ?? "2025/2026");
 
   const [county, trendData] = await Promise.all([
-    getCountyByCode("030", fiscalYear),
-    getHistoricalTrend("030"),
-  ])
+    getCountyByCode(resolvedCode, fiscalYear),
+    getHistoricalTrend(resolvedCode),
+  ]);
 
   if (!county) notFound()
 
@@ -42,9 +56,11 @@ export default async function HesabuPage({ searchParams }: Props) {
     <HesabuDashboard
       county={county}
       reports={reports}
-      availableYears={availableYears}
+      availableYears={resolvedYears}
       currentYear={fiscalYear}
       trendData={trendData}
+      uniqueCounties={uniqueCounties}
+      currentCountyCode={resolvedCode}
     />
-  )
+  );
 }
