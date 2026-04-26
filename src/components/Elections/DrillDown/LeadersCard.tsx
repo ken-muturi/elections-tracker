@@ -3,7 +3,7 @@
 import { Box, VStack, HStack, Text, Flex, Badge, Icon } from "@chakra-ui/react"
 import { FiAlertCircle } from "react-icons/fi"
 import type { DrillDownResult } from "@/services/PublicResults"
-import { getIEBCFormRef } from "../constants"
+import { getIEBCFormRef, LEVEL_LABEL } from "../constants"
 import ComparisonPanel from "./ComparisonPanel"
 import { circleFgColor } from "./candidateColors"
 
@@ -28,18 +28,16 @@ export default function LeadersCard({
       <Box px={5} py={3} bg="gray.50" borderBottomWidth="1px" borderBottomColor="gray.100">
         <HStack justify="space-between">
           <Text fontSize="xs" fontWeight="700" color="gray.600" textTransform="uppercase" letterSpacing="wide">
-            {formRef?.label ?? "Results Tally"} — {data.totalVotes.toLocaleString()} votes
+            {LEVEL_LABEL[data.level] ?? data.level}: Stream Aggregate — {data.totalVotes.toLocaleString()} votes
           </Text>
           {data.enteredVotes && (
             <HStack gap={1.5}>
-              {formRef && (
-                <Badge px={1.5} py={0.5} borderRadius="md" fontSize="2xs" fontWeight="700"
-                  bg="blue.100" color="blue.800">
-                  {formRef.form}
-                </Badge>
-              )}
+              <Badge px={1.5} py={0.5} borderRadius="md" fontSize="2xs" fontWeight="700"
+                bg="blue.100" color="blue.800">
+                {formRef.form}
+              </Badge>
               <Text fontSize="xs" fontWeight="600" color="blue.600">
-                Entered: {(data.enteredVotes.totalVotes ?? 0).toLocaleString()} votes
+                {formRef.label}: {(data.enteredVotes.totalVotes ?? 0).toLocaleString()} votes
               </Text>
             </HStack>
           )}

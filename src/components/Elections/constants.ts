@@ -39,24 +39,58 @@ export const NEXT_ACTION: Record<string, string> = {
 }
 
 /**
- * Returns the IEBC declaration form reference for the "Entered at Level" data.
- * Presidential results use Forms 34A/34B/34C; all other positions use 35A/35B.
+ * Returns the IEBC declaration form reference for level-entered result data.
+ *
+ * Kenya IEBC form series:
+ *   Form 34A — Presidential polling-station results
+ *   Form 34B — Presidential constituency tally (RO signs at tallying centre)
+ *   Form 34C — Presidential national tally declaration (IEBC chair)
+ *   Form 35A — All other positions, polling-station results
+ *   Form 35B — All other positions, tallying-centre declaration
+ *              (constituency for MP; county for Governor/Senator/Women Rep; ward for MCA)
+ *
+ * The function always returns a value so callers never need a "Entered at Level" fallback.
  */
 export function getIEBCFormRef(
   positionType: string,
   level: string,
-): { form: string; label: string } | null {
-  if (positionType === "PRESIDENT") {
-    if (level === "NATIONAL")      return { form: "Form 34C", label: "National Tally Declaration" }
-    if (level === "CONSTITUENCY")  return { form: "Form 34B", label: "Constituency Declaration" }
-    if (level === "STATION")       return { form: "Form 34A", label: "Polling Station Declaration" }
+): { form: string; label: string } {
+  const type = positionType.toUpperCase()
+
+  // ── Presidential (Form 34 series) ──────────────────────────────────────
+  if (type === "PRESIDENT") {
+    if (level === "STATION" || level === "POLLING_STATION")
+      return { form: "Form 34A", label: "Polling Station Declaration" }
+    if (level === "CONSTITUENCY")
+      return { form: "Form 34B", label: "Constituency Tally" }
+    if (level === "COUNTY")
+      return { form: "Form 34B", label: "County Tally" }
+    if (level === "NATIONAL")
+      return { form: "Form 34C", label: "National Tally Declaration" }
   }
-  const stationLevels = ["STATION", "STREAM"]
-  if (stationLevels.includes(level))    return { form: "Form 35A", label: "Polling Station Declaration" }
-  if (positionType === "GOVERNOR"   && level === "COUNTY")        return { form: "Form 35B", label: "County Tally Declaration" }
-  if (positionType === "SENATOR"    && level === "COUNTY")        return { form: "Form 35B", label: "County Tally Declaration" }
-  if (positionType === "WOMEN_REP"  && level === "COUNTY")        return { form: "Form 35B", label: "County Tally Declaration" }
-  if (positionType === "MP"         && level === "CONSTITUENCY")  return { form: "Form 35B", label: "Constituency Declaration" }
-  if (positionType === "MCA"        && level === "WARD")          return { form: "Form 35B", label: "Ward Declaration" }
-  return null
+
+  // ── All other positions (Form 35 series) ───────────────────────────────
+  if (level === "STATION" || level === "POLLING_STATION" || level === "STREAM")
+    return { form: "Form 35A", label: "Polling Station Declaration" }
+
+  if (level === "WARD")
+    return { form: "Form 35B", label: "Ward Tally" }
+
+  if (level === "CONSTITUENCY") {
+    if (type === "MP") return { form: "Form 35B", label: "Constituency Declaration" }
+    return { form: "Form 35B", label: "Constituency Tally" }
+  }
+
+  if (level === "COUNTY") {
+    if (type === "GOVERNOR")   return { form: "Form 35B", label: "County Declaration — Governor" }
+    if (type === "SENATOR")    return { form: "Form 35B", label: "County Declaration — Senator" }
+    if (type === "WOMEN_REP")  return { form: "Form 35B", label: "County Declaration — Women Rep" }
+    return { form: "Form 35B", label: "County Tally" }
+  }
+
+  if (level === "NATIONAL")
+    return { form: "Form 35B", label: "National Tally" }
+
+  // Catch-all for any custom level or position type
+  return { form: "Form 35B", label: "Level Declaration" }
 }

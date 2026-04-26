@@ -1,8 +1,9 @@
 "use client"
 
-import { Box, VStack, HStack, Text } from "@chakra-ui/react"
+import { Box, VStack, HStack, Text, Badge } from "@chakra-ui/react"
 import { FiChevronRight, FiMapPin, FiAlertTriangle } from "react-icons/fi"
 import type { ChildResult } from "@/services/PublicResults"
+import { getIEBCFormRef, LEVEL_LABEL } from "../constants"
 
 type LcColors = { bg: string; color: string; border: string }
 
@@ -11,16 +12,22 @@ export default function ChildCard({
   canDrill,
   lc,
   colorMap,
+  childLevel,
+  positionType,
   onDrill,
 }: {
   child: ChildResult
   canDrill: boolean
   lc: LcColors
   colorMap: Map<string, string>
+  childLevel: string
+  positionType: string
   onDrill: (id: string) => void
 }) {
   const maxVotes = child.candidates[0]?.votes ?? 1
   const childTotal = child.candidates.reduce((s, c) => s + c.votes, 0)
+  const formRef = getIEBCFormRef(positionType, childLevel)
+  const levelName = LEVEL_LABEL[childLevel] ?? childLevel
 
   return (
     <Box
@@ -101,12 +108,16 @@ export default function ChildCard({
       <Box px={5} py={2} borderTopWidth="1px" borderTopColor="gray.100">
         <HStack justify="space-between">
           <Text fontSize="xs" fontWeight="600" color="gray.500">
-            {childTotal.toLocaleString()} aggregated votes
+            {levelName}: Stream Aggregate · {childTotal.toLocaleString()} votes
           </Text>
           {child.enteredVotes && (
             <HStack gap={1.5}>
+              <Badge px={1.5} py={0.5} borderRadius="md" fontSize="2xs" fontWeight="700"
+                bg="blue.50" color="blue.700">
+                {formRef.form}
+              </Badge>
               <Text fontSize="xs" fontWeight="600" color="blue.600">
-                Entered: {(child.enteredVotes.totalVotes ?? 0).toLocaleString()}
+                {(child.enteredVotes.totalVotes ?? 0).toLocaleString()}
               </Text>
               {child.enteredVotes.totalVotes !== null &&
                 child.enteredVotes.totalVotes !== childTotal && (

@@ -36,23 +36,15 @@ export default function ComparisonPanel({
       <Box px={5} py={3} bg="blue.50" borderBottomWidth="1px" borderBottomColor="blue.100">
         <HStack justify="space-between">
           <HStack gap={2} align="baseline">
-            {formRef ? (
-              <>
-                <Badge
-                  px={2} py={0.5} borderRadius="md" fontSize="xs" fontWeight="800"
-                  bg="blue.100" color="blue.800" letterSpacing="wide"
-                >
-                  {formRef.form}
-                </Badge>
-                <Text fontSize="xs" fontWeight="600" color="blue.700">
-                  {formRef.label}
-                </Text>
-              </>
-            ) : (
-              <Text fontSize="xs" fontWeight="700" color="blue.700" textTransform="uppercase" letterSpacing="wide">
-                Entered at Level
-              </Text>
-            )}
+            <Badge
+              px={2} py={0.5} borderRadius="md" fontSize="xs" fontWeight="800"
+              bg="blue.100" color="blue.800" letterSpacing="wide"
+            >
+              {formRef.form}
+            </Badge>
+            <Text fontSize="xs" fontWeight="600" color="blue.700">
+              {formRef.label}
+            </Text>
           </HStack>
           <HStack gap={3}>
             <Text fontSize="xs" fontWeight="600" color="blue.600">

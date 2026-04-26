@@ -250,6 +250,8 @@ export default function DrillDown({
                 canDrill={canDrill}
                 lc={lc}
                 colorMap={colorMap}
+                childLevel={NEXT_ACTION[data.level] ?? data.level}
+                positionType={data.positionType}
                 onDrill={drill}
               />
             ))}
