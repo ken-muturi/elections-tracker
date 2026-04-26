@@ -9,10 +9,10 @@ import {
 import { HesabuDashboard } from "@/components/hesabu/Dashboard"
 
 export const metadata = {
-  title: "Hesabu — County Budget Transparency",
+  title: "Hesabu — Country Budget Transparency",
   description:
     "Track how county development funds are spent. Citizen accountability platform for Kenya counties.",
-}
+};
 
 type Props = {
   searchParams: Promise<{ year?: string; county?: string }>;

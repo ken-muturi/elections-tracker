@@ -42,7 +42,7 @@ export default function PublicTopNav() {
         boxShadow="0 1px 3px rgba(0,0,0,0.04)"
       >
         {/* Left — Logo */}
-        <Link href="/election-results">
+        <Link href="/hesabu">
           <HStack gap={3} cursor="pointer">
             <Flex
               w={9}
