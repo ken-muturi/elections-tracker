@@ -3,14 +3,28 @@
 import { Box, Flex, HStack, VStack, Text, Avatar } from "@chakra-ui/react"
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
+import { usePathname } from "next/navigation"
 import { MdHowToVote } from "react-icons/md"
 import { FiLogIn, FiLogOut, FiLayout } from "react-icons/fi"
 
 export default function PublicTopNav() {
   const { data: session, status } = useSession()
+  const pathname = usePathname()
   const isLoggedIn = status === "authenticated"
   const role = session?.user?.role?.toLowerCase() || ""
   const isAdmin = ["admin", "super admin"].includes(role)
+
+  const onElections = pathname.startsWith("/election-results")
+  const onHesabu = pathname.startsWith("/hesabu")
+
+  const navLink = (active: boolean, accent = "#C9D927") => ({
+    bg: active ? "#0f172a" : "white",
+    borderColor: active ? accent : "gray.200",
+    _hover: { bg: active ? "#1e293b" : "gray.50", borderColor: active ? accent : "gray.300" },
+  })
+  const navText = (active: boolean, accent = "#C9D927") => ({
+    color: active ? accent : "gray.700",
+  })
 
   return (
     <Box position="sticky" top={0} zIndex={20} w="full">
@@ -69,19 +83,12 @@ export default function PublicTopNav() {
           {/* Election Tracker link */}
           <Link href="/election-results">
             <HStack
-              gap={2}
-              px={3}
-              py={1.5}
-              borderRadius="full"
-              bg="white"
-              borderWidth="1px"
-              borderColor="gray.200"
-              _hover={{ borderColor: "gray.300", bg: "gray.50" }}
-              transition="all 0.15s"
-              display={{ base: "none", md: "flex" }}
+              gap={2} px={3} py={1.5} borderRadius="full" borderWidth="1px"
+              transition="all 0.15s" display={{ base: "none", md: "flex" }}
+              {...navLink(onElections)}
             >
-              <MdHowToVote fontSize="0.85rem" color="#0f172a" />
-              <Text fontSize="xs" color="gray.700" fontWeight="700">
+              <MdHowToVote fontSize="0.85rem" color={onElections ? "#C9D927" : "#0f172a"} />
+              <Text fontSize="xs" fontWeight="700" {...navText(onElections, "white")}>
                 Election Tracker
               </Text>
             </HStack>
@@ -90,18 +97,11 @@ export default function PublicTopNav() {
           {/* Hesabu link */}
           <Link href="/hesabu">
             <HStack
-              gap={2}
-              px={3}
-              py={1.5}
-              borderRadius="full"
-              bg="#0B0F1A"
-              borderWidth="1px"
-              borderColor="rgba(244,162,97,0.4)"
-              _hover={{ borderColor: "#F4A261" }}
-              transition="all 0.15s"
-              display={{ base: "none", md: "flex" }}
+              gap={2} px={3} py={1.5} borderRadius="full" borderWidth="1px"
+              transition="all 0.15s" display={{ base: "none", md: "flex" }}
+              {...navLink(onHesabu, "#F4A261")}
             >
-              <Text fontSize="xs" color="#F4A261" fontWeight="700">
+              <Text fontSize="xs" fontWeight="700" {...navText(onHesabu, "#F4A261")}>
                 🏦 Hesabu
               </Text>
             </HStack>
