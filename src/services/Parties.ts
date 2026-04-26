@@ -2,7 +2,7 @@
 
 import prisma from "@/db"
 import { handleReturnError } from "@/db/error-handling"
-import { getCurrentUser } from "./UserSessison"
+import { requireAdmin } from "./Authorization"
 
 export type Party = {
   id: string
@@ -39,9 +39,7 @@ export const getPartyById = async (id: string): Promise<Party | null> => {
 
 export const createParty = async (name: string, abbreviation?: string): Promise<Party> => {
   try {
-    const user = await getCurrentUser()
-    const role = (user.role ?? "").toLowerCase()
-    if (role !== "admin" && role !== "super admin") throw new Error("Only administrators can manage parties.")
+    await requireAdmin()
     return await prisma.party.create({
       data: { name: name.trim(), abbreviation: abbreviation?.trim() ?? null },
       select: { id: true, name: true, abbreviation: true },
@@ -53,9 +51,7 @@ export const createParty = async (name: string, abbreviation?: string): Promise<
 
 export const updateParty = async (id: string, name: string, abbreviation?: string): Promise<Party> => {
   try {
-    const user = await getCurrentUser()
-    const role = (user.role ?? "").toLowerCase()
-    if (role !== "admin" && role !== "super admin") throw new Error("Only administrators can manage parties.")
+    await requireAdmin()
     return await prisma.party.update({
       where: { id },
       data: { name: name.trim(), abbreviation: abbreviation?.trim() ?? null },
@@ -68,9 +64,7 @@ export const updateParty = async (id: string, name: string, abbreviation?: strin
 
 export const deleteParty = async (id: string): Promise<void> => {
   try {
-    const user = await getCurrentUser()
-    const role = (user.role ?? "").toLowerCase()
-    if (role !== "admin" && role !== "super admin") throw new Error("Only administrators can manage parties.")
+    await requireAdmin()
     await prisma.party.update({
       where: { id },
       data: { deletedAt: new Date() },

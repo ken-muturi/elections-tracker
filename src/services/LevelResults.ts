@@ -3,8 +3,8 @@
 
 import prisma from "@/db"
 import { handleReturnError } from "@/db/error-handling"
-import { getCurrentUser } from "./UserSessison"
 import { AggregationLevel, ResultStatus } from "@prisma/client"
+import { requireAdmin } from "./Authorization"
 
 export type LevelVoteInput = {
   candidateId: string
@@ -30,14 +30,8 @@ export type LevelResultInput = {
  */
 export const upsertLevelResult = async (input: LevelResultInput, status: ResultStatus = "DRAFT") => {
   try {
-    const user = await getCurrentUser()
-
-    // ── Authorization: must be admin / super admin ──
+    const user = await requireAdmin()
     const role = (user.role ?? "").toLowerCase()
-    const isAdmin = role === "admin" || role === "super admin"
-    if (!isAdmin) {
-      throw new Error("Only administrators can enter level results.")
-    }
 
     const submittedAt = status === "SUBMITTED" ? new Date() : undefined
 
@@ -118,10 +112,7 @@ export const upsertLevelResult = async (input: LevelResultInput, status: ResultS
  */
 export const submitLevelResult = async (levelResultId: string) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can submit level results.");
+    await requireAdmin();
     return await prisma.levelResult.update({
       where: { id: levelResultId },
       data: { status: "SUBMITTED", submittedAt: new Date() },
@@ -133,10 +124,7 @@ export const submitLevelResult = async (levelResultId: string) => {
 
 export const updateLevelResultStatus = async (id: string, status: ResultStatus) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can update result status.");
+    await requireAdmin();
     return await prisma.levelResult.update({ where: { id }, data: { status } })
   } catch (error) {
     throw new Error(handleReturnError(error))

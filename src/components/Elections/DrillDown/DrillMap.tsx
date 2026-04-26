@@ -4,13 +4,13 @@ import "leaflet/dist/leaflet.css"
 import { useEffect, useRef } from "react"
 import { Box, Text, Flex } from "@chakra-ui/react"
 import type { DrillDownResult, ChildResult } from "@/services/PublicResults"
-import { buildColorMap } from "./candidateColors"
 
 type LcColors = { bg: string; color: string; border: string }
 
 type Props = {
   data: DrillDownResult
   lc: LcColors
+  colorMap: Map<string, string>
   onDrill: (childId: string) => void
 }
 
@@ -29,7 +29,7 @@ function opacityFromShare(pct: number) {
   return Math.min(0.85, Math.max(0.25, (pct / 100) * 0.85))
 }
 
-export default function DrillMap({ data, lc, onDrill }: Props) {
+export default function DrillMap({ data, lc, colorMap: colorById, onDrill }: Props) {
   const mapRef = useRef<HTMLDivElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leafletRef = useRef<any>(null)
@@ -38,8 +38,6 @@ export default function DrillMap({ data, lc, onDrill }: Props) {
 
   useEffect(() => {
     if (!mapRef.current || !levelGeo) return
-
-    const colorById = buildColorMap(data.candidates)
 
     let cancelled = false
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -155,7 +153,7 @@ export default function DrillMap({ data, lc, onDrill }: Props) {
       leafletRef.current = null
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.level, data.candidates, data.children, levelGeo])
+  }, [data.level, data.children, colorById, levelGeo])
 
   if (!levelGeo) {
     return (

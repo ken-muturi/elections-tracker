@@ -114,7 +114,7 @@ export default function PositionResults({ results, electionId }: PositionResults
                       <Text fontSize="xs" color="gray.400">No data</Text>
                     </HStack>
                   )}
-                  {electionId && hasVotes && position.aggregationLevel !== "WARD" && (
+                  {electionId && hasVotes && (
                     <Link href={`/election-results/${electionId}/drill/${position.positionId}`}>
                       <HStack
                         gap={1.5} px={3} py={1.5} borderRadius="full"

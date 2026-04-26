@@ -14,6 +14,13 @@ export const CANDIDATE_PALETTE = [
   "#14b8a6", // teal
 ]
 
+// Colors that have insufficient contrast against white text — use dark text instead
+const LIGHT_BG_COLORS = new Set(["#C9D927", "#84cc16", "#f59e0b"])
+
+export function circleFgColor(bgColor: string): string {
+  return LIGHT_BG_COLORS.has(bgColor) ? "#0f172a" : "white"
+}
+
 export function buildColorMap(
   candidates: { candidateId: string }[]
 ): Map<string, string> {

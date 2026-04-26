@@ -1,9 +1,11 @@
 "use client"
 
-import { Box, VStack, HStack, Text, Flex, Badge } from "@chakra-ui/react"
+import { Box, VStack, HStack, Text, Flex, Badge, Icon } from "@chakra-ui/react"
+import { FiAlertCircle } from "react-icons/fi"
 import type { DrillDownResult } from "@/services/PublicResults"
 import { getIEBCFormRef } from "../constants"
 import ComparisonPanel from "./ComparisonPanel"
+import { circleFgColor } from "./candidateColors"
 
 type LcColors = { bg: string; color: string; border: string }
 
@@ -16,7 +18,7 @@ export default function LeadersCard({
   lc: LcColors
   colorMap: Map<string, string>
 }) {
-  const formRef = data.enteredVotes ? getIEBCFormRef(data.positionType, data.level) : null
+  const formRef = getIEBCFormRef(data.positionType, data.level)
 
   return (
     <Box
@@ -26,7 +28,7 @@ export default function LeadersCard({
       <Box px={5} py={3} bg="gray.50" borderBottomWidth="1px" borderBottomColor="gray.100">
         <HStack justify="space-between">
           <Text fontSize="xs" fontWeight="700" color="gray.600" textTransform="uppercase" letterSpacing="wide">
-            Stream Aggregation — {data.totalVotes.toLocaleString()} votes
+            {formRef?.label ?? "Results Tally"} — {data.totalVotes.toLocaleString()} votes
           </Text>
           {data.enteredVotes && (
             <HStack gap={1.5}>
@@ -43,6 +45,13 @@ export default function LeadersCard({
           )}
         </HStack>
       </Box>
+
+      {data.totalVotes === 0 && (
+        <HStack px={5} py={2.5} gap={2} bg="gray.50" borderBottomWidth="1px" borderBottomColor="gray.100">
+          <Icon as={FiAlertCircle} fontSize="0.85rem" color="gray.400" />
+          <Text fontSize="xs" color="gray.400">No votes recorded yet at this level</Text>
+        </HStack>
+      )}
 
       <VStack gap={0} align="stretch">
         {data.candidates.slice(0, 5).map((cand, idx) => {
@@ -61,7 +70,7 @@ export default function LeadersCard({
                   align="center" justify="center"
                   bg={candColor}
                   fontSize="xs" fontWeight="800"
-                  color={isLeader ? "#0f172a" : "white"}
+                  color={circleFgColor(candColor)}
                   style={{ opacity: isLeader ? 1 : 0.85 }}
                 >
                   {idx + 1}

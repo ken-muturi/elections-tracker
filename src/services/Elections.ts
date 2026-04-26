@@ -2,9 +2,10 @@
 
 import prisma from "@/db"
 import { handleReturnError } from "@/db/error-handling"
-import { getCurrentUser } from "./UserSessison"
 import { AggregationLevel } from "@prisma/client"
 import { KNOWN_POSITIONS } from "@/constants/elections"
+import { requireAdmin, requireSuperAdmin } from "./Authorization"
+import { getCurrentUser } from "./UserSessison"
 
 // ─── Elections CRUD ────────────────────────────────────────────────────────
 
@@ -69,10 +70,9 @@ function validatePositionType(type: string): string {
   return normalised
 }
 
-
 export const createElection = async (input: CreateElectionInput) => {
   try {
-    const user = await getCurrentUser()
+    const user = await requireAdmin()
     const fallback: PositionInput[] = Object.entries(KNOWN_POSITIONS).map(([type, meta], i) => ({
       type, title: meta.label, aggregationLevel: meta.aggregationLevel,
       description: meta.description, sortOrder: i,
@@ -83,7 +83,6 @@ export const createElection = async (input: CreateElectionInput) => {
       sortOrder: p.sortOrder ?? i,
     }))
 
-    // Guard: no duplicate types within the same election
     const types = positions.map((p) => p.type)
     const dupes = types.filter((t, i) => types.indexOf(t) !== i)
     if (dupes.length) throw new Error(`Duplicate position types: ${dupes.join(", ")}`)
@@ -160,10 +159,7 @@ export const updateElection = async (
   data: Partial<Pick<CreateElectionInput, "title" | "year" | "electionDate" | "description">> & { isActive?: boolean }
 ) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can update elections.");
+    await requireAdmin()
     return await prisma.election.update({ where: { id }, data })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -172,10 +168,7 @@ export const updateElection = async (
 
 export const deleteElection = async (id: string) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "super admin")
-      throw new Error("Only super admins can delete elections.");
+    await requireSuperAdmin()
     return await prisma.election.delete({ where: { id } })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -186,10 +179,7 @@ export const deleteElection = async (id: string) => {
 
 export const addPosition = async (electionId: string, input: PositionInput) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can manage positions.");
+    await requireAdmin()
     const type = validatePositionType(input.type)
     return await prisma.electionPosition.create({
       data: {
@@ -208,10 +198,7 @@ export const addPosition = async (electionId: string, input: PositionInput) => {
 
 export const updatePosition = async (id: string, data: Partial<PositionInput>) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can manage positions.");
+    await requireAdmin()
     if (data.type) data = { ...data, type: validatePositionType(data.type) }
     return await prisma.electionPosition.update({ where: { id }, data })
   } catch (error) {
@@ -221,10 +208,7 @@ export const updatePosition = async (id: string, data: Partial<PositionInput>) =
 
 export const deletePosition = async (id: string) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can delete positions.");
+    await requireAdmin()
     return await prisma.electionPosition.delete({ where: { id } })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -244,10 +228,7 @@ export type CandidateInput = {
 
 export const createCandidate = async (input: CandidateInput) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can manage candidates.");
+    await requireAdmin()
     return await prisma.candidate.create({ data: input })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -256,10 +237,7 @@ export const createCandidate = async (input: CandidateInput) => {
 
 export const createCandidatesBulk = async (inputs: CandidateInput[]) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can manage candidates.");
+    await requireAdmin()
     const results: Awaited<ReturnType<typeof prisma.candidate.create>>[] = []
     for (const input of inputs) {
       const created = await prisma.candidate.create({ data: input })
@@ -273,10 +251,7 @@ export const createCandidatesBulk = async (inputs: CandidateInput[]) => {
 
 export const updateCandidate = async (id: string, data: Partial<CandidateInput>) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can manage candidates.");
+    await requireAdmin()
     return await prisma.candidate.update({ where: { id }, data })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -285,10 +260,7 @@ export const updateCandidate = async (id: string, data: Partial<CandidateInput>)
 
 export const deleteCandidate = async (id: string) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can delete candidates.");
+    await requireAdmin()
     return await prisma.candidate.delete({ where: { id } })
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -310,10 +282,7 @@ export const getCandidatesByPosition = async (positionId: string, entityId?: str
 
 export const assignAgentToStream = async (electionId: string, streamId: string, agentId: string) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can assign agents.");
+    await requireAdmin()
     return await prisma.agentStream.upsert({
       where: { electionId_streamId_agentId: { electionId, streamId, agentId } },
       create: { electionId, streamId, agentId },
@@ -393,3 +362,6 @@ export const getAgentStreams = async (electionId: string, agentId: string) => {
     throw new Error(handleReturnError(error))
   }
 }
+
+// Re-export getCurrentUser for callers outside this module that still need it
+export { getCurrentUser }

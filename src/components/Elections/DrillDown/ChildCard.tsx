@@ -24,12 +24,19 @@ export default function ChildCard({
 
   return (
     <Box
+      as={canDrill ? "button" : "div"}
+      role={canDrill ? "button" : undefined}
+      tabIndex={canDrill ? 0 : undefined}
+      aria-label={canDrill ? `Drill into ${child.entityName}` : undefined}
       bg="white" borderRadius="2xl" borderWidth="1px" borderColor="gray.100"
       boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)" overflow="hidden"
+      w="full" textAlign="left"
       cursor={canDrill ? "pointer" : "default"}
       _hover={canDrill ? { borderColor: lc.border, boxShadow: `0 0 0 1px ${lc.border}` } : {}}
+      _focus={canDrill ? { outline: "2px solid", outlineColor: lc.border, outlineOffset: "2px" } : {}}
       transition="all 0.15s"
       onClick={canDrill ? () => onDrill(child.entityId) : undefined}
+      onKeyDown={canDrill ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onDrill(child.entityId) } } : undefined}
     >
       <Box px={5} py={3} bg="gray.50" borderBottomWidth="1px" borderBottomColor="gray.100">
         <HStack justify="space-between">
@@ -41,7 +48,7 @@ export default function ChildCard({
           </HStack>
           <HStack gap={2}>
             <Text fontSize="xs" color="gray.400">
-              {child.reportedStreams}/{child.totalStreams} streams
+              {child.reportedStreams}/{child.totalStreams} stations
             </Text>
             {canDrill && <FiChevronRight fontSize="0.9rem" color={lc.color} />}
           </HStack>

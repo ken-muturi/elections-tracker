@@ -4,6 +4,7 @@ import prisma from "@/db";
 import { handleReturnError } from "@/db/error-handling";
 import { getCurrentUser } from "./UserSessison";
 import { ResultStatus } from "@prisma/client";
+import { requireAdmin } from "./Authorization";
 
 export type CandidateVoteInput = {
   candidateId: string;
@@ -140,10 +141,7 @@ export const upsertStreamResult = async (
  */
 export const submitStreamResult = async (streamResultId: string) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can submit stream results.");
+    await requireAdmin();
     return await prisma.streamResult.update({
       where: { id: streamResultId },
       data: { status: "SUBMITTED", submittedAt: new Date() },
@@ -158,10 +156,7 @@ export const updateStreamResultStatus = async (
   status: ResultStatus,
 ) => {
   try {
-    const user = await getCurrentUser();
-    const role = (user.role ?? "").toLowerCase();
-    if (role !== "admin" && role !== "super admin")
-      throw new Error("Only administrators can update result status.");
+    await requireAdmin();
     return await prisma.streamResult.update({
       where: { id },
       data: { status },

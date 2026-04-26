@@ -476,8 +476,8 @@ model AgentStream {
   agentId    String  @map("agent_id") @db.VarChar(50)
   isActive   Boolean @default(true) @map("is_active")
 
-  election Election @relation(fields: [electionId], references: [id])
-  stream   Stream   @relation(fields: [streamId], references: [id])
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  stream   Stream   @relation(fields: [streamId], references: [id], onDelete: Cascade)
   agent    User     @relation("agentStreamUser", fields: [agentId], references: [id])
 
   @@unique([electionId, streamId, agentId])
@@ -502,8 +502,8 @@ model StreamResult {
   submittedAt   DateTime     @default(now()) @map("submitted_at")
   updatedAt     DateTime?    @updatedAt @map("updated_at")
 
-  stream   Stream           @relation(fields: [streamId], references: [id])
-  position ElectionPosition @relation(fields: [positionId], references: [id])
+  stream   Stream           @relation(fields: [streamId], references: [id], onDelete: Cascade)
+  position ElectionPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
   agent    User             @relation("streamResultAgent", fields: [agentId], references: [id])
   votes    StreamCandidateVote[]
 
@@ -521,6 +521,7 @@ model StreamCandidateVote {
 
   streamResult StreamResult @relation(fields: [streamResultId], references: [id], onDelete: Cascade)
   candidate    Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
 
   @@index([streamResultId])
   @@index([candidateId])
@@ -587,7 +588,7 @@ model LevelResult {
   submittedAt   DateTime         @default(now()) @map("submitted_at")
   updatedAt     DateTime?        @updatedAt @map("updated_at")
 
-  position  ElectionPosition    @relation(fields: [positionId], references: [id])
+  position  ElectionPosition    @relation(fields: [positionId], references: [id], onDelete: Cascade)
   validator User                @relation("levelResultValidator", fields: [validatorId], references: [id])
   votes     LevelCandidateVote[]
 
