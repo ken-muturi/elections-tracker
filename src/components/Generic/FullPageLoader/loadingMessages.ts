@@ -1,0 +1,61 @@
+export const loadingMessages = [
+  "Loading magic...",
+  "Just a moment",
+  "Preparing something cool",
+  "Almost there",
+  "Warming things up",
+  "Brewing ideas",
+  "Getting things ready",
+  "One sec...",
+  "Crunching data",
+  "Setting the stage",
+  "Hang tight",
+  "Polishing pixels",
+  "Good things take a moment",
+  "Spinning up",
+  "Aligning stars",
+  "Fetching awesomeness",
+  "Still working...",
+  "Building something nice",
+  "Loading your experience",
+  "Just a little longer",
+  "Making things awesome",
+  "Almost ready to go",
+  "Tuning the system",
+  "Gathering bits",
+  "Working behind the scenes",
+  "Syncing things up",
+  "Lighting things up",
+  "Checking details",
+  "Just getting started",
+  "Cooking up something good",
+  "Adjusting settings",
+  "Taking shape",
+  "Final touches",
+  "Bringing it together",
+  "Ready in a moment",
+  "Keep calm, loading",
+  "Preparing your view",
+  "Making it shine",
+  "Good vibes loading",
+  "Still assembling",
+  "Almost done here",
+  "Tidying up",
+  "Let's get this ready",
+  "Powering up",
+  "Building your space",
+  "Getting closer",
+  "Just a blink away",
+  "Smoothing edges",
+  "On it...",
+  "Ready soon 🚀",
+];
+
+let lastIndex = -1;
+export function pickMessage(): string {
+  let idx: number;
+  do { idx = Math.floor(Math.random() * loadingMessages.length); }
+  while (idx === lastIndex);
+  lastIndex = idx;
+  return loadingMessages[idx];
+}

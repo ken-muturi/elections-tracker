@@ -96,3 +96,34 @@ export function getFormLabel(positionType: string, level = "POLLING_STATION"): s
   const label = meta?.label ?? positionType
   return `Form ${formType} (${label})`
 }
+
+/**
+ * Tally levels per position type — which Form B/C levels exist per IEBC structure.
+ * POLLING_STATION (Form A) is handled by the stream entry flow.
+ *
+ *  MCA (33):       33A → 33B Ward
+ *  MP (35):        35A → 35B Constituency
+ *  Women Rep (36): 36A → 36B Constituency → 36C County
+ *  Governor (37):  37A → 37B Constituency → 37C County
+ *  Senator (38):   38A → 38B Constituency → 38C County
+ *  President (34): 34A → 34B Constituency → 34C National
+ */
+export const POSITION_TALLY_LEVELS: Record<string, AggregationLevel[]> = {
+  MCA:       ["WARD"],
+  MP:        ["CONSTITUENCY"],
+  WOMEN_REP: ["CONSTITUENCY", "COUNTY"],
+  GOVERNOR:  ["CONSTITUENCY", "COUNTY"],
+  SENATOR:   ["CONSTITUENCY", "COUNTY"],
+  PRESIDENT: ["CONSTITUENCY", "NATIONAL"],
+}
+
+/** Returns the valid Form B/C tally levels for a position type. */
+export function getTallyLevelsForPosition(positionType: string): AggregationLevel[] {
+  const key = positionType.toUpperCase().replace(/\s+/g, "_")
+  return POSITION_TALLY_LEVELS[key] ?? ["CONSTITUENCY"]
+}
+
+/** Returns true if a position type has a tally form at the given level. */
+export function positionHasTallyAtLevel(positionType: string, level: AggregationLevel): boolean {
+  return getTallyLevelsForPosition(positionType).includes(level)
+}

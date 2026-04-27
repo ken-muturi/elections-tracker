@@ -17,7 +17,12 @@ import {
   computeAggregateFromStreams,
   type LevelEntity,
 } from "@/services/LevelResults"
-import { getFormTypeForLevel, AGGREGATION_LEVEL_LABEL, LEVEL_SUFFIX } from "@/constants/elections"
+import {
+  getFormTypeForLevel,
+  AGGREGATION_LEVEL_LABEL,
+  LEVEL_SUFFIX,
+  positionHasTallyAtLevel,
+} from "@/constants/elections"
 import FormImageUpload from "./FormImageUpload"
 import StatusBadge from "./StatusBadge"
 import VoteTable from "./VoteTable"
@@ -41,13 +46,17 @@ type AggregateData = {
   candidateTotals: { candidateId: string; votes: number }[]
 }
 
-/* ── Valid levels for B/C entry (excludes POLLING_STATION which is Form A) ── */
-
-const ENTRY_LEVELS: { level: AggregationLevel; suffix: string; label: string; description: string }[] = [
-  { level: "WARD", suffix: "B", label: "Ward", description: "Ward-level tally (Form B)" },
-  { level: "CONSTITUENCY", suffix: "B", label: "Constituency", description: "Constituency tally (Form B)" },
-  { level: "COUNTY", suffix: "C", label: "County", description: "County tally (Form C)" },
-  { level: "NATIONAL", suffix: "C", label: "National", description: "National declaration (Form C)" },
+/* ── All possible Form B/C tally levels ─────────────────────── */
+const ALL_ENTRY_LEVELS: {
+  level: AggregationLevel
+  suffix: string
+  label: string
+  description: string
+}[] = [
+  { level: "WARD",         suffix: "B", label: "Ward",         description: "Ward tally — MCA Form 33B" },
+  { level: "CONSTITUENCY", suffix: "B", label: "Constituency", description: "Constituency tally — Forms 34B / 35B / 36B / 37B / 38B" },
+  { level: "COUNTY",       suffix: "C", label: "County",       description: "County declaration — Forms 36C / 37C / 38C" },
+  { level: "NATIONAL",     suffix: "C", label: "National",     description: "National declaration — Form 34C" },
 ]
 
 /* ── Component ──────────────────────────────────────────────── */
@@ -57,12 +66,10 @@ export default function LevelEntryClient({
   positions,
   onBack,
 }: LevelEntryProps) {
-  /* ── Navigation state ──────────────────────────────────── */
-  const [selectedLevel, setSelectedLevel] = useState<AggregationLevel | null>(null)
-  const [selectedEntity, setSelectedEntity] = useState<LevelEntity | null>(null)
+  const [selectedLevel, setSelectedLevel]       = useState<AggregationLevel | null>(null)
+  const [selectedEntity, setSelectedEntity]     = useState<LevelEntity | null>(null)
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null)
 
-  /* ── Step 1: Level selection ───────────────────────────── */
   if (!selectedLevel) {
     return (
       <LevelPicker
@@ -73,9 +80,7 @@ export default function LevelEntryClient({
     )
   }
 
-  /* ── Step 2: Entity selection ──────────────────────────── */
   if (!selectedEntity) {
-    // NATIONAL has no entity to pick — auto-select
     if (selectedLevel === "NATIONAL") {
       setSelectedEntity({ id: "national", name: "National" })
       return null
@@ -90,7 +95,6 @@ export default function LevelEntryClient({
     )
   }
 
-  /* ── Step 3: Position selection ─────────────────────────── */
   if (!selectedPosition) {
     return (
       <LevelPositionSelector
@@ -103,7 +107,6 @@ export default function LevelEntryClient({
     )
   }
 
-  /* ── Step 4: Vote entry ────────────────────────────────── */
   return (
     <LevelVoteEntryForm
       level={selectedLevel}
@@ -115,7 +118,7 @@ export default function LevelEntryClient({
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Step 1: Level Picker
+   Step 1: Level Picker — only shows levels relevant to this election's positions
    ═══════════════════════════════════════════════════════════════ */
 
 function LevelPicker({
@@ -127,16 +130,22 @@ function LevelPicker({
   onSelect: (level: AggregationLevel) => void
   onBack: () => void
 }) {
-  // Which form types exist for this election's positions
-  const positionTypes = useMemo(
-    () => [...new Set(positions.map((p) => p.type.toUpperCase().replace(/\s+/g, "_")))],
+  // Only show levels that have at least one applicable position in this election
+  const applicableLevels = useMemo(
+    () =>
+      ALL_ENTRY_LEVELS.filter(({ level }) =>
+        positions.some((p) => positionHasTallyAtLevel(p.type, level)),
+      ),
     [positions],
   )
 
   return (
     <VStack gap={4} alignItems="stretch">
       <HStack gap={2}>
-        <Box as="button" onClick={onBack} cursor="pointer" _hover={{ color: "gray.900" }} color="gray.400" transition="color 0.15s">
+        <Box
+          as="button" onClick={onBack} cursor="pointer"
+          _hover={{ color: "gray.900" }} color="gray.400" transition="color 0.15s"
+        >
           <FiArrowLeft />
         </Box>
         <VStack alignItems="flex-start" gap={0}>
@@ -146,10 +155,11 @@ function LevelPicker({
       </HStack>
 
       <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
-        {ENTRY_LEVELS.map(({ level, suffix, label, description }) => {
-          // Show which form codes apply
-          const formCodes = positionTypes
-            .map((pt) => getFormTypeForLevel(pt, level))
+        {applicableLevels.map(({ level, suffix, label, description }) => {
+          // Show only the form codes that apply at this level from this election's positions
+          const formCodes = positions
+            .filter((p) => positionHasTallyAtLevel(p.type, level))
+            .map((p) => getFormTypeForLevel(p.type, level))
             .filter((v, i, a) => a.indexOf(v) === i)
 
           return (
@@ -174,7 +184,10 @@ function LevelPicker({
                   <Text fontSize="xs" color="gray.500">{description}</Text>
                   <HStack gap={1.5} mt={1} flexWrap="wrap">
                     {formCodes.map((code) => (
-                      <Badge key={code} size="xs" variant="subtle" colorPalette={suffix === "B" ? "blue" : "pink"} fontSize="9px">
+                      <Badge
+                        key={code} size="xs" variant="subtle"
+                        colorPalette={suffix === "B" ? "blue" : "pink"} fontSize="9px"
+                      >
                         Form {code}
                       </Badge>
                     ))}
@@ -217,7 +230,10 @@ function EntitySelector({
   return (
     <VStack gap={4} alignItems="stretch">
       <HStack gap={2}>
-        <Box as="button" onClick={onBack} cursor="pointer" _hover={{ color: "gray.900" }} color="gray.400" transition="color 0.15s">
+        <Box
+          as="button" onClick={onBack} cursor="pointer"
+          _hover={{ color: "gray.900" }} color="gray.400" transition="color 0.15s"
+        >
           <FiArrowLeft />
         </Box>
         <VStack alignItems="flex-start" gap={0}>
@@ -226,7 +242,6 @@ function EntitySelector({
         </VStack>
       </HStack>
 
-      {/* Search */}
       <HStack
         bg="white" borderRadius="xl" borderWidth="1px" borderColor="gray.200"
         px={3} py={2.5} gap={2}
@@ -242,7 +257,6 @@ function EntitySelector({
         />
       </HStack>
 
-      {/* Results */}
       {isLoading ? (
         <HStack justify="center" py={8} gap={2}>
           <FiLoader className="animate-spin" fontSize="0.9rem" color="#94a3b8" />
@@ -299,6 +313,7 @@ function EntitySelector({
 
 /* ═══════════════════════════════════════════════════════════════
    Step 3: Level Position Selector
+   Only shows positions that actually have a tally form at this level
    ═══════════════════════════════════════════════════════════════ */
 
 function LevelPositionSelector({
@@ -314,20 +329,25 @@ function LevelPositionSelector({
   onSelect: (position: Position) => void
   onBack: () => void
 }) {
-  // Filter positions that are relevant at this level
-  // e.g. at WARD level, only MCA positions matter
-  // At CONSTITUENCY, only MP. At COUNTY, Governor/Senator/Women Rep
-  // At NATIONAL, only President
-  // Actually, any position needs its B/C form at every level. The tally form at any
-  // aggregation level covers ALL positions tallied through that level.
-  // So we show all positions — they all need their tallies entered at every level.
+  // Filter to only positions that have a tally at this level per IEBC forms:
+  //   WARD         → MCA only (Form 33B)
+  //   CONSTITUENCY → President (34B), MP (35B), Women Rep (36B), Governor (37B), Senator (38B)
+  //   COUNTY       → Women Rep (36C), Governor (37C), Senator (38C)
+  //   NATIONAL     → President (34C) only
+  const levelPositions = useMemo(
+    () => positions.filter((p) => positionHasTallyAtLevel(p.type, level)),
+    [positions, level],
+  )
 
   const levelLabel = AGGREGATION_LEVEL_LABEL[level]
 
   return (
     <VStack gap={4} alignItems="stretch">
       <HStack gap={2}>
-        <Box as="button" onClick={onBack} cursor="pointer" _hover={{ color: "gray.900" }} color="gray.400" transition="color 0.15s">
+        <Box
+          as="button" onClick={onBack} cursor="pointer"
+          _hover={{ color: "gray.900" }} color="gray.400" transition="color 0.15s"
+        >
           <FiArrowLeft />
         </Box>
         <VStack alignItems="flex-start" gap={0}>
@@ -340,21 +360,27 @@ function LevelPositionSelector({
         </VStack>
       </HStack>
 
-      <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
-        {positions.map((position) => {
-          const formCode = getFormTypeForLevel(position.type, level)
-          return (
-            <PositionCardWithStatus
-              key={position.id}
-              position={position}
-              formCode={formCode}
-              level={level}
-              entityId={entity.id}
-              onSelect={() => onSelect(position)}
-            />
-          )
-        })}
-      </SimpleGrid>
+      {levelPositions.length === 0 ? (
+        <VStack py={8} gap={1}>
+          <Text fontSize="sm" color="gray.400">No positions are tallied at {levelLabel} level</Text>
+        </VStack>
+      ) : (
+        <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
+          {levelPositions.map((position) => {
+            const formCode = getFormTypeForLevel(position.type, level)
+            return (
+              <PositionCardWithStatus
+                key={position.id}
+                position={position}
+                formCode={formCode}
+                level={level}
+                entityId={entity.id}
+                onSelect={() => onSelect(position)}
+              />
+            )
+          })}
+        </SimpleGrid>
+      )}
     </VStack>
   )
 }
@@ -372,7 +398,6 @@ function PositionCardWithStatus({
   entityId: string
   onSelect: () => void
 }) {
-  // Fetch existing level result status
   const { data: existing } = useQuery({
     queryKey: ["level-result", position.id, level, entityId],
     queryFn: () => getLevelResult(position.id, level, entityId),
@@ -420,14 +445,12 @@ function LevelVoteEntryForm({
   const formCode = getFormTypeForLevel(position.type, level)
   const levelLabel = AGGREGATION_LEVEL_LABEL[level]
 
-  /* ── Fetch existing level result ───────────────────────── */
   const { data: existingResult } = useQuery({
     queryKey: ["level-result", position.id, level, entity.id],
     queryFn: () => getLevelResult(position.id, level, entity.id),
     staleTime: 30_000,
   })
 
-  /* ── Fetch system aggregate for comparison ─────────────── */
   const { data: aggregate } = useQuery<AggregateData>({
     queryKey: ["level-aggregate", position.id, level, entity.id],
     queryFn: () => computeAggregateFromStreams(position.id, level, entity.id),
@@ -438,7 +461,6 @@ function LevelVoteEntryForm({
     existingResult?.status === "SUBMITTED" ||
     existingResult?.status === "VERIFIED"
 
-  /* ── Form state ────────────────────────────────────────── */
   const [votes, setVotes] = useState<Record<string, number>>(() => {
     if (existingResult) {
       const m: Record<string, number> = {}
@@ -449,13 +471,10 @@ function LevelVoteEntryForm({
     for (const c of position.candidates) m[c.id] = 0
     return m
   })
-  const [rejectedVotes, setRejectedVotes] = useState(
-    existingResult?.rejectedVotes ?? 0,
-  )
+  const [rejectedVotes, setRejectedVotes] = useState(existingResult?.rejectedVotes ?? 0)
   const [notes, setNotes] = useState(existingResult?.notes ?? "")
   const [success, setSuccess] = useState("")
 
-  // Re-sync when existing result loads
   useState(() => {
     if (existingResult) {
       const m: Record<string, number> = {}
@@ -472,14 +491,12 @@ function LevelVoteEntryForm({
   )
   const grandTotal = totalCandidateVotes + rejectedVotes
 
-  /* ── Save/Submit mutation ──────────────────────────────── */
   const saveMutation = useSyncMutation(
     async ({ andSubmit }: { andSubmit: boolean }) => {
       const candidateVotes = position.candidates.map((c) => ({
         candidateId: c.id,
         votes: votes[c.id] ?? 0,
       }))
-
       await upsertLevelResult(
         {
           positionId: position.id,
@@ -492,7 +509,6 @@ function LevelVoteEntryForm({
         },
         andSubmit ? "SUBMITTED" : "DRAFT",
       )
-
       return { andSubmit }
     },
     {
@@ -500,11 +516,7 @@ function LevelVoteEntryForm({
         queryClient.invalidateQueries({
           queryKey: ["level-result", position.id, level, entity.id],
         })
-        setSuccess(
-          andSubmit
-            ? "Results submitted successfully!"
-            : "Draft saved successfully!",
-        )
+        setSuccess(andSubmit ? "Results submitted successfully!" : "Draft saved successfully!")
         if (andSubmit) {
           setTimeout(() => { onBack(); setSuccess("") }, 1500)
         } else {
@@ -519,7 +531,6 @@ function LevelVoteEntryForm({
     saveMutation.mutate({ andSubmit })
   }
 
-  /* ── Aggregate comparison helper ───────────────────────── */
   const aggInfo = useMemo((): AggregateInfo | undefined => {
     if (!aggregate || aggregate.streamCount === 0) return undefined
     return {
@@ -532,10 +543,12 @@ function LevelVoteEntryForm({
 
   return (
     <VStack gap={5} alignItems="stretch" maxW="700px">
-      {/* Header */}
       <HStack gap={2}>
-        <Box as="button" onClick={() => { saveMutation.reset(); setSuccess(""); onBack() }}
-          cursor="pointer" _hover={{ color: "gray.900" }} color="gray.400" transition="color 0.15s">
+        <Box
+          as="button"
+          onClick={() => { saveMutation.reset(); setSuccess(""); onBack() }}
+          cursor="pointer" _hover={{ color: "gray.900" }} color="gray.400" transition="color 0.15s"
+        >
           <FiArrowLeft />
         </Box>
         <VStack alignItems="flex-start" gap={0}>

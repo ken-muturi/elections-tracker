@@ -32,6 +32,8 @@ export type ChildResult = {
   rejectedVotes: number;
   reportedStreams: number;
   totalStreams: number;
+  /** Count of this entity's immediate children (constituencies, wards, stations, or streams) */
+  totalDirectChildren: number;
   candidates: CandidateVoteSummary[];
   /** Manually entered data at this entity's level (null if not yet entered) */
   enteredVotes?: {
@@ -326,6 +328,9 @@ export async function getDrillDownNational(
         rejectedVotes: cRejected,
         reportedStreams: cResults.length,
         totalStreams: streamsByCounty.get(county.id) ?? 0,
+        totalDirectChildren: county.constituencies.filter(
+          (c) => c.wards.length > 0,
+        ).length,
         candidates: buildCandidateSummaries(candidates, cMap),
         enteredVotes: childEntries.get(county.id) ?? null,
       };
@@ -523,6 +528,7 @@ export async function getDrillDownCounty(
         rejectedVotes: cRejected,
         reportedStreams: cResults.length,
         totalStreams: streamsByConstituency.get(con.id) ?? 0,
+        totalDirectChildren: con.wards.length,
         candidates: buildCandidateSummaries(candidates, cMap),
         enteredVotes: childEntries.get(con.id) ?? null,
       };
@@ -636,6 +642,11 @@ export async function getDrillDownConstituency(
 
     const stationToWard = new Map(stationWardRows.map((s) => [s.id, s.wardId]));
 
+    // Polling station count per ward (for totalDirectChildren)
+    const stationsPerWard = new Map<string, number>();
+    for (const s of stationWardRows)
+      stationsPerWard.set(s.wardId, (stationsPerWard.get(s.wardId) ?? 0) + 1);
+
     const streamsByWard = new Map<string, number>();
     for (const row of streamCountGroups) {
       const wardId = stationToWard.get(row.pollingStationId);
@@ -681,7 +692,12 @@ export async function getDrillDownConstituency(
     // Fetch level-entered data for children (wards) and parent (constituency)
     const [childEntries, parentEntry] = await Promise.all([
       fetchLevelEntries(positionId, "WARD", wardIds, candidates),
-      fetchSingleLevelEntry(positionId, "CONSTITUENCY", constituencyId, candidates),
+      fetchSingleLevelEntry(
+        positionId,
+        "CONSTITUENCY",
+        constituencyId,
+        candidates,
+      ),
     ]);
 
     const children: ChildResult[] = wards.map((ward) => {
@@ -704,6 +720,7 @@ export async function getDrillDownConstituency(
         rejectedVotes: wRejected,
         reportedStreams: wResults.length,
         totalStreams: streamsByWard.get(ward.id) ?? 0,
+        totalDirectChildren: stationsPerWard.get(ward.id) ?? 0,
         candidates: buildCandidateSummaries(candidates, wMap),
         enteredVotes: childEntries.get(ward.id) ?? null,
       };
@@ -865,6 +882,7 @@ export async function getDrillDownWard(
         rejectedVotes: sRejected,
         reportedStreams: sResults.length,
         totalStreams: station.streams.length,
+        totalDirectChildren: station.streams.length,
         candidates: buildCandidateSummaries(candidates, sMap),
         enteredVotes: childEntries.get(station.id) ?? null,
       };
@@ -1021,6 +1039,7 @@ export async function getDrillDownStation(
         rejectedVotes: sRejected,
         reportedStreams: sResults.length,
         totalStreams: 1,
+        totalDirectChildren: 0,
         candidates: buildCandidateSummaries(candidates, sMap),
       };
     })

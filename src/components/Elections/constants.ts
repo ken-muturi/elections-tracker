@@ -39,6 +39,19 @@ export const NEXT_ACTION: Record<string, string> = {
 }
 
 /**
+ * Human-readable plural noun for the *children* at each drill level.
+ * Keyed by the child level (i.e. the value in NEXT_ACTION, or "STREAM").
+ */
+export const CHILD_COUNT_LABEL: Record<string, string> = {
+  COUNTY:          "counties",
+  CONSTITUENCY:    "constituencies",
+  WARD:            "wards",
+  STATION:         "polling stations",
+  POLLING_STATION: "polling stations",
+  STREAM:          "streams",
+}
+
+/**
  * Returns the IEBC declaration form reference for level-entered result data.
  *
  * Kenya IEBC form series:

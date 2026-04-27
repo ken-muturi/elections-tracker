@@ -12,6 +12,7 @@ import {
 } from "@/services/PublicResults"
 import DrillDown from "./index"
 import DrillDownSkeleton from "./Skeleton"
+import FullPageLoader from "@/components/Generic/FullPageLoader"
 
 const ENTITY_DRILL_FN: Record<
   string,
@@ -43,7 +44,12 @@ export default function DrillDownClient({
     queryFn: drillFn,
   })
 
-  if (isLoading) return <DrillDownSkeleton />
+  if (isLoading) return (
+    <>
+      <DrillDownSkeleton />
+      <FullPageLoader />
+    </>
+  )
 
   if (isError || !initial) {
     return (

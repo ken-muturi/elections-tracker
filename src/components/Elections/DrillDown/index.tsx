@@ -23,11 +23,12 @@ import {
   getDrillDownWard,
   getDrillDownStation,
 } from "@/services/PublicResults"
-import { LEVEL_COLOR, NEXT_ACTION } from "../constants"
+import { LEVEL_COLOR, NEXT_ACTION } from "../constants";
 import useSyncMutation from "@/hooks/hooks/useSyncMutation"
 import LeadersCard from "./LeadersCard"
 import ChildCard from "./ChildCard"
 import { buildColorMap } from "./candidateColors"
+import FullPageLoader from "@/components/Generic/FullPageLoader"
 
 const DRILL_FN: Record<
   string,
@@ -49,7 +50,7 @@ export default function DrillDown({
   electionId: string
 }) {
   const [data, setData] = useState<DrillDownResult>(initial)
-  const [view, setView] = useState<"cards" | "map">("cards")
+  const [view, setView] = useState<"cards" | "map">("map");
 
   const navMutation = useSyncMutation(
     async (fn: () => Promise<DrillDownResult>) => fn(),
@@ -91,16 +92,42 @@ export default function DrillDown({
         <HStack gap={1}>
           <Text
             as="button"
-            fontSize="sm" color="blue.600" fontWeight="600"
+            fontSize="sm"
+            color="blue.600"
+            fontWeight="600"
             cursor="pointer"
             _hover={{ textDecoration: "underline" }}
-            _focus={{ outline: "2px solid", outlineColor: "blue.500", outlineOffset: "2px", borderRadius: "2px" }}
-            onClick={() => navigateTo({ id: "national", name: "National", level: "NATIONAL" })}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigateTo({ id: "national", name: "National", level: "NATIONAL" }) } }}
+            _focus={{
+              outline: "2px solid",
+              outlineColor: "blue.500",
+              outlineOffset: "2px",
+              borderRadius: "2px",
+            }}
+            onClick={() =>
+              navigateTo({
+                id: "national",
+                name: "National",
+                level: "NATIONAL",
+              })
+            }
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                navigateTo({
+                  id: "national",
+                  name: "National",
+                  level: "NATIONAL",
+                });
+              }
+            }}
           >
             {data.positionTitle}
           </Text>
-          <FiChevronRight fontSize="0.75rem" color="#9ca3af" aria-hidden="true" />
+          <FiChevronRight
+            fontSize="0.75rem"
+            color="#9ca3af"
+            aria-hidden="true"
+          />
         </HStack>
 
         {/* Geographic ancestors (county → constituency → ward …) */}
@@ -108,16 +135,32 @@ export default function DrillDown({
           <HStack key={crumb.id} gap={1}>
             <Text
               as="button"
-              fontSize="sm" color="blue.600" fontWeight="600"
+              fontSize="sm"
+              color="blue.600"
+              fontWeight="600"
               cursor="pointer"
               _hover={{ textDecoration: "underline" }}
-              _focus={{ outline: "2px solid", outlineColor: "blue.500", outlineOffset: "2px", borderRadius: "2px" }}
+              _focus={{
+                outline: "2px solid",
+                outlineColor: "blue.500",
+                outlineOffset: "2px",
+                borderRadius: "2px",
+              }}
               onClick={() => navigateTo(crumb)}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); navigateTo(crumb) } }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  navigateTo(crumb);
+                }
+              }}
             >
               {crumb.name}
             </Text>
-            <FiChevronRight fontSize="0.75rem" color="#9ca3af" aria-hidden="true" />
+            <FiChevronRight
+              fontSize="0.75rem"
+              color="#9ca3af"
+              aria-hidden="true"
+            />
           </HStack>
         ))}
 
@@ -131,8 +174,13 @@ export default function DrillDown({
       <HStack justify="space-between" flexWrap="wrap" gap={3}>
         <HStack gap={3}>
           <Flex
-            w={10} h={10} borderRadius="lg" bg={lc.bg}
-            align="center" justify="center" flexShrink={0}
+            w={10}
+            h={10}
+            borderRadius="lg"
+            bg={lc.bg}
+            align="center"
+            justify="center"
+            flexShrink={0}
           >
             <MdHowToVote fontSize="1.2rem" color={lc.color} />
           </Flex>
@@ -141,14 +189,20 @@ export default function DrillDown({
               {data.positionTitle}
             </Heading>
             <Text fontSize="xs" color="gray.500">
-              Showing {data.levelLabel.toLowerCase()} ·{" "}
-              {data.reportedStreams}/{data.totalStreams} polling stations reporting
+              Showing {data.levelLabel.toLowerCase()} · {data.reportedStreams}/
+              {data.totalStreams} streams reporting
             </Text>
           </VStack>
         </HStack>
         <Badge
-          px={2.5} py={1} borderRadius="full" bg={lc.bg} color={lc.color}
-          fontSize="9px" fontWeight="700" textTransform="uppercase"
+          px={2.5}
+          py={1}
+          borderRadius="full"
+          bg={lc.bg}
+          color={lc.color}
+          fontSize="9px"
+          fontWeight="700"
+          textTransform="uppercase"
           letterSpacing="wide"
         >
           {data.levelLabel}
@@ -161,8 +215,10 @@ export default function DrillDown({
       {/* ── Location context (clickable back) — only when drilled in ── */}
       {data.parentName && (
         <HStack
-          px={4} py={2}
-          bg={lc.bg} borderRadius="xl"
+          px={4}
+          py={2}
+          bg={lc.bg}
+          borderRadius="xl"
           gap={2}
           cursor={parentCrumb ? "pointer" : "default"}
           _hover={parentCrumb ? { opacity: 0.8 } : {}}
@@ -185,28 +241,47 @@ export default function DrillDown({
       <HStack justify="space-between" align="center">
         <Text fontSize="xs" color="gray.500">
           {data.children.length} {data.levelLabel.toLowerCase()} ·{" "}
-          {data.reportedStreams}/{data.totalStreams} polling stations reporting
+          {data.reportedStreams}/{data.totalStreams} streams reporting
         </Text>
         <HStack gap={1} p={1} bg="gray.100" borderRadius="full">
-          {(["cards", "map"] as const).map((v) => (
+          {(["map", "cards"] as const).map((v) => (
             <HStack
               key={v}
               as="button"
               aria-pressed={view === v}
-              aria-label={v === "cards" ? "Cards view" : "Map view"}
-              gap={1.5} px={3} py={1.5} borderRadius="full"
+              aria-label={v === "cards" ? "Details view" : "Map view"}
+              gap={1.5}
+              px={3}
+              py={1.5}
+              borderRadius="full"
               bg={view === v ? "white" : "transparent"}
               color={view === v ? "gray.800" : "gray.400"}
-              fontSize="xs" fontWeight="700"
+              fontSize="xs"
+              fontWeight="700"
               cursor="pointer"
               boxShadow={view === v ? "sm" : "none"}
               transition="all 0.15s"
-              _focus={{ outline: "2px solid", outlineColor: "blue.500", outlineOffset: "2px" }}
+              _focus={{
+                outline: "2px solid",
+                outlineColor: "blue.500",
+                outlineOffset: "2px",
+              }}
               onClick={() => setView(v)}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setView(v) } }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setView(v);
+                }
+              }}
             >
-              {v === "cards" ? <FiList fontSize="0.75rem" aria-hidden="true" /> : <FiMap fontSize="0.75rem" aria-hidden="true" />}
-              <Text textTransform="capitalize">{v}</Text>
+              {v === "cards" ? (
+                <FiList fontSize="0.75rem" aria-hidden="true" />
+              ) : (
+                <FiMap fontSize="0.75rem" aria-hidden="true" />
+              )}
+              <Text textTransform="capitalize">
+                {v === "cards" ? "Details" : "Map"}
+              </Text>
             </HStack>
           ))}
         </HStack>
@@ -214,32 +289,40 @@ export default function DrillDown({
 
       {/* ── Children — cards or map ─────────────────────── */}
       <Box position="relative">
-        {navMutation.isPending && (
-          <Flex
-            position="absolute" top={0} left={0} right={0} bottom={0}
-            zIndex={10} bg="rgba(255,255,255,0.75)" borderRadius="2xl"
-            align="center" justify="center"
-          >
-            <Spinner size="lg" color="#798217" />
-          </Flex>
-        )}
+        {navMutation.isPending && <FullPageLoader />}
 
         {view === "map" ? (
-          <Box opacity={navMutation.isPending ? 0.4 : 1} transition="opacity 0.15s">
+          <Box
+            opacity={navMutation.isPending ? 0.4 : 1}
+            transition="opacity 0.15s"
+            mx={{ base: -4, md: -6 }}
+          >
             <DrillMap data={data} lc={lc} colorMap={colorMap} onDrill={drill} />
           </Box>
         ) : data.children.length === 0 ? (
           <Flex
-            h="160px" borderRadius="2xl" bg="gray.50" borderWidth="1px" borderColor="gray.100"
-            align="center" justify="center" direction="column" gap={2}
+            h="160px"
+            borderRadius="2xl"
+            bg="gray.50"
+            borderWidth="1px"
+            borderColor="gray.100"
+            align="center"
+            justify="center"
+            direction="column"
+            gap={2}
             opacity={navMutation.isPending ? 0.4 : 1}
           >
-            <Text fontSize="sm" color="gray.400" fontWeight="600">No results reported yet for this area</Text>
-            <Text fontSize="xs" color="gray.300">Data will appear as polling stations submit results</Text>
+            <Text fontSize="sm" color="gray.400" fontWeight="600">
+              No results reported yet for this area
+            </Text>
+            <Text fontSize="xs" color="gray.300">
+              Data will appear as polling stations submit results
+            </Text>
           </Flex>
         ) : (
           <SimpleGrid
-            columns={{ base: 1, md: 2 }} gap={4}
+            columns={{ base: 1, md: 2 }}
+            gap={4}
             opacity={navMutation.isPending ? 0.4 : 1}
             transition="opacity 0.15s"
           >
@@ -260,12 +343,20 @@ export default function DrillDown({
       </Box>
 
       {data.rejectedVotes > 0 && (
-        <Box px={5} py={3} bg="#fef9f0" borderRadius="xl" borderWidth="1px" borderColor="#fef3c7">
+        <Box
+          px={5}
+          py={3}
+          bg="#fef9f0"
+          borderRadius="xl"
+          borderWidth="1px"
+          borderColor="#fef3c7"
+        >
           <Text fontSize="xs" color="#92400e">
-            {data.rejectedVotes.toLocaleString()} rejected votes not counted above
+            {data.rejectedVotes.toLocaleString()} rejected votes not counted
+            above
           </Text>
         </Box>
       )}
     </VStack>
-  )
+  );
 }

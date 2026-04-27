@@ -3,7 +3,12 @@
 import { Box, VStack, HStack, Text, Badge } from "@chakra-ui/react"
 import { FiChevronRight, FiMapPin, FiAlertTriangle } from "react-icons/fi"
 import type { ChildResult } from "@/services/PublicResults"
-import { getIEBCFormRef, LEVEL_LABEL } from "../constants"
+import {
+  getIEBCFormRef,
+  LEVEL_LABEL,
+  CHILD_COUNT_LABEL,
+  NEXT_ACTION,
+} from "../constants";
 
 type LcColors = { bg: string; color: string; border: string }
 
@@ -35,17 +40,49 @@ export default function ChildCard({
       role={canDrill ? "button" : undefined}
       tabIndex={canDrill ? 0 : undefined}
       aria-label={canDrill ? `Drill into ${child.entityName}` : undefined}
-      bg="white" borderRadius="2xl" borderWidth="1px" borderColor="gray.100"
-      boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)" overflow="hidden"
-      w="full" textAlign="left"
+      bg="white"
+      borderRadius="2xl"
+      borderWidth="1px"
+      borderColor="gray.100"
+      boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)"
+      overflow="hidden"
+      w="full"
+      textAlign="left"
       cursor={canDrill ? "pointer" : "default"}
-      _hover={canDrill ? { borderColor: lc.border, boxShadow: `0 0 0 1px ${lc.border}` } : {}}
-      _focus={canDrill ? { outline: "2px solid", outlineColor: lc.border, outlineOffset: "2px" } : {}}
+      _hover={
+        canDrill
+          ? { borderColor: lc.border, boxShadow: `0 0 0 1px ${lc.border}` }
+          : {}
+      }
+      _focus={
+        canDrill
+          ? {
+              outline: "2px solid",
+              outlineColor: lc.border,
+              outlineOffset: "2px",
+            }
+          : {}
+      }
       transition="all 0.15s"
       onClick={canDrill ? () => onDrill(child.entityId) : undefined}
-      onKeyDown={canDrill ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onDrill(child.entityId) } } : undefined}
+      onKeyDown={
+        canDrill
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onDrill(child.entityId);
+              }
+            }
+          : undefined
+      }
     >
-      <Box px={5} py={3} bg="gray.50" borderBottomWidth="1px" borderBottomColor="gray.100">
+      <Box
+        px={5}
+        py={3}
+        bg="gray.50"
+        borderBottomWidth="1px"
+        borderBottomColor="gray.100"
+      >
         <HStack justify="space-between">
           <HStack gap={2}>
             <FiMapPin fontSize="0.8rem" color={lc.color} />
@@ -55,7 +92,13 @@ export default function ChildCard({
           </HStack>
           <HStack gap={2}>
             <Text fontSize="xs" color="gray.400">
-              {child.reportedStreams}/{child.totalStreams} stations
+              {(() => {
+                const directLabel =
+                  CHILD_COUNT_LABEL[NEXT_ACTION[childLevel] ?? ""];
+                return directLabel
+                  ? `${child.totalDirectChildren} ${directLabel} · ${child.reportedStreams}/${child.totalStreams} streams`
+                  : `${child.reportedStreams}/${child.totalStreams} streams`;
+              })()}
             </Text>
             {canDrill && <FiChevronRight fontSize="0.9rem" color={lc.color} />}
           </HStack>
@@ -64,22 +107,31 @@ export default function ChildCard({
 
       <VStack gap={0} align="stretch">
         {child.candidates.slice(0, 4).map((cand, idx) => {
-          const pct = maxVotes > 0 ? (cand.votes / maxVotes) * 100 : 0
-          const isLeader = idx === 0 && cand.votes > 0
-          const candColor = colorMap.get(cand.candidateId) ?? lc.border
+          const pct = maxVotes > 0 ? (cand.votes / maxVotes) * 100 : 0;
+          const isLeader = idx === 0 && cand.votes > 0;
+          const candColor = colorMap.get(cand.candidateId) ?? lc.border;
           return (
             <Box
-              key={cand.candidateId} px={5} py={2}
+              key={cand.candidateId}
+              px={5}
+              py={2}
               bg={isLeader ? "#fafff0" : "white"}
-              borderBottomWidth="1px" borderBottomColor="gray.50"
+              borderBottomWidth="1px"
+              borderBottomColor="gray.50"
             >
               <HStack justify="space-between" mb={0.5}>
                 <HStack gap={2}>
-                  <Text fontSize="xs" fontWeight={isLeader ? "700" : "500"} color="gray.800">
+                  <Text
+                    fontSize="xs"
+                    fontWeight={isLeader ? "700" : "500"}
+                    color="gray.800"
+                  >
                     {cand.name}
                   </Text>
                   {cand.party && (
-                    <Text fontSize="2xs" color="gray.400">{cand.party}</Text>
+                    <Text fontSize="2xs" color="gray.400">
+                      {cand.party}
+                    </Text>
                   )}
                 </HStack>
                 <HStack gap={2} flexShrink={0}>
@@ -87,7 +139,12 @@ export default function ChildCard({
                     {cand.votes.toLocaleString()}
                   </Text>
                   {childTotal > 0 && (
-                    <Text fontSize="2xs" color="gray.400" w="32px" textAlign="right">
+                    <Text
+                      fontSize="2xs"
+                      color="gray.400"
+                      w="32px"
+                      textAlign="right"
+                    >
                       {((cand.votes / childTotal) * 100).toFixed(1)}%
                     </Text>
                   )}
@@ -95,13 +152,15 @@ export default function ChildCard({
               </HStack>
               <Box h="3px" bg="gray.100" borderRadius="full" overflow="hidden">
                 <Box
-                  h="full" w={`${pct}%`}
+                  h="full"
+                  w={`${pct}%`}
                   bg={candColor}
-                  borderRadius="full" transition="width 0.4s ease"
+                  borderRadius="full"
+                  transition="width 0.4s ease"
                 />
               </Box>
             </Box>
-          )
+          );
         })}
       </VStack>
 
@@ -112,8 +171,15 @@ export default function ChildCard({
           </Text>
           {child.enteredVotes && (
             <HStack gap={1.5}>
-              <Badge px={1.5} py={0.5} borderRadius="md" fontSize="2xs" fontWeight="700"
-                bg="blue.50" color="blue.700">
+              <Badge
+                px={1.5}
+                py={0.5}
+                borderRadius="md"
+                fontSize="2xs"
+                fontWeight="700"
+                bg="blue.50"
+                color="blue.700"
+              >
                 {formRef.form}
               </Badge>
               <Text fontSize="xs" fontWeight="600" color="blue.600">
@@ -128,5 +194,5 @@ export default function ChildCard({
         </HStack>
       </Box>
     </Box>
-  )
+  );
 }
