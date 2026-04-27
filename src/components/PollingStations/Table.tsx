@@ -14,6 +14,7 @@ import { PollingStation, Stream } from "@prisma/client";
 import {
   getPollingStations,
   deletePollingStation,
+  deleteStream,
   togglePollingStationActive,
   toggleStreamActive,
 } from "@/services/PollingStations";
@@ -22,7 +23,7 @@ import PollingStationForm from "./Form";
 import StreamForm from "./StreamForm";
 import FullPageLoader from "@/components/Generic/FullPageLoader";
 import StyledIconButton from "@/components/Generic/StyledIconButton";
-import { FaEdit, FaTrash } from "react-icons/fa";
+import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
 import { Switch } from "@/components/ui/switch";
 import { getStreamColumns } from "./StreamColumns";
 
@@ -37,6 +38,7 @@ const getColumns = (
   onEdit: (station: PollingStationWithStreams) => void,
   onDelete: (id: string) => void,
   onToggleActive: (id: string, isActive: boolean) => Promise<void>,
+  onAddStream: (station: PollingStationWithStreams) => void,
 ): ColumnDef<PollingStationWithStreams, any>[] => [
   columnHelper.accessor("id", {
     header: "#",
@@ -94,6 +96,13 @@ const getColumns = (
       <HStack gap={2}>
         <StyledIconButton
           variant="edit"
+          aria-label="Add stream"
+          onClick={() => onAddStream(row.original)}
+        >
+          <FaPlus />
+        </StyledIconButton>
+        <StyledIconButton
+          variant="edit"
           aria-label="Edit polling station"
           onClick={() => onEdit(row.original)}
         >
@@ -103,9 +112,7 @@ const getColumns = (
           variant="delete"
           aria-label="Delete polling station"
           onClick={() => {
-            if (
-              confirm("Are you sure you want to delete this polling station?")
-            ) {
+            if (confirm("Are you sure you want to delete this polling station?")) {
               onDelete(row.original.id);
             }
           }}
@@ -129,6 +136,7 @@ const PollingStationsTable = ({
   const [editStation, setEditStation] =
     useState<PollingStationWithStreams | null>(null);
   const [editStream, setEditStream] = useState<Stream | null>(null);
+  const [addStreamForStation, setAddStreamForStation] = useState<PollingStationWithStreams | null>(null);
 
   const { data: stations, isLoading } = useQuery({
     queryKey: ["polling-stations"],
@@ -170,15 +178,22 @@ const PollingStationsTable = ({
       await toggleStreamActive(id, isActive);
       queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
     } catch (e: any) {
-      toaster.error({
-        title: "Error updating stream status",
-        description: e.message,
-      });
+      toaster.error({ title: "Error updating stream status", description: e.message });
+    }
+  };
+
+  const handleDeleteStream = async (id: string) => {
+    try {
+      await deleteStream(id);
+      queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
+      toaster.success({ title: "Stream deleted" });
+    } catch (e: any) {
+      toaster.error({ title: "Error deleting stream", description: e.message });
     }
   };
 
   const columns = useMemo(
-    () => getColumns(handleEdit, handleDelete, handleToggleActive),
+    () => getColumns(handleEdit, handleDelete, handleToggleActive, setAddStreamForStation),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
@@ -188,6 +203,7 @@ const PollingStationsTable = ({
       getStreamColumns({
         onToggleActive: handleToggleStream,
         onEdit: setEditStream,
+        onDelete: handleDeleteStream,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -214,6 +230,15 @@ const PollingStationsTable = ({
           stream={editStream}
           onClose={() => {
             setEditStream(null);
+            queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
+          }}
+        />
+      )}
+      {addStreamForStation && (
+        <StreamForm
+          pollingStationId={addStreamForStation.id}
+          onClose={() => {
+            setAddStreamForStation(null);
             queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
           }}
         />

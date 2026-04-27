@@ -13,22 +13,25 @@ import {
   createToaster,
 } from "@chakra-ui/react";
 import { Stream } from "@prisma/client";
-import { updateStream, StreamForm as StreamFormData } from "@/services/PollingStations";
+import {
+  createStream,
+  updateStream,
+  StreamForm as StreamFormData,
+} from "@/services/PollingStations";
 
 const toaster = createToaster({ placement: "top-end" });
 
-const StreamForm = ({
-  stream,
-  onClose,
-}: {
-  stream: Stream;
-  onClose: () => void;
-}) => {
+type Props =
+  | { stream: Stream; pollingStationId?: never; onClose: () => void }
+  | { stream?: never; pollingStationId: string; onClose: () => void };
+
+const StreamForm = ({ stream, pollingStationId, onClose }: Props) => {
+  const isEdit = !!stream;
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<StreamFormData>({
-    name: stream.name,
-    code: stream.code,
-    registeredVoters: stream.registeredVoters ?? null,
+    name: stream?.name ?? "",
+    code: stream?.code ?? "",
+    registeredVoters: stream?.registeredVoters ?? null,
   });
 
   const handleChange = (field: keyof StreamFormData, value: string | number | null) => {
@@ -42,11 +45,16 @@ const StreamForm = ({
     }
     setSaving(true);
     try {
-      await updateStream(stream.id, form);
-      toaster.success({ title: "Stream updated" });
+      if (isEdit) {
+        await updateStream(stream.id, form);
+        toaster.success({ title: "Stream updated" });
+      } else {
+        await createStream(pollingStationId!, form);
+        toaster.success({ title: "Stream created" });
+      }
       onClose();
     } catch (e: any) {
-      toaster.error({ title: "Error saving stream", description: e.message });
+      toaster.error({ title: `Error ${isEdit ? "saving" : "creating"} stream`, description: e.message });
     } finally {
       setSaving(false);
     }
@@ -58,7 +66,7 @@ const StreamForm = ({
       <Dialog.Positioner>
         <Dialog.Content>
           <Dialog.Header>
-            <Dialog.Title>Edit Stream</Dialog.Title>
+            <Dialog.Title>{isEdit ? "Edit Stream" : "Add Stream"}</Dialog.Title>
             <Dialog.CloseTrigger />
           </Dialog.Header>
 
@@ -104,13 +112,8 @@ const StreamForm = ({
 
           <Dialog.Footer>
             <Flex gap={3}>
-              <Button
-                colorPalette="blue"
-                onClick={handleSave}
-                loading={saving}
-                size="sm"
-              >
-                Update
+              <Button colorPalette="blue" onClick={handleSave} loading={saving} size="sm">
+                {isEdit ? "Update" : "Create"}
               </Button>
               <Button variant="outline" onClick={onClose} size="sm">
                 Cancel

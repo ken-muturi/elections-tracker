@@ -237,109 +237,128 @@ export default function DrillDown({
         </HStack>
       )}
 
-      {/* ── Cards / Map toggle — always visible ─────────── */}
-      <HStack justify="space-between" align="center">
-        <Text fontSize="xs" color="gray.500">
-          {data.children.length} {data.levelLabel.toLowerCase()} ·{" "}
-          {data.reportedStreams}/{data.totalStreams} streams reporting
-        </Text>
-        <HStack gap={1} p={1} bg="gray.100" borderRadius="full">
-          {(["map", "cards"] as const).map((v) => (
-            <HStack
-              key={v}
-              as="button"
-              aria-pressed={view === v}
-              aria-label={v === "cards" ? "Details view" : "Map view"}
-              gap={1.5}
-              px={3}
-              py={1.5}
-              borderRadius="full"
-              bg={view === v ? "white" : "transparent"}
-              color={view === v ? "gray.800" : "gray.400"}
-              fontSize="xs"
-              fontWeight="700"
-              cursor="pointer"
-              boxShadow={view === v ? "sm" : "none"}
-              transition="all 0.15s"
-              _focus={{
-                outline: "2px solid",
-                outlineColor: "blue.500",
-                outlineOffset: "2px",
-              }}
-              onClick={() => setView(v)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setView(v);
-                }
-              }}
-            >
-              {v === "cards" ? (
-                <FiList fontSize="0.75rem" aria-hidden="true" />
-              ) : (
-                <FiMap fontSize="0.75rem" aria-hidden="true" />
-              )}
-              <Text textTransform="capitalize">
-                {v === "cards" ? "Details" : "Map"}
-              </Text>
-            </HStack>
-          ))}
+      {/* ── Card: subtitle + toggle + children/map ─────── */}
+      <Box
+        borderRadius="2xl"
+        borderWidth="1px"
+        borderColor="gray.100"
+        boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)"
+        bg="white"
+        overflow="hidden"
+      >
+        {/* Subtitle + toggle row */}
+        <HStack
+          justify="space-between"
+          align="center"
+          px={4}
+          py={3}
+          borderBottomWidth="1px"
+          borderColor="gray.100"
+        >
+          <Text fontSize="xs" color="gray.500">
+            {data.children.length} {data.levelLabel.toLowerCase()} ·{" "}
+            {data.reportedStreams}/{data.totalStreams} streams reporting
+          </Text>
+          <HStack gap={1} p={1} bg="gray.100" borderRadius="full">
+            {(["map", "cards"] as const).map((v) => (
+              <HStack
+                key={v}
+                as="button"
+                aria-pressed={view === v}
+                aria-label={v === "cards" ? "Details view" : "Map view"}
+                gap={1.5}
+                px={3}
+                py={1.5}
+                borderRadius="full"
+                bg={view === v ? "white" : "transparent"}
+                color={view === v ? "gray.800" : "gray.400"}
+                fontSize="xs"
+                fontWeight="700"
+                cursor="pointer"
+                boxShadow={view === v ? "sm" : "none"}
+                transition="all 0.15s"
+                _focus={{
+                  outline: "2px solid",
+                  outlineColor: "blue.500",
+                  outlineOffset: "2px",
+                }}
+                onClick={() => setView(v)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setView(v);
+                  }
+                }}
+              >
+                {v === "cards" ? (
+                  <FiList fontSize="0.75rem" aria-hidden="true" />
+                ) : (
+                  <FiMap fontSize="0.75rem" aria-hidden="true" />
+                )}
+                <Text textTransform="capitalize">
+                  {v === "cards" ? "Details" : "Map"}
+                </Text>
+              </HStack>
+            ))}
+          </HStack>
         </HStack>
-      </HStack>
 
-      {/* ── Children — cards or map ─────────────────────── */}
-      <Box position="relative">
-        {navMutation.isPending && <FullPageLoader />}
+        {/* ── Children — cards or map ─────────────────────── */}
+        <Box position="relative">
+          {navMutation.isPending && <FullPageLoader />}
 
-        {view === "map" ? (
-          <Box
-            opacity={navMutation.isPending ? 0.4 : 1}
-            transition="opacity 0.15s"
-            mx={{ base: -4, md: -6 }}
-          >
-            <DrillMap data={data} lc={lc} colorMap={colorMap} onDrill={drill} />
-          </Box>
-        ) : data.children.length === 0 ? (
-          <Flex
-            h="160px"
-            borderRadius="2xl"
-            bg="gray.50"
-            borderWidth="1px"
-            borderColor="gray.100"
-            align="center"
-            justify="center"
-            direction="column"
-            gap={2}
-            opacity={navMutation.isPending ? 0.4 : 1}
-          >
-            <Text fontSize="sm" color="gray.400" fontWeight="600">
-              No results reported yet for this area
-            </Text>
-            <Text fontSize="xs" color="gray.300">
-              Data will appear as polling stations submit results
-            </Text>
-          </Flex>
-        ) : (
-          <SimpleGrid
-            columns={{ base: 1, md: 2 }}
-            gap={4}
-            opacity={navMutation.isPending ? 0.4 : 1}
-            transition="opacity 0.15s"
-          >
-            {data.children.map((child) => (
-              <ChildCard
-                key={child.entityId}
-                child={child}
-                canDrill={canDrill}
+          {view === "map" ? (
+            <Box
+              opacity={navMutation.isPending ? 0.4 : 1}
+              transition="opacity 0.15s"
+            >
+              <DrillMap
+                data={data}
                 lc={lc}
                 colorMap={colorMap}
-                childLevel={NEXT_ACTION[data.level] ?? data.level}
-                positionType={data.positionType}
                 onDrill={drill}
               />
-            ))}
-          </SimpleGrid>
-        )}
+            </Box>
+          ) : data.children.length === 0 ? (
+            <Flex
+              h="160px"
+              bg="gray.50"
+              align="center"
+              justify="center"
+              direction="column"
+              gap={2}
+              opacity={navMutation.isPending ? 0.4 : 1}
+            >
+              <Text fontSize="sm" color="gray.400" fontWeight="600">
+                No results reported yet for this area
+              </Text>
+              <Text fontSize="xs" color="gray.300">
+                Data will appear as polling stations submit results
+              </Text>
+            </Flex>
+          ) : (
+            <SimpleGrid
+              columns={{ base: 1, md: 2 }}
+              gap={4}
+              p={4}
+              opacity={navMutation.isPending ? 0.4 : 1}
+              transition="opacity 0.15s"
+            >
+              {data.children.map((child) => (
+                <ChildCard
+                  key={child.entityId}
+                  child={child}
+                  canDrill={canDrill}
+                  lc={lc}
+                  colorMap={colorMap}
+                  childLevel={NEXT_ACTION[data.level] ?? data.level}
+                  positionType={data.positionType}
+                  onDrill={drill}
+                />
+              ))}
+            </SimpleGrid>
+          )}
+        </Box>
       </Box>
 
       {data.rejectedVotes > 0 && (

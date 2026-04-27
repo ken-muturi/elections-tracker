@@ -172,6 +172,33 @@ export type StreamForm = {
   registeredVoters?: number | null;
 };
 
+export const createStream = async (pollingStationId: string, data: StreamForm) => {
+  try {
+    return await prisma.stream.create({
+      data: {
+        pollingStationId,
+        name: data.name,
+        code: data.code,
+        registeredVoters: data.registeredVoters ?? null,
+      },
+    });
+  } catch (error) {
+    const message = handleReturnError(error);
+    console.error("Error creating stream:", message);
+    throw new Error(message);
+  }
+};
+
+export const deleteStream = async (id: string) => {
+  try {
+    return await prisma.stream.delete({ where: { id } });
+  } catch (error) {
+    const message = handleReturnError(error);
+    console.error("Error deleting stream:", message);
+    throw new Error(message);
+  }
+};
+
 export const updateStream = async (id: string, data: StreamForm) => {
   try {
     return await prisma.stream.update({
