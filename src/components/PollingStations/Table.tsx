@@ -209,22 +209,19 @@ const PollingStationsTable = ({
     [],
   );
 
-  if (showForm || editStation) {
-    return (
-      <PollingStationForm
-        station={editStation}
-        onClose={() => {
-          setShowForm(false);
-          setEditStation(null);
-          queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
-        }}
-      />
-    );
-  }
-
   return (
     <>
       {isLoading && <FullPageLoader />}
+      {(showForm || editStation) && (
+        <PollingStationForm
+          station={editStation}
+          onClose={() => {
+            setShowForm(false);
+            setEditStation(null);
+            queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
+          }}
+        />
+      )}
       {editStream && (
         <StreamForm
           stream={editStream}
