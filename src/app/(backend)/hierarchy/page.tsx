@@ -1,16 +1,14 @@
 import {
-  Box, Heading, Text, VStack, HStack, SimpleGrid, Flex, Badge,
+  Box, Heading, Text, VStack, HStack, SimpleGrid, Badge,
 } from "@chakra-ui/react"
-import { getPermanentHierarchy, getPermanentCounts } from "@/services/Hierarchy"
+import { getPermanentCounts, getElectionHierarchyCounts } from "@/services/Hierarchy"
 import { getElections } from "@/services/Elections"
-
-import { getElectionHierarchyCounts } from "@/services/Hierarchy"
-import { FiLayers, FiMapPin, FiMap, FiGrid } from "react-icons/fi"
+import { FiMapPin, FiMap, FiGrid } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
+import HierarchyManager from "@/components/Hierarchy/Manager"
 
 export default async function HierarchyPage() {
-  const [counties, counts, elections] = await Promise.all([
-    getPermanentHierarchy(),
+  const [counts, elections] = await Promise.all([
     getPermanentCounts(),
     getElections().catch(() => []),
   ])
@@ -120,64 +118,8 @@ export default async function HierarchyPage() {
         </Box>
       )}
 
-      {/* Counties → Constituencies tree */}
-      <Box>
-        <HStack mb={4} gap={2}>
-          <FiLayers fontSize="1.1rem" color="#798217" />
-          <Heading fontWeight="700" fontSize="lg" color="gray.800">Counties &amp; Constituencies</Heading>
-        </HStack>
-
-        {counties.length === 0 ? (
-          <Box bg="white" borderRadius="xl" p={12} textAlign="center"
-            borderWidth="2px" borderStyle="dashed" borderColor="gray.200">
-            <Flex w={16} h={16} borderRadius="2xl" bg="#eff9d1" align="center" justify="center" mx="auto" mb={4}>
-              <FiLayers fontSize="2rem" color="#798217" />
-            </Flex>
-            <Text fontWeight="700" fontSize="lg" color="gray.700" mb={1}>No counties configured</Text>
-            <Text fontSize="sm" color="gray.400">
-              Seed your database with counties and constituencies to get started.
-            </Text>
-          </Box>
-        ) : (
-          <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} gap={4}>
-            {counties.map((county) => (
-              <Box key={county.id} bg="white" borderRadius="xl" borderWidth="1px" borderColor="gray.100"
-                boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)" overflow="hidden">
-                <HStack px={5} py={3} bg="#f8fafc" borderBottomWidth="1px" borderBottomColor="gray.100"
-                  justify="space-between">
-                  <HStack gap={2}>
-                    <Flex w={8} h={8} borderRadius="lg" bg="#eff9d1" align="center" justify="center" flexShrink={0}>
-                      <FiMapPin fontSize="0.9rem" color="#798217" />
-                    </Flex>
-                    <VStack gap={0} alignItems="flex-start">
-                      <Text fontWeight="700" fontSize="sm" color="gray.900">{county.name}</Text>
-                      <Text fontSize="xs" color="gray.400">Code: {county.code}</Text>
-                    </VStack>
-                  </HStack>
-                  <Badge px={2} py={0.5} borderRadius="full" bg="#eff9d1" color="#798217"
-                    fontSize="xs" fontWeight="700">
-                    {county.constituencies.length} constituencies
-                  </Badge>
-                </HStack>
-                <VStack px={5} py={3} gap={1.5} alignItems="stretch">
-                  {county.constituencies.length === 0 ? (
-                    <Text fontSize="xs" color="gray.400" fontStyle="italic">No constituencies</Text>
-                  ) : (
-                    county.constituencies.map((c) => (
-                      <HStack key={c.id} gap={2} py={1.5} px={2} borderRadius="md"
-                        _hover={{ bg: "#f8fafc" }} transition="background 0.15s">
-                        <Box w="6px" h="6px" borderRadius="full" bg="#94a3b8" flexShrink={0} />
-                        <Text fontSize="sm" color="gray.700" flex={1}>{c.name}</Text>
-                        <Text fontSize="xs" color="gray.400">{c.code}</Text>
-                      </HStack>
-                    ))
-                  )}
-                </VStack>
-              </Box>
-            ))}
-          </SimpleGrid>
-        )}
-      </Box>
+      {/* CRUD management for Counties, Constituencies, Wards */}
+      <HierarchyManager elections={elections.map((e) => ({ id: e.id, title: e.title, year: e.year }))} />
     </VStack>
   )
 }

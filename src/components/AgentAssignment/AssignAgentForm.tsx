@@ -23,7 +23,9 @@ export default function AssignAgentForm({ onAssigned }: Props) {
   const [electionId, setElectionId] = useState("")
   const [streamSearch, setStreamSearch] = useState("")
   const [selectedStreamId, setSelectedStreamId] = useState("")
+  const [streamFocused, setStreamFocused] = useState(false)
   const [agentSearch, setAgentSearch] = useState("")
+  const [agentFocused, setAgentFocused] = useState(false)
   const [selectedAgentId, setSelectedAgentId] = useState("")
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState("")
@@ -63,7 +65,7 @@ export default function AssignAgentForm({ onAssigned }: Props) {
 
   const filteredStreams = streamSearch
     ? streamOptions.filter((s) => s.label.toLowerCase().includes(streamSearch.toLowerCase()))
-    : streamOptions.slice(0, 50) // cap for performance
+    : streamOptions.slice(0, 50)
 
   const filteredUsers = (rawUsers as Array<{ id: string; firstname: string; othernames: string; email: string }>)
     .filter((u) => {
@@ -211,11 +213,13 @@ export default function AssignAgentForm({ onAssigned }: Props) {
                 placeholder={electionId ? (streamsLoading ? "Loading streams…" : "Search streams…") : "Select election first"}
                 value={streamSearch}
                 onChange={(e) => setStreamSearch(e.target.value)}
+                onFocus={() => setStreamFocused(true)}
+                onBlur={() => setTimeout(() => setStreamFocused(false), 150)}
                 size="sm"
                 borderRadius="lg"
                 disabled={!electionId || streamsLoading}
               />
-              {electionId && streamSearch && filteredStreams.length > 0 && (
+              {electionId && streamFocused && filteredStreams.length > 0 && (
                 <Box
                   position="absolute"
                   top="calc(100% + 4px)"
@@ -245,7 +249,7 @@ export default function AssignAgentForm({ onAssigned }: Props) {
                   ))}
                 </Box>
               )}
-              {electionId && streamSearch && filteredStreams.length === 0 && !streamsLoading && (
+              {electionId && streamFocused && filteredStreams.length === 0 && !streamsLoading && (
                 <Box
                   position="absolute"
                   top="calc(100% + 4px)"
@@ -303,10 +307,12 @@ export default function AssignAgentForm({ onAssigned }: Props) {
                 placeholder="Search agents by name or email…"
                 value={agentSearch}
                 onChange={(e) => setAgentSearch(e.target.value)}
+                onFocus={() => setAgentFocused(true)}
+                onBlur={() => setTimeout(() => setAgentFocused(false), 150)}
                 size="sm"
                 borderRadius="lg"
               />
-              {agentSearch && filteredUsers.length > 0 && (
+              {agentFocused && filteredUsers.length > 0 && (
                 <Box
                   position="absolute"
                   top="calc(100% + 4px)"

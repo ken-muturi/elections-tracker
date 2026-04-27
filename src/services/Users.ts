@@ -92,14 +92,17 @@ export async function createUser(
       throw new Error("DEFAULT_USER_PASSWORD environment variable is not set.");
     return await prisma.user.create({
       data: {
-        ...data,
-        roleId: data.roleId || 'cmfb95om00002vimw0z2lg6me',
-        password: hashSync(defaultPassword, salt),
-        email: data.email.toLowerCase() || "",
+        email: data.email.toLowerCase(),
+        firstname: data.firstname,
+        othernames: data.othernames,
+        gender: data.gender,
+        phone: data.phone,
         image: data.image || "",
-        createdAt: new Date(),
+        roleId: data.roleId || 'cmfb95om00002vimw0z2lg6me',
+        partyId: data.partyId || null,
+        password: hashSync(defaultPassword, salt),
         dateOfBirth: '',
-        nationalId:"",
+        nationalId: `UID-${Date.now()}`,
         nextOfKin: "",
         nextOfKinContacts: "",
       },

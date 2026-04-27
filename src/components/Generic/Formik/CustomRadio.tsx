@@ -30,7 +30,7 @@ const CustomRadio: FC<FieldHookConfig<string> & IFormikFieldProps> = ({
   description,
   ...props
 }) => {
-  const [field, meta] = useField(props);
+  const [field, meta, helpers] = useField(props);
   const [showHelper, setShowHelper] = useState(false);
 
   return (
@@ -72,10 +72,9 @@ const CustomRadio: FC<FieldHookConfig<string> & IFormikFieldProps> = ({
         value={field.value?.toString()?.toLowerCase()}
         onValueChange={(details) => {
           const newValue = details.value;
-          field.onChange({ target: { name: field.name, value: newValue } });
-          if (handleChange) {
-            handleChange(newValue);
-          }
+          helpers.setValue(newValue);
+          helpers.setTouched(true);
+          if (handleChange) handleChange(newValue);
         }}
       >
         {stack === "row" ? (

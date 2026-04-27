@@ -344,6 +344,18 @@ export const getStreamsByElection = async (electionId: string) => {
   }
 };
 
+export const removeAgentAssignment = async (id: string) => {
+  try {
+    await requireAdmin()
+    return await prisma.agentStream.update({
+      where: { id },
+      data: { isActive: false },
+    })
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
 export const getAgentStreams = async (electionId: string, agentId: string) => {
   try {
     return await prisma.agentStream.findMany({

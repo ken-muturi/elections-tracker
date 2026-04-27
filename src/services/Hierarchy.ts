@@ -147,6 +147,54 @@ export const getPermanentHierarchy = async () => {
 
 // ─── Write hierarchy ───────────────────────────────────────────────────────
 
+export const updateCounty = async (id: string, name: string, code: string) => {
+  try {
+    return await prisma.county.update({ where: { id }, data: { name, code: code.toUpperCase() } })
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+export const deleteCounty = async (id: string) => {
+  try {
+    return await prisma.county.delete({ where: { id } })
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+export const updateConstituency = async (id: string, name: string, code: string) => {
+  try {
+    return await prisma.constituency.update({ where: { id }, data: { name, code: code.toUpperCase() } })
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+export const deleteConstituency = async (id: string) => {
+  try {
+    return await prisma.constituency.delete({ where: { id } })
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+export const updateWard = async (id: string, name: string, code: string) => {
+  try {
+    return await prisma.ward.update({ where: { id }, data: { name, code: code.toUpperCase() } })
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+export const deleteWard = async (id: string) => {
+  try {
+    return await prisma.ward.delete({ where: { id } })
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
 export const createCounty = async (name: string, code: string) => {
   try {
     return await prisma.county.create({ data: { name, code: code.toUpperCase() } })
