@@ -1,5 +1,7 @@
+"use client"
+
+import { useState, useCallback, cloneElement, isValidElement, ReactNode } from "react";
 import { CloseButton, Dialog } from "@chakra-ui/react";
-import { ReactNode, cloneElement, isValidElement } from "react";
 
 interface IModalProps {
   title?: string;
@@ -12,30 +14,29 @@ interface IModalProps {
 }
 
 const CustomModal = (props: IModalProps) => {
-  const {
-    children,
-    title = "",
-    mainContent,
-    size = "lg",
-    open,
-    vh,
-    onOpenChange,
-  } = props;
+  const { children, title = "", mainContent, size = "lg", open: controlledOpen, vh, onOpenChange } = props;
 
-  // Inject onClose into mainContent if it's a React element
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+
+  const handleOpenChange = useCallback((next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  }, [isControlled, onOpenChange]);
+
+  // Inject onClose so forms can close the dialog programmatically after save
   const enhancedMainContent = isValidElement(mainContent)
     ? cloneElement(
         mainContent as React.ReactElement<{ onClose?: () => void }>,
-        {
-          onClose: () => onOpenChange?.(false),
-        }
+        { onClose: () => handleOpenChange(false) }
       )
     : mainContent;
 
   return (
     <Dialog.Root
       open={open}
-      onOpenChange={(details) => onOpenChange?.(details.open)}
+      onOpenChange={(details) => handleOpenChange(details.open)}
       size={size}
       scrollBehavior="inside"
     >
@@ -46,11 +47,9 @@ const CustomModal = (props: IModalProps) => {
           <Dialog.CloseTrigger asChild>
             <CloseButton size="sm" />
           </Dialog.CloseTrigger>
-          {/* {title && ( */}
           <Dialog.Header>
             <Dialog.Title>{title}</Dialog.Title>
           </Dialog.Header>
-          {/* )} */}
           <Dialog.Body>{enhancedMainContent}</Dialog.Body>
         </Dialog.Content>
       </Dialog.Positioner>

@@ -163,9 +163,12 @@ export const deleteCounty = async (id: string) => {
   }
 }
 
-export const updateConstituency = async (id: string, name: string, code: string) => {
+export const updateConstituency = async (id: string, name: string, code: string, countyId?: string) => {
   try {
-    return await prisma.constituency.update({ where: { id }, data: { name, code: code.toUpperCase() } })
+    return await prisma.constituency.update({
+      where: { id },
+      data: { name, code: code.toUpperCase(), ...(countyId ? { countyId } : {}) },
+    })
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
@@ -179,9 +182,12 @@ export const deleteConstituency = async (id: string) => {
   }
 }
 
-export const updateWard = async (id: string, name: string, code: string) => {
+export const updateWard = async (id: string, name: string, code: string, constituencyId?: string) => {
   try {
-    return await prisma.ward.update({ where: { id }, data: { name, code: code.toUpperCase() } })
+    return await prisma.ward.update({
+      where: { id },
+      data: { name, code: code.toUpperCase(), ...(constituencyId ? { constituencyId } : {}) },
+    })
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
