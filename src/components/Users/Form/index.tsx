@@ -27,12 +27,14 @@ import { createUser, updateUser } from "@/services/Users";
 import { useQuery } from "@tanstack/react-query";
 import { getParties } from "@/services/Parties";
 import { useQueryClient } from "@tanstack/react-query";
-// import { uploadFile } from "@/utils/s3"; // TODO: Implement S3 upload utility
+import { uploadFile } from "@/utils/s3";
 import FilePreview from "@/components/Generic/Dropzone/FilePreview";
 import Dropzone from "@/components/Generic/Dropzone";
 import FullPageLoader from "@/components/Generic/FullPageLoader";
 import { dictionary } from "../dictionary";
 import { useUX } from "@/context/UXContext";
+import CustomDatePicker from "@/components/Generic/Formik/CustomDatePicker";
+import CustomInputPassword from "@/components/Generic/Formik/CustomInputPassword";
 
 const initialData: UserForm = {
   id: "",
@@ -59,13 +61,7 @@ const schema = Yup.object({
   image: Yup.string(),
 });
 
-const Form = ({
-  user,
-  roles,
-}: {
-  user?: UserWithRelations;
-  roles: Role[];
-}) => {
+const Form = ({ user, roles }: { user?: UserWithRelations; roles: Role[] }) => {
   const toaster = createToaster({
     placement: "top-end",
   });
@@ -74,7 +70,7 @@ const Form = ({
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | undefined>();
   const [isSavings, setIsSaving] = useState(false);
-  const { data: organizations = [], isLoading: orgsLoading } = useQuery({
+  const { data: parties = [], isLoading: prtsLoading } = useQuery({
     queryKey: ["parties"],
     queryFn: getParties,
   });
@@ -88,6 +84,8 @@ const Form = ({
         firstname: user.firstname,
         othernames: user.othernames,
         gender: user.gender,
+        password: user.password || "",
+        passwordConfirm: user.password || "",
         phone: user.phone,
         alternatePhone: user.alternatePhone,
         roleId: user.roleId,
@@ -104,11 +102,11 @@ const Form = ({
         id: values.id || "",
         image: values.image || "",
       } as UserForm;
+      let fileUrl = null;
       if (file) {
-        // TODO: Implement file upload functionality
-        // const fileUrl = await uploadFile(file);
+        fileUrl = await uploadFile(file);
+        apiData.image = fileUrl;
         console.log("File upload not implemented yet:", file.name);
-        // apiData.image = fileUrl;
       }
       console.log({ apiData });
       if (user) {
@@ -123,8 +121,10 @@ const Form = ({
       toaster.success({
         title: translate(dictionary.success),
         description: translate(dictionary.saveSuccess),
+        type: "success",
+        duration: 5000,
+        closable: true,
       });
-      
       queryClient.refetchQueries({
         queryKey: ["users"],
       });
@@ -132,14 +132,13 @@ const Form = ({
     } catch (e) {
       console.log({ e });
       const message = handleReturnError(e);
-      
       toaster.error({
         title: translate(dictionary.error),
         description: translate(dictionary.saveError),
       });
-      
+
       console.error("Error saving user:", message);
-      
+
       setIsSaving(false);
     }
   };
@@ -186,9 +185,9 @@ const Form = ({
                 name="partyId"
                 required
                 options={
-                  orgsLoading
+                  prtsLoading
                     ? []
-                    : organizations.map((o) => ({ value: o.id, label: o.name }))
+                    : parties.map((p) => ({ value: p.id, label: p.name }))
                 }
               />
               <CustomInput
@@ -196,6 +195,18 @@ const Form = ({
                 required
                 type="text"
                 label="Email"
+                variant="filled"
+              />
+              <CustomInputPassword
+                name="password"
+                type="password"
+                label={translate(dictionary.password)}
+                variant="filled"
+              />
+              <CustomInputPassword
+                name="passwordConfirm"
+                type="password"
+                label={translate(dictionary.passwordConfirm)}
                 variant="filled"
               />
               <Box>

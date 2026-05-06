@@ -2,7 +2,7 @@
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { Text, HStack, Box, Tooltip } from "@chakra-ui/react";
 import { UserDetail } from "../type";
-// import PhotoModal from "@/components/Generic/PhotoModal"; // TODO: Implement PhotoModal component
+import PhotoModal from "@/components/Generic/PhotoModel";
 const columnHelper = createColumnHelper<UserDetail>();
 import { ucwords } from "@/utils/util";
 import Actions from "./Actions";
@@ -16,7 +16,7 @@ type UserColumnProps = {
       | TranslationText
       | PartialTranslation
       | PartialTranslation[]
-      | undefined
+      | undefined,
   ) => string;
 };
 const Columns = ({
@@ -24,38 +24,29 @@ const Columns = ({
   translate,
 }: UserColumnProps): ColumnDef<UserDetail, any>[] => {
   return [
-    // columnHelper.accessor("id", {
-    //   header: "#",
-    //   cell: ({ row }) => row.index + 1,
-    //   enableGrouping: false,
-    //   enableSorting: false,
-    //   enableHiding: false,
-    //   enableColumnFilter: false,
-    //   size: 50,
-    // }),
-    columnHelper.accessor("fullnames", {
-      header: translate(dictionary.photo),
+    columnHelper.accessor("id", {
+      header: "#",
+      cell: (cell) => cell.row.index + 1,
       enableGrouping: false,
       enableSorting: false,
       enableHiding: false,
       enableColumnFilter: false,
       size: 50,
-      cell: ({ row }) => (
-        <HStack gap={2} alignItems="center" py={1}>
-          <Box
-            w="40px"
-            h="40px"
-            bg="gray.200"
-            rounded="md"
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-          >
-            {/* TODO: Replace with PhotoModal component */}
-            {row.original.image ? "IMG" : "?"}
-          </Box>
-          <Text>{row.original.fullnames}</Text>
-        </HStack>
+    }),
+    columnHelper.accessor("fullnames", {
+      header: translate(dictionary.fullnames),
+    }),
+    columnHelper.accessor("image", {
+      header: "Photo",
+      enableColumnFilter: false,
+      enableSorting: false,
+      enableHiding: false,
+      enableGrouping: false,
+      cell: (cell) => (
+        <PhotoModal
+          image={cell.row.original.image}
+          title={`${cell.row.original.firstname} ${cell.row.original.othernames}`}
+        />
       ),
     }),
     columnHelper.accessor("role", {
@@ -75,20 +66,6 @@ const Columns = ({
     columnHelper.accessor("alternatePhone", {
       header: translate(dictionary.alternatePhone),
     }),
-
-    // columnHelper.accessor("dateOfBirth", {
-    //   header: translate(dictionary.dateOfBirth),
-    //   cell: (cell) => {
-    //     const d = cell.getValue();
-    //     return <Box>{new Date(d).toLocaleDateString()}</Box>;
-    //   },
-    // }),
-    // columnHelper.accessor("nationalId", {
-    //   header: translate(dictionary.nationalId),
-    // }),
-    // columnHelper.accessor("address", {
-    //   header: translate(dictionary.address),
-    // }),
     columnHelper.accessor("email", {
       header: translate(dictionary.email),
       cell: (cell) => {

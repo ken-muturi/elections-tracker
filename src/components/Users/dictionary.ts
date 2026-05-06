@@ -43,6 +43,18 @@ export const dictionary: Record<string, PartialTranslation[]> = {
     { body: { language: "es", text: "Teléfono alternativo" } },
     { body: { language: "ar", text: "الهاتف البديل" } },
   ],
+  password: [
+    { body: { language: "en", text: "Password" } },
+    { body: { language: "fr", text: "Mot de passe" } },
+    { body: { language: "es", text: "Contraseña" } },
+    { body: { language: "ar", text: "كلمة المرور" } },
+  ],
+  passwordConfirm: [
+    { body: { language: "en", text: "Confirm Password" } },
+    { body: { language: "fr", text: "Confirmer le mot de passe" } },
+    { body: { language: "es", text: "Confirmar contraseña" } },
+    { body: { language: "ar", text: "تأكيد كلمة المرور" } },
+  ],
   dateOfBirth: [
     { body: { language: "en", text: "Date of Birth" } },
     { body: { language: "fr", text: "Date de naissance" } },
