@@ -249,7 +249,11 @@ export default function ElectionHierarchyManager({
         const constituency = constituencies.find((c) => c.id === f.constituencyId)!
         let targetWard: WardData
         if (f.wardId === "__new__") {
-          const created = await createWard(electionId, f.constituencyId, f.wardName.trim(), f.wardCode.trim())
+          const created = await createWard(
+            f.constituencyId,
+            f.wardName.trim(),
+            f.wardCode.trim(),
+          );
           targetWard = {
             id: created.id, name: created.name, code: created.code,
             constituencyId: created.constituencyId,
@@ -261,14 +265,18 @@ export default function ElectionHierarchyManager({
         } else {
           targetWard = wards.find((w) => w.id === f.wardId)!
         }
-        const station = await createPollingStation(targetWard.id, {
-          name: f.stationName.trim(),
-          code: f.stationCode.trim(),
-          county: constituency.county.name,
-          constituency: constituency.name,
-          ward: targetWard.name,
-          registeredVoters: f.voters ? Number(f.voters) : undefined,
-        })
+        const station = await createPollingStation(
+          targetWard.id,
+          {
+            name: f.stationName.trim(),
+            code: f.stationCode.trim(),
+            county: constituency.county.name,
+            constituency: constituency.name,
+            ward: targetWard.name,
+            registeredVoters: f.voters ? Number(f.voters) : undefined,
+          },
+          electionId,
+        );
         // Create inline streams sequentially
         const createdStreams: StreamData[] = []
         for (const s of addTopStreams) {
@@ -332,14 +340,18 @@ export default function ElectionHierarchyManager({
     const ward = wards.find((w) => w.id === wardId)!
     startTransition(async () => {
       try {
-        const station = await createPollingStation(wardId, {
-          name: values.name.trim(),
-          code: values.code.trim(),
-          county: ward.constituency.county.name,
-          constituency: ward.constituency.name,
-          ward: ward.name,
-          registeredVoters: values.voters ? Number(values.voters) : undefined,
-        })
+        const station = await createPollingStation(
+          wardId,
+          {
+            name: values.name.trim(),
+            code: values.code.trim(),
+            county: ward.constituency.county.name,
+            constituency: ward.constituency.name,
+            ward: ward.name,
+            registeredVoters: values.voters ? Number(values.voters) : undefined,
+          },
+          electionId,
+        );
         const newStation: StationData = {
           id: station.id,
           name: station.name,

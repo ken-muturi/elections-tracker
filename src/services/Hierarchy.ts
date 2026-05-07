@@ -42,13 +42,21 @@ export const getAllConstituencies = async () => {
 export const getWardsByElection = async (electionId: string) => {
   try {
     return await prisma.ward.findMany({
-      where: { electionId },
+      where: {
+        pollingStations: {
+          some: {
+            electionActivations: { some: { electionId, isActive: true } },
+          },
+        },
+      },
       orderBy: { name: "asc" },
       include: {
-        constituency: { select: { name: true, county: { select: { name: true } } } },
+        constituency: {
+          select: { name: true, county: { select: { name: true } } },
+        },
         _count: { select: { pollingStations: true } },
       },
-    })
+    });
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
@@ -57,10 +65,30 @@ export const getWardsByElection = async (electionId: string) => {
 /** Wards for a specific constituency within a specific election */
 export const getWardsByConstituencyAndElection = async (constituencyId: string, electionId: string) => {
   try {
+    const activations = await prisma.electionPollingStation.findMany({
+      where: { electionId, isActive: true },
+      select: {
+        pollingStation: {
+          select: {
+            wardId: true,
+            wardRef: { select: { constituencyId: true } },
+          },
+        },
+      },
+    });
+    const wardIds = [
+      ...new Set(
+        activations
+          .filter(
+            (a) => a.pollingStation.wardRef.constituencyId === constituencyId,
+          )
+          .map((a) => a.pollingStation.wardId),
+      ),
+    ];
     return await prisma.ward.findMany({
-      where: { constituencyId, electionId },
+      where: { id: { in: wardIds } },
       orderBy: { name: "asc" },
-    })
+    });
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
@@ -113,20 +141,93 @@ export const getStreamById = async (id: string) => {
 /** Full election hierarchy: Ward → PollingStation → Stream for one election */
 export const getElectionHierarchy = async (electionId: string) => {
   try {
-    return await prisma.ward.findMany({
-      where: { electionId },
-      orderBy: { name: "asc" },
-      include: {
-        constituency: { select: { name: true, county: { select: { name: true } } } },
-        pollingStations: {
-          where: { deletedAt: null },
-          orderBy: { name: "asc" },
-          include: {
-            streams: { where: { isActive: true }, orderBy: { code: "asc" } },
+    const activations = await prisma.electionPollingStation.findMany({
+      where: { electionId, isActive: true },
+      select: {
+        pollingStation: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            county: true,
+            constituency: true,
+            ward: true,
+            registeredVoters: true,
+            isActive: true,
+            deletedAt: true,
+            streams: {
+              where: { isActive: true },
+              orderBy: { code: "asc" },
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                registeredVoters: true,
+                isActive: true,
+                pollingStationId: true,
+              },
+            },
+            wardRef: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                constituencyId: true,
+                constituency: {
+                  select: {
+                    id: true,
+                    name: true,
+                    county: { select: { id: true, name: true } },
+                  },
+                },
+              },
+            },
           },
         },
       },
-    })
+    });
+
+    // Group active stations by ward
+    const wardMap = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        code: string;
+        constituencyId: string;
+        constituency: {
+          id: string;
+          name: string;
+          county: { id: string; name: string };
+        };
+        pollingStations: (typeof activations)[number]["pollingStation"][];
+      }
+    >();
+
+    for (const { pollingStation: ps } of activations) {
+      if (ps.deletedAt) continue;
+      const w = ps.wardRef;
+      if (!wardMap.has(w.id)) {
+        wardMap.set(w.id, {
+          id: w.id,
+          name: w.name,
+          code: w.code,
+          constituencyId: w.constituencyId,
+          constituency: w.constituency,
+          pollingStations: [],
+        });
+      }
+      wardMap.get(w.id)!.pollingStations.push(ps);
+    }
+
+    return Array.from(wardMap.values())
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((w) => ({
+        ...w,
+        pollingStations: [...w.pollingStations].sort((a, b) =>
+          a.name.localeCompare(b.name),
+        ),
+      }));
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
@@ -219,40 +320,62 @@ export const createConstituency = async (countyId: string, name: string, code: s
 }
 
 export const createWard = async (
-  electionId: string,
   constituencyId: string,
   name: string,
-  code: string
+  code: string,
 ) => {
   try {
     return await prisma.ward.create({
-      data: { electionId, constituencyId, name, code: code.toUpperCase() },
-    })
+      data: { constituencyId, name, code: code.toUpperCase() },
+    });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 export const createPollingStation = async (
   wardId: string,
   data: {
-    name: string
-    code: string
-    county: string
-    constituency: string
-    ward: string
-    registeredVoters?: number
-  }
+    name: string;
+    code: string;
+    county: string;
+    constituency: string;
+    ward: string;
+    registeredVoters?: number;
+  },
+  electionId?: string,
 ) => {
   try {
-    const user = await getCurrentUser()
-    return await prisma.pollingStation.create({
-      data: { wardId, ...data, createdBy: user.id },
-    })
+    const user = await getCurrentUser();
+    // Upsert the master record — station may already exist from a previous election
+    const station = await prisma.pollingStation.upsert({
+      where: { wardId_code: { wardId, code: data.code } },
+      create: { wardId, ...data, createdBy: user.id },
+      update: {
+        name: data.name,
+        registeredVoters: data.registeredVoters ?? null,
+        county: data.county,
+        constituency: data.constituency,
+        ward: data.ward,
+      },
+    });
+    if (electionId) {
+      await prisma.electionPollingStation.upsert({
+        where: {
+          electionId_pollingStationId: {
+            electionId,
+            pollingStationId: station.id,
+          },
+        },
+        create: { electionId, pollingStationId: station.id, isActive: true },
+        update: { isActive: true },
+      });
+    }
+    return station;
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 export const createStream = async (
   pollingStationId: string,
@@ -272,13 +395,20 @@ export const createStream = async (
 /** Hierarchy counts for a specific election */
 export const getElectionHierarchyCounts = async (electionId: string) => {
   try {
-    const wards = await prisma.ward.count({ where: { electionId } })
-    const stations = await prisma.pollingStation.count({
-      where: { wardRef: { electionId }, deletedAt: null },
-    })
+    const activations = await prisma.electionPollingStation.findMany({
+      where: { electionId, isActive: true },
+      select: {
+        pollingStationId: true,
+        pollingStation: { select: { wardId: true, deletedAt: true } },
+      },
+    });
+    const active = activations.filter((a) => !a.pollingStation.deletedAt);
+    const wards = new Set(active.map((a) => a.pollingStation.wardId)).size;
+    const stations = active.length;
+    const stationIds = active.map((a) => a.pollingStationId);
     const streams = await prisma.stream.count({
-      where: { pollingStation: { wardRef: { electionId } }, isActive: true },
-    })
+      where: { pollingStationId: { in: stationIds }, isActive: true },
+    });
     return { wards, stations, streams }
   } catch (error) {
     throw new Error(handleReturnError(error))
@@ -302,234 +432,238 @@ export const getPermanentCounts = async () => {
 export const getElectionCountyNames = async (electionId: string) => {
   try {
     const result = await prisma.pollingStation.findMany({
-      where: { wardRef: { electionId }, deletedAt: null },
+      where: {
+        electionActivations: { some: { electionId, isActive: true } },
+        deletedAt: null,
+      },
       select: { county: true },
       distinct: ["county"],
       orderBy: { county: "asc" },
-    })
+    });
     return result.map((r) => r.county)
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
 }
 
-/** Preview how many records would be imported from source → target election */
+/** Preview how many records would be activated from source → target election */
 export const previewPollingStationsImport = async (
   targetElectionId: string,
   sourceElectionId: string,
   options?: { countyNames?: string[]; wardNames?: string[] }
 ) => {
   try {
-    let wardWhere: Record<string, unknown> = { electionId: sourceElectionId }
-
-    if (options?.wardNames?.length) {
-      wardWhere = { ...wardWhere, name: { in: options.wardNames } }
-    }
-
-    let sourceWards = await prisma.ward.findMany({
-      where: wardWhere,
-      include: {
-        constituency: { select: { name: true, county: { select: { name: true } } } },
-        pollingStations: {
-          where: { deletedAt: null },
-          orderBy: { name: "asc" },
-          include: { streams: { select: { id: true, name: true, code: true }, orderBy: { code: "asc" } } },
+    // Load all source activations with full geographic context
+    const sourceActivations = await prisma.electionPollingStation.findMany({
+      where: { electionId: sourceElectionId, isActive: true },
+      select: {
+        pollingStationId: true,
+        pollingStation: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            deletedAt: true,
+            wardId: true,
+            streams: {
+              select: { name: true, code: true },
+              orderBy: { code: "asc" },
+            },
+            wardRef: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                constituency: {
+                  select: { name: true, county: { select: { name: true } } },
+                },
+              },
+            },
+          },
         },
       },
-      orderBy: { name: "asc" },
-    })
+      orderBy: { pollingStation: { name: "asc" } },
+    });
 
+    // Apply filters and skip deleted master records
+    let filtered = sourceActivations.filter((a) => !a.pollingStation.deletedAt);
     if (options?.countyNames?.length) {
-      sourceWards = sourceWards.filter((w) =>
-        options.countyNames!.includes(w.constituency.county.name)
-      )
+      filtered = filtered.filter((a) =>
+        options.countyNames!.includes(
+          a.pollingStation.wardRef.constituency.county.name,
+        ),
+      );
+    }
+    if (options?.wardNames?.length) {
+      filtered = filtered.filter((a) =>
+        options.wardNames!.includes(a.pollingStation.wardRef.name),
+      );
     }
 
-    const existingWardCodes = new Set(
-      (await prisma.ward.findMany({ where: { electionId: targetElectionId }, select: { code: true } })).map(
-        (w) => w.code
-      )
-    )
-
-    let wards = 0, stations = 0, streams = 0
-
-    type PreviewStream = { name: string; code: string }
-    type PreviewStation = { name: string; code: string; streams: PreviewStream[] }
-    type PreviewWard = {
-      name: string; code: string; isNew: boolean
-      countyName: string; constituencyName: string
-      pollingStations: PreviewStation[]
-    }
-    const detail: PreviewWard[] = []
-
-    // Pre-load existing station codes for all target wards in one query
-    const existingStationCodes = new Set(
-      (await prisma.pollingStation.findMany({
-        where: { wardRef: { electionId: targetElectionId }, deletedAt: null },
-        select: { code: true },
-      })).map((s) => s.code)
-    )
-
-    for (const w of sourceWards) {
-      const wardExists = existingWardCodes.has(w.code)
-      if (!wardExists) wards++
-      const stationDetails: PreviewStation[] = []
-      for (const s of w.pollingStations) {
-        const stationIsNew = !existingStationCodes.has(s.code)
-        if (stationIsNew) stations++
-        streams += s.streams.length
-        stationDetails.push({
-          name: s.name,
-          code: s.code,
-          streams: s.streams.map((st) => ({ name: st.name, code: st.code })),
+    // Find which stations are already activated in target election
+    const targetActivationIds = new Set(
+      (
+        await prisma.electionPollingStation.findMany({
+          where: { electionId: targetElectionId },
+          select: { pollingStationId: true },
         })
+      ).map((a) => a.pollingStationId),
+    );
+
+    // Find which wards already have activated stations in the target election
+    const targetWardIds = new Set(
+      (
+        await prisma.electionPollingStation.findMany({
+          where: { electionId: targetElectionId, isActive: true },
+          select: { pollingStation: { select: { wardId: true } } },
+        })
+      ).map((a) => a.pollingStation.wardId),
+    );
+
+    type PreviewStream = { name: string; code: string };
+    type PreviewStation = {
+      name: string;
+      code: string;
+      streams: PreviewStream[];
+    };
+    type PreviewWard = {
+      name: string;
+      code: string;
+      isNew: boolean;
+      countyName: string;
+      constituencyName: string;
+      pollingStations: PreviewStation[];
+    };
+
+    const wardDetailMap = new Map<string, PreviewWard>();
+    let stationsToAdd = 0,
+      streamsToAdd = 0,
+      wardsToAdd = 0;
+
+    for (const { pollingStationId, pollingStation: ps } of filtered) {
+      const ward = ps.wardRef;
+      const isNewStation = !targetActivationIds.has(pollingStationId);
+      if (isNewStation) {
+        stationsToAdd++;
+        streamsToAdd += ps.streams.length;
       }
-      detail.push({
-        name: w.name,
-        code: w.code,
-        isNew: !wardExists,
-        countyName: w.constituency.county.name,
-        constituencyName: w.constituency.name,
-        pollingStations: stationDetails,
-      })
+      if (!wardDetailMap.has(ward.id)) {
+        const isNewWard = !targetWardIds.has(ward.id);
+        if (isNewWard) wardsToAdd++;
+        wardDetailMap.set(ward.id, {
+          name: ward.name,
+          code: ward.code,
+          isNew: isNewWard,
+          countyName: ward.constituency.county.name,
+          constituencyName: ward.constituency.name,
+          pollingStations: [],
+        });
+      }
+      wardDetailMap.get(ward.id)!.pollingStations.push({
+        name: ps.name,
+        code: ps.code,
+        streams: ps.streams.map((s) => ({ name: s.name, code: s.code })),
+      });
     }
-    return { wards, stations, streams, totalWards: sourceWards.length, detail }
+
+    const detail = Array.from(wardDetailMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+    return {
+      wards: wardsToAdd,
+      stations: stationsToAdd,
+      streams: streamsToAdd,
+      totalWards: wardDetailMap.size,
+      detail,
+    };
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
 }
-
-/** Copy wards → polling stations → streams from source election to target election (skips duplicates).
- *  Runs entirely inside a single serialisable transaction — all-or-nothing. */
+/** Activate polling stations from a source election into a target election.
+ *  Ward/PollingStation/Stream are master records — only ElectionPollingStation junction rows are created. */
 export const importPollingStationsFromElection = async (
   targetElectionId: string,
   sourceElectionId: string,
   options?: { countyNames?: string[]; wardNames?: string[] }
 ) => {
   try {
-    await requireAdmin()
-    const user = await getCurrentUser()
+    await requireAdmin();
 
     if (!targetElectionId?.trim()) throw new Error("Target election ID is required.")
     if (!sourceElectionId?.trim()) throw new Error("Source election ID is required.")
     if (targetElectionId === sourceElectionId) throw new Error("Source and target elections must be different.")
 
-    // ── 1. Load source wards (all columns needed for copy) ──────────────────
-    let wardWhere: Record<string, unknown> = { electionId: sourceElectionId }
-    if (options?.wardNames?.length) wardWhere = { ...wardWhere, name: { in: options.wardNames } }
-
-    let sourceWards = await prisma.ward.findMany({
-      where: wardWhere,
+    const sourceActivations = await prisma.electionPollingStation.findMany({
+      where: { electionId: sourceElectionId, isActive: true },
       select: {
-        id: true, name: true, code: true, constituencyId: true,
-        constituency: { select: { name: true, county: { select: { name: true } } } },
-        pollingStations: {
-          where: { deletedAt: null },
+        pollingStationId: true,
+        pollingStation: {
           select: {
-            id: true, name: true, code: true, county: true, constituency: true, ward: true, registeredVoters: true,
-            streams: { select: { name: true, code: true, registeredVoters: true } },
+            deletedAt: true,
+            wardId: true,
+            wardRef: {
+              select: {
+                name: true,
+                constituency: {
+                  select: { county: { select: { name: true } } },
+                },
+              },
+            },
           },
         },
       },
-    })
+    });
 
+    let filtered = sourceActivations.filter((a) => !a.pollingStation.deletedAt);
     if (options?.countyNames?.length) {
-      sourceWards = sourceWards.filter((w) => options.countyNames!.includes(w.constituency.county.name))
+      filtered = filtered.filter((a) =>
+        options.countyNames!.includes(
+          a.pollingStation.wardRef.constituency.county.name,
+        ),
+      );
+    }
+    if (options?.wardNames?.length) {
+      filtered = filtered.filter((a) =>
+        options.wardNames!.includes(a.pollingStation.wardRef.name),
+      );
+    }
+    if (filtered.length === 0)
+      throw new Error(
+        "No polling stations found matching the selected criteria.",
+      );
+
+    const existingTargetIds = new Set(
+      (
+        await prisma.electionPollingStation.findMany({
+          where: { electionId: targetElectionId },
+          select: { pollingStationId: true },
+        })
+      ).map((a) => a.pollingStationId),
+    );
+    const toActivate = filtered.filter(
+      (a) => !existingTargetIds.has(a.pollingStationId),
+    );
+
+    if (toActivate.length > 0) {
+      await prisma.electionPollingStation.createMany({
+        data: toActivate.map((a) => ({
+          electionId: targetElectionId,
+          pollingStationId: a.pollingStationId,
+          isActive: true,
+        })),
+        skipDuplicates: true,
+      });
     }
 
-    if (sourceWards.length === 0) throw new Error("No wards found matching the selected criteria.")
-
-    // ── 2. Bulk-load all existing target wards & stations in 2 queries ──────
-    const [existingTargetWards, existingTargetStations] = await Promise.all([
-      prisma.ward.findMany({
-        where: { electionId: targetElectionId },
-        select: { id: true, code: true },
-      }),
-      prisma.pollingStation.findMany({
-        where: { wardRef: { electionId: targetElectionId }, deletedAt: null },
-        select: { id: true, code: true, wardId: true },
-      }),
-    ])
-    const existingWardByCode = new Map(existingTargetWards.map((w) => [w.code, w.id]))
-    // Map: "wardId:stationCode" → stationId
-    const existingStationKey = (wardId: string, code: string) => `${wardId}:${code}`
-    const existingStationByKey = new Map(
-      existingTargetStations.map((s) => [existingStationKey(s.wardId, s.code), s.id])
-    )
-
-    // ── 3. Everything inside one transaction ─────────────────────────────────
-    const result = await prisma.$transaction(async (tx) => {
-      let wardsCreated = 0, stationsCreated = 0, streamsCreated = 0
-
-      for (const sourceWard of sourceWards) {
-        // Ward: create only if not already present
-        let targetWardId = existingWardByCode.get(sourceWard.code)
-        if (!targetWardId) {
-          const newWard = await tx.ward.create({
-            data: { electionId: targetElectionId, constituencyId: sourceWard.constituencyId, name: sourceWard.name, code: sourceWard.code },
-            select: { id: true },
-          })
-          targetWardId = newWard.id
-          existingWardByCode.set(sourceWard.code, targetWardId)
-          wardsCreated++
-        }
-
-        // Stations: identify new vs existing up-front
-        const newStations = sourceWard.pollingStations.filter(
-          (s) => !existingStationByKey.has(existingStationKey(targetWardId!, s.code))
-        )
-
-        if (newStations.length > 0) {
-          // createMany for all new stations in this ward at once
-          await tx.pollingStation.createMany({
-            data: newStations.map((s) => ({
-              wardId: targetWardId!,
-              name: s.name, code: s.code,
-              county: s.county, constituency: s.constituency, ward: s.ward,
-              registeredVoters: s.registeredVoters,
-              createdBy: user.id,
-            })),
-          })
-          stationsCreated += newStations.length
-        }
-
-        // Bulk-fetch station IDs for this ward (new + pre-existing) to attach streams
-        const stationsInWard = await tx.pollingStation.findMany({
-          where: { wardId: targetWardId, code: { in: sourceWard.pollingStations.map((s) => s.code) } },
-          select: { id: true, code: true },
-        })
-        const stationIdByCode = new Map(stationsInWard.map((s) => [s.code, s.id]))
-
-        // Bulk-load existing stream codes for all stations in this ward in one query
-        const allStationIds = stationsInWard.map((s) => s.id)
-        const existingStreams = await tx.stream.findMany({
-          where: { pollingStationId: { in: allStationIds } },
-          select: { pollingStationId: true, code: true },
-        })
-        const existingStreamKey = (psId: string, code: string) => `${psId}:${code}`
-        const existingStreamSet = new Set(existingStreams.map((s) => existingStreamKey(s.pollingStationId, s.code)))
-
-        // Build all new streams across all stations in this ward, then createMany once
-        const newStreamData: { pollingStationId: string; name: string; code: string; registeredVoters?: number | null }[] = []
-        for (const sourceStation of sourceWard.pollingStations) {
-          const targetStationId = stationIdByCode.get(sourceStation.code)
-          if (!targetStationId) continue
-          for (const stream of sourceStation.streams) {
-            if (!existingStreamSet.has(existingStreamKey(targetStationId, stream.code))) {
-              newStreamData.push({ pollingStationId: targetStationId, name: stream.name, code: stream.code, registeredVoters: stream.registeredVoters })
-            }
-          }
-        }
-        if (newStreamData.length > 0) {
-          await tx.stream.createMany({ data: newStreamData })
-          streamsCreated += newStreamData.length
-        }
-      }
-
-      return { wardsCreated, stationsCreated, streamsCreated }
-    }, { timeout: 30_000 })
-
-    return result
+    const activatedWardIds = new Set(
+      toActivate.map((a) => a.pollingStation.wardId),
+    );
+    return {
+      wardsCreated: activatedWardIds.size,
+      stationsCreated: toActivate.length,
+      streamsCreated: 0,
+    };
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
@@ -542,8 +676,9 @@ export type CsvRow = {
 }
 
 /** Import polling stations from validated CSV rows.
- *  Phase 1: full validation pass — collects ALL errors, rejects entire import if any fail.
- *  Phase 2: single transaction with createMany at each level. */
+ *  Phase 1: full validation pass — collects ALL errors.
+ *  Phase 2: find-or-create master Ward/PollingStation/Stream records.
+ *  Phase 3: activate stations for this election via ElectionPollingStation junction. */
 export const importPollingStationsFromCsv = async (
   targetElectionId: string,
   rows: CsvRow[]
@@ -552,7 +687,6 @@ export const importPollingStationsFromCsv = async (
     await requireAdmin()
     const user = await getCurrentUser()
 
-    // ── Phase 1: validate every row before touching the DB ──────────────────
     if (!Array.isArray(rows) || rows.length === 0) throw new Error("No rows provided.")
     if (!targetElectionId?.trim()) throw new Error("Target election ID is required.")
 
@@ -560,64 +694,63 @@ export const importPollingStationsFromCsv = async (
     const REQUIRED = ["ward_name", "ward_code", "constituency_name", "station_name", "station_code"] as const
 
     for (let i = 0; i < rows.length; i++) {
-      const r = rows[i]
-      // Reject non-object rows (guard against injected data)
+      const r = rows[i];
       if (!r || typeof r !== "object") { validationErrors.push(`Row ${i + 1}: invalid data.`); continue }
       const empty = REQUIRED.filter((f) => !r[f]?.trim())
       if (empty.length) validationErrors.push(`Row ${i + 1}: missing required fields: ${empty.join(", ")}.`)
-      // Guard string lengths to match schema VarChar limits
-      if (r.ward_name?.length > 100)   validationErrors.push(`Row ${i + 1}: ward_name exceeds 100 characters.`)
-      if (r.ward_code?.length > 20)    validationErrors.push(`Row ${i + 1}: ward_code exceeds 20 characters.`)
+      if (r.ward_name?.length > 100)
+        validationErrors.push(
+          `Row ${i + 1}: ward_name exceeds 100 characters.`,
+        );
+      if (r.ward_code?.length > 20)
+        validationErrors.push(`Row ${i + 1}: ward_code exceeds 20 characters.`);
       if (r.station_name?.length > 200) validationErrors.push(`Row ${i + 1}: station_name exceeds 200 characters.`)
-      if (r.station_code?.length > 50) validationErrors.push(`Row ${i + 1}: station_code exceeds 50 characters.`)
+      if (r.station_code?.length > 50)
+        validationErrors.push(
+          `Row ${i + 1}: station_code exceeds 50 characters.`,
+        );
       if (r.stream_code && r.stream_code.length > 20)  validationErrors.push(`Row ${i + 1}: stream_code exceeds 20 characters.`)
-      if (r.stream_name && r.stream_name.length > 100) validationErrors.push(`Row ${i + 1}: stream_name exceeds 100 characters.`)
-      // stream_code without stream_name is fine (we fall back to code); reverse is not useful but allowed
+      if (r.stream_name && r.stream_name.length > 100)
+        validationErrors.push(
+          `Row ${i + 1}: stream_name exceeds 100 characters.`,
+        );
     }
     if (validationErrors.length > 0) {
       throw new Error(`Validation failed with ${validationErrors.length} error(s):\n${validationErrors.join("\n")}`)
     }
 
-    // ── Phase 2: bulk pre-load all reference data in parallel ───────────────
-    const uniqueConstituencyNames = [...new Set(rows.map((r) => r.constituency_name.trim().toLowerCase()))]
-    const uniqueWardCodes = [...new Set(rows.map((r) => r.ward_code.trim()))]
+    const uniqueConstituencyNames = [
+      ...new Set(rows.map((r) => r.constituency_name.trim().toLowerCase())),
+    ];
 
-    const [allConstituencies, existingTargetWards, existingTargetStations] = await Promise.all([
+    const [allConstituencies, existingActivations] = await Promise.all([
       prisma.constituency.findMany({
         select: { id: true, name: true, county: { select: { name: true } } },
       }),
-      prisma.ward.findMany({
+      prisma.electionPollingStation.findMany({
         where: { electionId: targetElectionId },
-        select: { id: true, code: true, constituency: { select: { name: true, county: { select: { name: true } } } } },
+        select: { pollingStationId: true },
       }),
-      prisma.pollingStation.findMany({
-        where: { wardRef: { electionId: targetElectionId }, deletedAt: null },
-        select: { id: true, code: true, wardId: true },
-      }),
-    ])
+    ]);
 
-    const constituencyByName = new Map(allConstituencies.map((c) => [c.name.toLowerCase().trim(), c]))
-
-    // Validate that all constituency names in the CSV actually exist in DB
+    const constituencyByName = new Map(
+      allConstituencies.map((c) => [c.name.toLowerCase().trim(), c]),
+    );
     const unknownConstituencies = uniqueConstituencyNames.filter((n) => !constituencyByName.has(n))
     if (unknownConstituencies.length > 0) {
       throw new Error(
-        `Unknown constituencies (not found in DB): ${unknownConstituencies.map((n) => `"${n}"`).join(", ")}. ` +
-        `Check spelling or add them first.`
-      )
+        `Unknown constituencies: ${unknownConstituencies.map((n) => `"${n}"`).join(", ")}. Check spelling or add them first.`,
+      );
     }
 
-    const existingWardByCode = new Map(existingTargetWards.map((w) => [w.code, w]))
-    const existingStationKey = (wardId: string, code: string) => `${wardId}:${code}`
-    const existingStationByKey = new Map(
-      existingTargetStations.map((s) => [existingStationKey(s.wardId, s.code), s.id])
-    )
+    const alreadyActivatedIds = new Set(
+      existingActivations.map((a) => a.pollingStationId),
+    );
 
-    // ── Phase 3: transaction — wards → stations → streams via createMany ────
     const importResult = await prisma.$transaction(async (tx) => {
       let wardsCreated = 0, stationsCreated = 0, streamsCreated = 0
+      const newActivations: string[] = [];
 
-      // Group rows by ward_code
       const wardGroups = new Map<string, CsvRow[]>()
       for (const row of rows) {
         const wc = row.ward_code.trim()
@@ -625,102 +758,93 @@ export const importPollingStationsFromCsv = async (
         wardGroups.get(wc)!.push(row)
       }
 
-      // Create all missing wards in one createMany call
-      const wardsToCreate = [...wardGroups.entries()]
-        .filter(([code]) => !existingWardByCode.has(code))
-        .map(([code, wardRows]) => {
-          const r = wardRows[0]
-          const constituency = constituencyByName.get(r.constituency_name.trim().toLowerCase())!
-          return { electionId: targetElectionId, name: r.ward_name.trim(), code, constituencyId: constituency.id }
-        })
-
-      if (wardsToCreate.length > 0) {
-        await tx.ward.createMany({ data: wardsToCreate })
-        wardsCreated = wardsToCreate.length
-      }
-
-      // Bulk-fetch ALL wards for target election (includes just-created ones)
-      const allTargetWards = await tx.ward.findMany({
-        where: { electionId: targetElectionId, code: { in: uniqueWardCodes } },
-        select: { id: true, code: true, constituency: { select: { name: true, county: { select: { name: true } } } } },
-      })
-      const wardById = new Map(allTargetWards.map((w) => [w.code, w]))
-
-      // Build list of stations to create (filter duplicates)
-      const stationsToCreate: {
-        wardId: string; name: string; code: string
-        county: string; constituency: string; ward: string; createdBy: string
-      }[] = []
-
       for (const [wardCode, wardRows] of wardGroups) {
-        const ward = wardById.get(wardCode)!
-        const countyName = ward.constituency.county.name
-        const constituencyName = ward.constituency.name
-        const seenStationCodes = new Set<string>()
+        const firstRow = wardRows[0];
+        const constituency = constituencyByName.get(
+          firstRow.constituency_name.trim().toLowerCase(),
+        )!;
 
+        let ward = await tx.ward.findUnique({
+          where: {
+            constituencyId_code: {
+              constituencyId: constituency.id,
+              code: wardCode,
+            },
+          },
+        });
+        if (!ward) {
+          ward = await tx.ward.create({
+            data: {
+              constituencyId: constituency.id,
+              name: firstRow.ward_name.trim(),
+              code: wardCode,
+            },
+          });
+          wardsCreated++;
+        }
+
+        const stationGroups = new Map<string, CsvRow[]>();
         for (const row of wardRows) {
-          const sc = row.station_code.trim()
-          if (existingStationByKey.has(existingStationKey(ward.id, sc))) continue
-          if (seenStationCodes.has(sc)) continue // deduplicate within same CSV
-          seenStationCodes.add(sc)
-          stationsToCreate.push({
-            wardId: ward.id, name: row.station_name.trim(), code: sc,
-            county: countyName, constituency: constituencyName, ward: row.ward_name.trim(),
-            createdBy: user.id,
-          })
+          const sc = row.station_code.trim();
+          if (!stationGroups.has(sc)) stationGroups.set(sc, []);
+          stationGroups.get(sc)!.push(row);
+        }
+
+        for (const [stationCode, stationRows] of stationGroups) {
+          const firstStationRow = stationRows[0];
+          let station = await tx.pollingStation.findUnique({
+            where: { wardId_code: { wardId: ward.id, code: stationCode } },
+          });
+          if (!station) {
+            station = await tx.pollingStation.create({
+              data: {
+                wardId: ward.id,
+                name: firstStationRow.station_name.trim(),
+                code: stationCode,
+                county: constituency.county.name,
+                constituency: constituency.name,
+                ward: ward.name,
+                createdBy: user.id,
+              },
+            });
+            stationsCreated++;
+          }
+          if (!alreadyActivatedIds.has(station.id))
+            newActivations.push(station.id);
+
+          for (const row of stationRows) {
+            if (!row.stream_code?.trim()) continue;
+            const existingStream = await tx.stream.findUnique({
+              where: {
+                pollingStationId_code: {
+                  pollingStationId: station.id,
+                  code: row.stream_code.trim(),
+                },
+              },
+            });
+            if (!existingStream) {
+              await tx.stream.create({
+                data: {
+                  pollingStationId: station.id,
+                  name: row.stream_name?.trim() || row.stream_code.trim(),
+                  code: row.stream_code.trim(),
+                },
+              });
+              streamsCreated++;
+            }
+          }
         }
       }
 
-      if (stationsToCreate.length > 0) {
-        await tx.pollingStation.createMany({ data: stationsToCreate })
-        stationsCreated = stationsToCreate.length
-      }
-
-      // Bulk-fetch ALL station IDs for these wards (new + pre-existing)
-      const allWardIds = allTargetWards.map((w) => w.id)
-      const allStationsInWards = await tx.pollingStation.findMany({
-        where: { wardId: { in: allWardIds }, deletedAt: null },
-        select: { id: true, code: true, wardId: true },
-      })
-      // Map: "wardId:stationCode" → stationId
-      const stationIdByKey = new Map(
-        allStationsInWards.map((s) => [existingStationKey(s.wardId, s.code), s.id])
-      )
-
-      // Bulk-fetch existing streams for all stations in one query
-      const allStationIds = allStationsInWards.map((s) => s.id)
-      const existingStreams = allStationIds.length > 0
-        ? await tx.stream.findMany({
-            where: { pollingStationId: { in: allStationIds } },
-            select: { pollingStationId: true, code: true },
-          })
-        : []
-      const existingStreamKey = (psId: string, code: string) => `${psId}:${code}`
-      const existingStreamSet = new Set(existingStreams.map((s) => existingStreamKey(s.pollingStationId, s.code)))
-
-      // Build all streams to create across all rows in one pass
-      const streamsToCreate: { pollingStationId: string; name: string; code: string }[] = []
-      const seenStreamKeys = new Set<string>()
-
-      for (const row of rows) {
-        if (!row.stream_code?.trim()) continue
-        const ward = wardById.get(row.ward_code.trim())
-        if (!ward) continue
-        const stationId = stationIdByKey.get(existingStationKey(ward.id, row.station_code.trim()))
-        if (!stationId) continue
-        const sk = existingStreamKey(stationId, row.stream_code.trim())
-        if (existingStreamSet.has(sk) || seenStreamKeys.has(sk)) continue
-        seenStreamKeys.add(sk)
-        streamsToCreate.push({
-          pollingStationId: stationId,
-          name: row.stream_name?.trim() || row.stream_code.trim(),
-          code: row.stream_code.trim(),
-        })
-      }
-
-      if (streamsToCreate.length > 0) {
-        await tx.stream.createMany({ data: streamsToCreate })
-        streamsCreated = streamsToCreate.length
+      if (newActivations.length > 0) {
+        await tx.electionPollingStation.createMany({
+          data: newActivations.map((psId) => ({
+            electionId: targetElectionId,
+            pollingStationId: psId,
+            isActive: true,
+          })),
+          skipDuplicates: true,
+        });
       }
 
       return { wardsCreated, stationsCreated, streamsCreated }

@@ -100,7 +100,10 @@ const PollingStationForm = ({
         await updatePollingStation(station.id, form);
         toaster.success({ title: "Polling station updated" });
       } else {
-        await createPollingStation(form);
+        await createPollingStation({
+          ...form,
+          electionId: selectedElectionId || undefined,
+        });
         toaster.success({ title: "Polling station created" });
       }
       onClose();
@@ -124,34 +127,51 @@ const PollingStationForm = ({
   });
 
   return (
-    <Dialog.Root open onOpenChange={(d) => { if (!d.open) onClose(); }} size="lg">
+    <Dialog.Root
+      open
+      onOpenChange={(d) => {
+        if (!d.open) onClose();
+      }}
+      size="lg"
+    >
       <Dialog.Backdrop />
       <Dialog.Positioner>
         <Dialog.Content>
           <Dialog.Header>
-            <Dialog.Title>{isEdit ? "Edit Polling Station" : "Add Polling Station"}</Dialog.Title>
+            <Dialog.Title>
+              {isEdit ? "Edit Polling Station" : "Add Polling Station"}
+            </Dialog.Title>
             <Dialog.CloseTrigger />
           </Dialog.Header>
 
           <Dialog.Body>
             <VStack gap={4} alignItems="stretch">
-
               {/* Election + Ward — new stations only */}
               {!isEdit && (
                 <SimpleGrid columns={2} gap={4}>
                   <Box>
-                    <Text fontSize="sm" fontWeight="500" mb={1}>Election *</Text>
+                    <Text fontSize="sm" fontWeight="500" mb={1}>
+                      Election *
+                    </Text>
                     <select
                       value={selectedElectionId}
                       onChange={(e) => {
                         setSelectedElectionId(e.target.value);
-                        setForm((prev) => ({ ...prev, wardId: "", ward: "", constituency: "", county: "" }));
+                        setForm((prev) => ({
+                          ...prev,
+                          wardId: "",
+                          ward: "",
+                          constituency: "",
+                          county: "",
+                        }));
                       }}
                       style={selectStyle(!!selectedElectionId)}
                     >
                       <option value="">Select election…</option>
                       {elections.map((e) => (
-                        <option key={e.id} value={e.id}>{e.title} ({e.year})</option>
+                        <option key={e.id} value={e.id}>
+                          {e.title} ({e.year})
+                        </option>
                       ))}
                     </select>
                   </Box>
@@ -164,13 +184,22 @@ const PollingStationForm = ({
                       value={form.wardId}
                       onChange={(e) => handleWardSelect(e.target.value)}
                       disabled={!selectedElectionId || wardsLoading}
-                      style={selectStyle(!!form.wardId, !selectedElectionId || wardsLoading)}
+                      style={selectStyle(
+                        !!form.wardId,
+                        !selectedElectionId || wardsLoading,
+                      )}
                     >
                       <option value="">
-                        {selectedElectionId ? (wardsLoading ? "Loading…" : "Select ward…") : "Select election first"}
+                        {selectedElectionId
+                          ? wardsLoading
+                            ? "Loading…"
+                            : "Select ward…"
+                          : "Select election first"}
                       </option>
                       {wards.map((w) => (
-                        <option key={w.id} value={w.id}>{w.name} ({w.code})</option>
+                        <option key={w.id} value={w.id}>
+                          {w.name} ({w.code})
+                        </option>
                       ))}
                     </select>
                   </Box>
@@ -179,14 +208,26 @@ const PollingStationForm = ({
 
               <SimpleGrid columns={2} gap={4}>
                 <Box>
-                  <Text fontSize="sm" fontWeight="500" mb={1}>Station Code *</Text>
-                  <Input placeholder="e.g. PS001" value={form.code}
-                    onChange={(e) => handleChange("code", e.target.value)} size="sm" />
+                  <Text fontSize="sm" fontWeight="500" mb={1}>
+                    Station Code *
+                  </Text>
+                  <Input
+                    placeholder="e.g. PS001"
+                    value={form.code}
+                    onChange={(e) => handleChange("code", e.target.value)}
+                    size="sm"
+                  />
                 </Box>
                 <Box>
-                  <Text fontSize="sm" fontWeight="500" mb={1}>Station Name *</Text>
-                  <Input placeholder="e.g. Kenyatta Primary School" value={form.name}
-                    onChange={(e) => handleChange("name", e.target.value)} size="sm" />
+                  <Text fontSize="sm" fontWeight="500" mb={1}>
+                    Station Name *
+                  </Text>
+                  <Input
+                    placeholder="e.g. Kenyatta Primary School"
+                    value={form.name}
+                    onChange={(e) => handleChange("name", e.target.value)}
+                    size="sm"
+                  />
                 </Box>
               </SimpleGrid>
 
@@ -194,37 +235,68 @@ const PollingStationForm = ({
                 <Box>
                   <Text fontSize="sm" fontWeight="500" mb={1}>
                     County *{" "}
-                    {!isEdit && form.county && <Text as="span" fontSize="xs" color="gray.400">(auto-filled)</Text>}
+                    {!isEdit && form.county && (
+                      <Text as="span" fontSize="xs" color="gray.400">
+                        (auto-filled)
+                      </Text>
+                    )}
                   </Text>
-                  <Input placeholder="e.g. Nairobi" value={form.county}
-                    onChange={(e) => handleChange("county", e.target.value)} size="sm" />
+                  <Input
+                    placeholder="e.g. Nairobi"
+                    value={form.county}
+                    onChange={(e) => handleChange("county", e.target.value)}
+                    size="sm"
+                  />
                 </Box>
                 <Box>
                   <Text fontSize="sm" fontWeight="500" mb={1}>
                     Constituency *{" "}
-                    {!isEdit && form.constituency && <Text as="span" fontSize="xs" color="gray.400">(auto-filled)</Text>}
+                    {!isEdit && form.constituency && (
+                      <Text as="span" fontSize="xs" color="gray.400">
+                        (auto-filled)
+                      </Text>
+                    )}
                   </Text>
-                  <Input placeholder="e.g. Westlands" value={form.constituency}
-                    onChange={(e) => handleChange("constituency", e.target.value)} size="sm" />
+                  <Input
+                    placeholder="e.g. Westlands"
+                    value={form.constituency}
+                    onChange={(e) =>
+                      handleChange("constituency", e.target.value)
+                    }
+                    size="sm"
+                  />
                 </Box>
                 <Box>
                   <Text fontSize="sm" fontWeight="500" mb={1}>
                     Ward Name *{" "}
-                    {!isEdit && form.ward && <Text as="span" fontSize="xs" color="gray.400">(auto-filled)</Text>}
+                    {!isEdit && form.ward && (
+                      <Text as="span" fontSize="xs" color="gray.400">
+                        (auto-filled)
+                      </Text>
+                    )}
                   </Text>
-                  <Input placeholder="e.g. Parklands" value={form.ward}
-                    onChange={(e) => handleChange("ward", e.target.value)} size="sm" />
+                  <Input
+                    placeholder="e.g. Parklands"
+                    value={form.ward}
+                    onChange={(e) => handleChange("ward", e.target.value)}
+                    size="sm"
+                  />
                 </Box>
               </SimpleGrid>
 
               <Box w="200px">
-                <Text fontSize="sm" fontWeight="500" mb={1}>Registered Voters</Text>
+                <Text fontSize="sm" fontWeight="500" mb={1}>
+                  Registered Voters
+                </Text>
                 <Input
                   type="number"
                   placeholder="e.g. 5000"
                   value={form.registeredVoters ?? ""}
                   onChange={(e) =>
-                    handleChange("registeredVoters", e.target.value ? parseInt(e.target.value) : null)
+                    handleChange(
+                      "registeredVoters",
+                      e.target.value ? parseInt(e.target.value) : null,
+                    )
                   }
                   size="sm"
                 />
@@ -234,10 +306,18 @@ const PollingStationForm = ({
 
           <Dialog.Footer>
             <Flex gap={3}>
-              <Button colorPalette="blue" onClick={handleSave} loading={saving} size="sm">
+              <Button
+                colorPalette="blue"
+                onClick={handleSave}
+                loading={saving}
+                disabled={!isEdit && !selectedElectionId}
+                size="sm"
+              >
                 {isEdit ? "Update" : "Create"}
               </Button>
-              <Button variant="outline" onClick={onClose} size="sm">Cancel</Button>
+              <Button variant="outline" onClick={onClose} size="sm">
+                Cancel
+              </Button>
             </Flex>
           </Dialog.Footer>
         </Dialog.Content>

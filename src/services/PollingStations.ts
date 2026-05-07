@@ -6,15 +6,16 @@ import { handleReturnError } from "@/db/error-handling"
 import { getCurrentUser } from "./UserSessison"
 
 export type PollingStationForm = {
-  id?: string
-  wardId: string
-  name: string
-  code: string
-  county: string
-  constituency: string
-  ward: string
-  registeredVoters?: number | null
-}
+  id?: string;
+  wardId: string;
+  name: string;
+  code: string;
+  county: string;
+  constituency: string;
+  ward: string;
+  registeredVoters?: number | null;
+  electionId?: string;
+};
 
 export const getPollingStations = async (
   whereClause?: Record<string, any>
@@ -48,9 +49,11 @@ export const getPollingStationById = async (id: string) => {
 
 export const createPollingStation = async (data: PollingStationForm) => {
   try {
-    const user = await getCurrentUser()
-    return await prisma.pollingStation.create({
-      data: {
+    const user = await getCurrentUser();
+    // Upsert master record — station may already exist from a previous election
+    const station = await prisma.pollingStation.upsert({
+      where: { wardId_code: { wardId: data.wardId, code: data.code } },
+      create: {
         wardId: data.wardId,
         name: data.name,
         code: data.code,
@@ -60,7 +63,31 @@ export const createPollingStation = async (data: PollingStationForm) => {
         registeredVoters: data.registeredVoters ?? null,
         createdBy: user.id,
       },
-    })
+      update: {
+        name: data.name,
+        registeredVoters: data.registeredVoters ?? null,
+        county: data.county,
+        constituency: data.constituency,
+        ward: data.ward,
+      },
+    });
+    if (data.electionId) {
+      await prisma.electionPollingStation.upsert({
+        where: {
+          electionId_pollingStationId: {
+            electionId: data.electionId,
+            pollingStationId: station.id,
+          },
+        },
+        create: {
+          electionId: data.electionId,
+          pollingStationId: station.id,
+          isActive: true,
+        },
+        update: { isActive: true },
+      });
+    }
+    return station;
   } catch (error) {
     const message = handleReturnError(error)
     console.error("Error creating polling station:", message)
@@ -162,6 +189,24 @@ export const togglePollingStationActive = async (
   } catch (error) {
     const message = handleReturnError(error);
     console.error("Error toggling polling station active status:", message);
+    throw new Error(message);
+  }
+};
+
+/** Toggle a polling station's active status for a specific election (junction-level). */
+export const toggleElectionPollingStationActive = async (
+  electionId: string,
+  pollingStationId: string,
+  isActive: boolean,
+) => {
+  try {
+    return await prisma.electionPollingStation.update({
+      where: { electionId_pollingStationId: { electionId, pollingStationId } },
+      data: { isActive },
+    });
+  } catch (error) {
+    const message = handleReturnError(error);
+    console.error("Error toggling election polling station active status:", message);
     throw new Error(message);
   }
 };

@@ -156,41 +156,49 @@ export async function getDrillDownNational(
 ): Promise<DrillDownResult> {
   try {
     // All lightweight metadata in parallel
-    const [position, candidates, counties] = await Promise.all([
-      prisma.electionPosition.findUniqueOrThrow({
-        where: { id: positionId },
-        select: { id: true, title: true, type: true, aggregationLevel: true },
-      }),
-      getCandidatesForPosition(positionId),
-      prisma.county.findMany({
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          code: true,
-          constituencies: {
-            select: {
-              id: true,
-              wards: { where: { electionId }, select: { id: true } },
+    const [position, candidates, electionActivations, counties] =
+      await Promise.all([
+        prisma.electionPosition.findUniqueOrThrow({
+          where: { id: positionId },
+          select: { id: true, title: true, type: true, aggregationLevel: true },
+        }),
+        getCandidatesForPosition(positionId),
+        prisma.electionPollingStation.findMany({
+          where: { electionId, isActive: true },
+          select: {
+            pollingStation: {
+              select: {
+                wardId: true,
+                wardRef: {
+                  select: {
+                    constituencyId: true,
+                    constituency: { select: { countyId: true } },
+                  },
+                },
+              },
             },
           },
-        },
-      }),
-    ]);
+        }),
+        prisma.county.findMany({
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            constituencies: { select: { id: true } },
+          },
+        }),
+      ]);
+
+    // Build ward → county lookup from junction activations
+    const wardToCounty = new Map<string, string>();
+    for (const { pollingStation: ps } of electionActivations) {
+      wardToCounty.set(ps.wardId, ps.wardRef.constituency.countyId);
+    }
+    const activeCountyIds = new Set(wardToCounty.values());
 
     // Only counties that participate in this election
-    const activeCounties = counties.filter((c) =>
-      c.constituencies.some((con) => con.wards.length > 0),
-    );
-    // ward → county lookup
-    const wardToCounty = new Map<string, string>();
-    for (const county of activeCounties) {
-      for (const con of county.constituencies) {
-        for (const w of con.wards) {
-          wardToCounty.set(w.id, county.id);
-        }
-      }
-    }
+    const activeCounties = counties.filter((c) => activeCountyIds.has(c.id));
     const allWardIds = Array.from(wardToCounty.keys());
 
     // Heavy queries in parallel — all use indexes
@@ -368,36 +376,51 @@ export async function getDrillDownCounty(
   countyId: string,
 ): Promise<DrillDownResult> {
   try {
-    const [position, candidates, county, constituencies] = await Promise.all([
-      prisma.electionPosition.findUniqueOrThrow({
-        where: { id: positionId },
-        select: { id: true, title: true, type: true, aggregationLevel: true },
-      }),
-      getCandidatesForPosition(positionId),
-      prisma.county.findUniqueOrThrow({
-        where: { id: countyId },
-        select: { id: true, name: true },
-      }),
-      prisma.constituency.findMany({
-        where: { countyId },
-        orderBy: { name: "asc" },
-        select: {
-          id: true,
-          name: true,
-          code: true,
-          wards: { where: { electionId }, select: { id: true } },
-        },
-      }),
-    ]);
+    const [position, candidates, county, electionActivations, constituencies] =
+      await Promise.all([
+        prisma.electionPosition.findUniqueOrThrow({
+          where: { id: positionId },
+          select: { id: true, title: true, type: true, aggregationLevel: true },
+        }),
+        getCandidatesForPosition(positionId),
+        prisma.county.findUniqueOrThrow({
+          where: { id: countyId },
+          select: { id: true, name: true },
+        }),
+        prisma.electionPollingStation.findMany({
+          where: { electionId, isActive: true },
+          select: {
+            pollingStation: {
+              select: {
+                wardId: true,
+                wardRef: {
+                  select: {
+                    constituencyId: true,
+                    constituency: { select: { countyId: true } },
+                  },
+                },
+              },
+            },
+          },
+        }),
+        prisma.constituency.findMany({
+          where: { countyId },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, code: true },
+        }),
+      ]);
 
-    const activeConstituencies = constituencies.filter(
-      (c) => c.wards.length > 0,
-    );
-    // ward → constituency lookup
+    // Build ward → constituency lookup (only wards active in this election, in this county)
     const wardToConstituency = new Map<string, string>();
-    for (const con of activeConstituencies) {
-      for (const w of con.wards) wardToConstituency.set(w.id, con.id);
+    for (const { pollingStation: ps } of electionActivations) {
+      if (ps.wardRef.constituency.countyId === countyId) {
+        wardToConstituency.set(ps.wardId, ps.wardRef.constituencyId);
+      }
     }
+    const activeConstituencyIds = new Set(wardToConstituency.values());
+    const activeConstituencies = constituencies.filter((c) =>
+      activeConstituencyIds.has(c.id),
+    );
     const allWardIds = Array.from(wardToConstituency.keys());
 
     const [streamResults, voteRows, streamCountGroups, stationWardRows] =
@@ -579,11 +602,46 @@ export async function getDrillDownConstituency(
         where: { id: constituencyId },
         include: { county: { select: { id: true, name: true } } },
       }),
-      prisma.ward.findMany({
-        where: { constituencyId, electionId },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, code: true },
-      }),
+      prisma.electionPollingStation
+        .findMany({
+          where: { electionId, isActive: true },
+          select: {
+            pollingStation: {
+              select: {
+                wardId: true,
+                wardRef: {
+                  select: {
+                    constituencyId: true,
+                    id: true,
+                    name: true,
+                    code: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+        .then((activations) => {
+          const wardSet = new Map<
+            string,
+            { id: string; name: string; code: string }
+          >();
+          for (const { pollingStation: ps } of activations) {
+            if (
+              ps.wardRef.constituencyId === constituencyId &&
+              !wardSet.has(ps.wardId)
+            ) {
+              wardSet.set(ps.wardId, {
+                id: ps.wardRef.id,
+                name: ps.wardRef.name,
+                code: ps.wardRef.code,
+              });
+            }
+          }
+          return Array.from(wardSet.values()).sort((a, b) =>
+            a.name.localeCompare(b.name),
+          );
+        }),
     ]);
 
     const wardIds = wards.map((w) => w.id);

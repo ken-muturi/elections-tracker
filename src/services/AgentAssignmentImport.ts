@@ -30,72 +30,78 @@ export const importAgentAssignments = async (
   rows: ImportRow[]
 ): Promise<ImportResult> => {
   try {
-    const user = await getCurrentUser()
-    
+    const user = await getCurrentUser();
+
     // Authorization check
-    const role = (user.role ?? "").toLowerCase()
-    const isAdmin = role === "admin" || role === "super admin"
+    const role = (user.role ?? "").toLowerCase();
+    const isAdmin = role === "admin" || role === "super admin";
     if (!isAdmin) {
-      throw new Error("Only administrators can import agent assignments.")
+      throw new Error("Only administrators can import agent assignments.");
     }
 
     // Verify election exists
     const election = await prisma.election.findUnique({
       where: { id: electionId },
-    })
+    });
     if (!election) {
-      throw new Error("Election not found.")
+      throw new Error("Election not found.");
     }
 
-    let imported = 0
-    let skipped = 0
-    const errors: ImportResult["errors"] = []
+    let imported = 0;
+    let skipped = 0;
+    const errors: ImportResult["errors"] = [];
+
+    // Prefetch all station IDs activated for this election to avoid N+1 DB round-trips
+    const activatedStationIds = new Set(
+      (
+        await prisma.electionPollingStation.findMany({
+          where: { electionId },
+          select: { pollingStationId: true },
+        })
+      ).map((a) => a.pollingStationId),
+    );
 
     for (let i = 0; i < rows.length; i++) {
-      const row = rows[i]
-      const rowNum = i + 1
+      const row = rows[i];
+      const rowNum = i + 1;
 
       try {
         // Find agent by email
         const agent = await prisma.user.findUnique({
           where: { email: row.agentEmail.trim().toLowerCase() },
-        })
+        });
         if (!agent) {
           errors.push({
             row: rowNum,
             email: row.agentEmail,
             streamCode: row.streamCode,
             error: `Agent not found with email: ${row.agentEmail}`,
-          })
-          skipped++
-          continue
+          });
+          skipped++;
+          continue;
         }
 
         // Find stream by code (and optionally polling station code)
         const streamWhere: {
-          code: string
-          pollingStation?: { code: string }
+          code: string;
+          pollingStation?: { code: string };
         } = {
           code: row.streamCode.trim().toUpperCase(),
-        }
+        };
         if (row.pollingStationCode) {
           streamWhere.pollingStation = {
             code: row.pollingStationCode.trim().toUpperCase(),
-          }
+          };
         }
 
         const stream = await prisma.stream.findFirst({
           where: streamWhere,
           include: {
             pollingStation: {
-              include: {
-                wardRef: {
-                  select: { electionId: true },
-                },
-              },
+              select: { id: true },
             },
           },
-        })
+        });
 
         if (!stream) {
           errors.push({
@@ -103,21 +109,21 @@ export const importAgentAssignments = async (
             email: row.agentEmail,
             streamCode: row.streamCode,
             error: `Stream not found: ${row.streamCode}${row.pollingStationCode ? ` at ${row.pollingStationCode}` : ""}`,
-          })
-          skipped++
-          continue
+          });
+          skipped++;
+          continue;
         }
 
-        // Verify stream belongs to election's hierarchy
-        if (stream.pollingStation.wardRef?.electionId !== electionId) {
+        // Verify stream's polling station is activated for this election
+        if (!activatedStationIds.has(stream.pollingStation.id)) {
           errors.push({
             row: rowNum,
             email: row.agentEmail,
             streamCode: row.streamCode,
             error: `Stream ${row.streamCode} does not belong to this election`,
-          })
-          skipped++
-          continue
+          });
+          skipped++;
+          continue;
         }
 
         // Create or reactivate assignment
@@ -138,17 +144,17 @@ export const importAgentAssignments = async (
           update: {
             isActive: true,
           },
-        })
+        });
 
-        imported++
+        imported++;
       } catch (error: unknown) {
         errors.push({
           row: rowNum,
           email: row.agentEmail,
           streamCode: row.streamCode,
           error: error instanceof Error ? error.message : "Unknown error",
-        })
-        skipped++
+        });
+        skipped++;
       }
     }
 
@@ -157,7 +163,7 @@ export const importAgentAssignments = async (
       imported,
       skipped,
       errors,
-    }
+    };
   } catch (error) {
     throw new Error(handleReturnError(error))
   }

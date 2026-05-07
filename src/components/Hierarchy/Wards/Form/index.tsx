@@ -75,10 +75,19 @@ export default function Form({
     if (!electionId) { toaster.error({ title: "Select an election first" }); return }
     setIsSaving(true)
     try {
-      if (ward) await updateWard(ward.id, values.name, values.code, values.constituencyId)
-      else await createWard(electionId, values.constituencyId, values.name, values.code)
-      toaster.success({ title: ward ? "Ward updated" : "Ward created" })
-      await qc.invalidateQueries({ queryKey: ["wards", electionId] })
+      if (ward)
+        await updateWard(
+          ward.id,
+          values.name,
+          values.code,
+          values.constituencyId,
+        );
+      else await createWard(values.constituencyId, values.name, values.code);
+      toaster.success({ title: ward ? "Ward updated" : "Ward created" });
+      // Wards are permanent master records — invalidate by constituency, not election
+      await qc.invalidateQueries({
+        queryKey: ["wards", values.constituencyId],
+      });
       onClose?.()
     } catch (e: unknown) {
       toaster.error({ title: "Error", description: (e as Error).message })

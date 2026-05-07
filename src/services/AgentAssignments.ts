@@ -118,9 +118,15 @@ export const searchElectionStreams = async (
       isActive: true,
       pollingStation: {
         deletedAt: null,
-        wardRef: { electionId },
+        wardRef: {
+          pollingStations: {
+            some: {
+              electionActivations: { some: { electionId, isActive: true } },
+            },
+          },
+        },
       },
-    }
+    };
 
     if (searchQuery && searchQuery.trim().length > 0) {
       const q = searchQuery.trim()

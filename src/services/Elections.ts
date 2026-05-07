@@ -318,7 +318,9 @@ export const getStreamsByElection = async (electionId: string) => {
     return await prisma.stream.findMany({
       where: {
         isActive: true,
-        pollingStation: { wardRef: { electionId } },
+        pollingStation: {
+          electionActivations: { some: { electionId, isActive: true } },
+        },
       },
       select: {
         id: true,
