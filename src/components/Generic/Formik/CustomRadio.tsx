@@ -1,13 +1,7 @@
 
-import React, { FC, useState } from "react";
+import { FC, useState } from "react";
 import { FieldHookConfig, useField } from "formik";
-import {
-  Field,
-  VStack,
-  HStack,
-  RadioGroup,
-  Button,
-} from "@chakra-ui/react";
+import { Field, VStack, HStack, RadioGroup, Button } from "@chakra-ui/react";
 import { FaInfoCircle } from "react-icons/fa";
 
 type IFormikFieldProps = {
@@ -30,7 +24,7 @@ const CustomRadio: FC<FieldHookConfig<string> & IFormikFieldProps> = ({
   description,
   ...props
 }) => {
-  const [field, meta, helpers] = useField(props);
+  const [field, meta] = useField(props);
   const [showHelper, setShowHelper] = useState(false);
 
   return (
@@ -72,38 +66,52 @@ const CustomRadio: FC<FieldHookConfig<string> & IFormikFieldProps> = ({
         value={field.value?.toString()?.toLowerCase()}
         onValueChange={(details) => {
           const newValue = details.value;
-          helpers.setValue(newValue);
-          helpers.setTouched(true);
-          if (handleChange) handleChange(newValue);
+          field.onChange({ target: { name: field.name, value: newValue } });
+          if (handleChange && newValue != null) {
+            handleChange(newValue);
+          }
         }}
       >
         {stack === "row" ? (
           <HStack gap={3}>
-            {options.map((option: { value: string | number; label: string }, index: number) => (
-              <RadioGroup.Item
-                key={index}
-                value={option.value.toString().toLowerCase()}
-              >
-                <RadioGroup.ItemControl />
-                <RadioGroup.ItemText>{option.label}</RadioGroup.ItemText>
-              </RadioGroup.Item>
-            ))}
+            {options.map(
+              (
+                option: { value: string | number; label: string },
+                index: number,
+              ) => (
+                <RadioGroup.Item
+                  key={index}
+                  value={option.value.toString().toLowerCase()}
+                >
+                  <RadioGroup.ItemHiddenInput />
+                  <RadioGroup.ItemIndicator />
+                  <RadioGroup.ItemText>{option.label}</RadioGroup.ItemText>
+                </RadioGroup.Item>
+              ),
+            )}
           </HStack>
         ) : (
           <VStack align="start" gap={2}>
-            {options.map((option: { value: string | number; label: string }, index: number) => (
-              <RadioGroup.Item
-                key={index}
-                value={option.value.toString().toLowerCase()}
-              >
-                <RadioGroup.ItemControl />
-                <RadioGroup.ItemText>{option.label}</RadioGroup.ItemText>
-              </RadioGroup.Item>
-            ))}
+            {options.map(
+              (
+                option: { value: string | number; label: string },
+                index: number,
+              ) => (
+                <RadioGroup.Item
+                  key={index}
+                  value={option.value.toString().toLowerCase()}
+                  cursor="pointer"
+                >
+                  <RadioGroup.ItemHiddenInput />
+                  <RadioGroup.ItemIndicator />
+                  <RadioGroup.ItemText>{option.label}</RadioGroup.ItemText>
+                </RadioGroup.Item>
+              ),
+            )}
           </VStack>
         )}
       </RadioGroup.Root>
-      
+
       {meta.error && meta.touched && (
         <Field.ErrorText id={`${label}-${field.name}-message`}>
           {meta.error}
