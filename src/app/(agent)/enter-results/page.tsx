@@ -1,5 +1,5 @@
 import { getMyAssignments, getElectionPositionsWithCandidates, getStreamResultsForStream, getActiveElections } from "@/services/AgentAssignments"
-import { VStack, Heading, Text, HStack, Box, Avatar, Badge, Flex } from "@chakra-ui/react"
+import { VStack, Heading, Text, Flex } from "@chakra-ui/react";
 import { MdHowToVote } from "react-icons/md"
 import EnterResultsClient from "./EnterResultsClient"
 import { getServerSession } from "next-auth"
@@ -51,41 +51,6 @@ export default async function EnterResultsPage({
             </Text>
           </VStack>
 
-          <HStack
-            gap={2.5}
-            px={3}
-            py={2}
-            borderRadius="xl"
-            bg="white"
-            borderWidth="1px"
-            borderColor="gray.100"
-            boxShadow="0 1px 3px rgba(0,0,0,0.04)"
-          >
-            <Avatar.Root bg="#0f172a" size="sm">
-              <Avatar.Fallback color="#C9D927" fontWeight="700" fontSize="xs">
-                {user?.name?.charAt(0)?.toUpperCase() ?? "A"}
-              </Avatar.Fallback>
-            </Avatar.Root>
-            <Box>
-              <Text
-                fontSize="sm"
-                fontWeight="600"
-                color="gray.900"
-                lineHeight="1.3"
-              >
-                {user?.name ?? "Admin"}
-              </Text>
-              <Badge
-                size="xs"
-                colorPalette="purple"
-                variant="subtle"
-                fontSize="9px"
-                fontWeight="700"
-              >
-                {user?.role ?? "Admin"}
-              </Badge>
-            </Box>
-          </HStack>
         </Flex>
 
         <EnterResultsClient
@@ -181,42 +146,6 @@ export default async function EnterResultsPage({
           </Text>
         </VStack>
 
-        {/* Logged-in user */}
-        <HStack
-          gap={2.5}
-          px={3}
-          py={2}
-          borderRadius="xl"
-          bg="white"
-          borderWidth="1px"
-          borderColor="gray.100"
-          boxShadow="0 1px 3px rgba(0,0,0,0.04)"
-        >
-          <Avatar.Root bg="#0f172a" size="sm">
-            <Avatar.Fallback color="#C9D927" fontWeight="700" fontSize="xs">
-              {user?.name?.charAt(0)?.toUpperCase() ?? "U"}
-            </Avatar.Fallback>
-          </Avatar.Root>
-          <Box>
-            <Text
-              fontSize="sm"
-              fontWeight="600"
-              color="gray.900"
-              lineHeight="1.3"
-            >
-              {user?.name ?? "Agent"}
-            </Text>
-            <Badge
-              size="xs"
-              colorPalette="blue"
-              variant="subtle"
-              fontSize="9px"
-              fontWeight="700"
-            >
-              {user?.role ?? "Agent"}
-            </Badge>
-          </Box>
-        </HStack>
       </Flex>
 
       <EnterResultsClient

@@ -15,7 +15,7 @@ const Columns = (): ColumnDef<ConstituencyRow, any>[] => [
     header: "#",
     enableGrouping: false,
     enableColumnFilter: false,
-    size: 40,
+    size: 20,
     cell: (cell) => cell.row.index + 1,
   }),
   columnHelper.accessor("name", {
@@ -38,6 +38,6 @@ const Columns = (): ColumnDef<ConstituencyRow, any>[] => [
     enableColumnFilter: false,
     cell: ({ row }) => <Actions data={row.original} />,
   }),
-]
+];
 
 export default Columns

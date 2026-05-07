@@ -16,7 +16,7 @@ const Columns = (electionId: string): ColumnDef<WardRow, any>[] => [
     header: "#",
     enableGrouping: false,
     enableColumnFilter: false,
-    size: 40,
+    size: 20,
     cell: (cell) => cell.row.index + 1,
   }),
   columnHelper.accessor("name", {
@@ -41,7 +41,11 @@ const Columns = (electionId: string): ColumnDef<WardRow, any>[] => [
     id: "stations",
     header: "Stations",
     enableGrouping: false,
-    cell: (cell) => <Badge colorPalette="blue" variant="subtle">{cell.getValue()}</Badge>,
+    cell: (cell) => (
+      <Badge colorPalette="blue" variant="subtle">
+        {cell.getValue()}
+      </Badge>
+    ),
   }),
   columnHelper.display({
     id: "actions",
@@ -50,6 +54,6 @@ const Columns = (electionId: string): ColumnDef<WardRow, any>[] => [
     enableColumnFilter: false,
     cell: ({ row }) => <Actions data={row.original} electionId={electionId} />,
   }),
-]
+];
 
 export default Columns

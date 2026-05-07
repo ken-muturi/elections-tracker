@@ -9,9 +9,14 @@ import { getElectionResults } from "@/services/LevelResults"
 
 import { KNOWN_POSITIONS } from "@/constants/elections"
 import {
-  FiArrowLeft, FiUsers, FiBarChart2, FiCheckCircle,
-  FiAlertCircle, FiEdit,
-} from "react-icons/fi"
+  FiArrowLeft,
+  FiUsers,
+  FiBarChart2,
+  FiCheckCircle,
+  FiAlertCircle,
+  FiEdit,
+  FiMapPin,
+} from "react-icons/fi";
 import { MdHowToVote } from "react-icons/md"
 import { ElectionActions } from "@/components/Elections"
 import { LEVEL_COLOR } from "@/components/Elections/constants"
@@ -139,6 +144,24 @@ export default async function ElectionDetailPage({
               >
                 <FiEdit />
                 <Text>Manage Candidates</Text>
+              </HStack>
+            </Link>
+            <Link href={`/elections/${id}/polling-stations`}>
+              <HStack
+                gap={2}
+                px={4}
+                py={2}
+                bg="#0f172a"
+                color="white"
+                borderRadius="lg"
+                fontSize="sm"
+                fontWeight="600"
+                cursor="pointer"
+                _hover={{ bg: "#1e293b" }}
+                transition="background 0.15s"
+              >
+                <FiMapPin />
+                <Text>Polling Stations</Text>
               </HStack>
             </Link>
           </HStack>
