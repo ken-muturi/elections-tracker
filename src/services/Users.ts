@@ -87,9 +87,9 @@ export async function createUser(
 ) {
   try {
     const salt = genSaltSync(10);
-    const defaultPassword = process.env.DEFAULT_USER_PASSWORD;
-    if (!defaultPassword)
-      throw new Error("DEFAULT_USER_PASSWORD environment variable is not set.");
+    // const defaultPassword = process.env.DEFAULT_USER_PASSWORD;
+    // if (!defaultPassword)
+    //   throw new Error("DEFAULT_USER_PASSWORD environment variable is not set.");
     return await prisma.user.create({
       data: {
         email: data.email.toLowerCase(),
@@ -98,10 +98,10 @@ export async function createUser(
         gender: data.gender,
         phone: data.phone,
         image: data.image || "",
-        roleId: data.roleId || 'cmfb95om00002vimw0z2lg6me',
-        partyId: data.partyId || null,
-        password: hashSync(defaultPassword, salt),
-        dateOfBirth: '',
+        roleId: data.roleId || "",
+        partyId: data.partyId || "",
+        password: hashSync(data.password || crypto.randomUUID(), salt),
+        dateOfBirth: "",
         nationalId: `UID-${Date.now()}`,
         nextOfKin: "",
         nextOfKinContacts: "",
