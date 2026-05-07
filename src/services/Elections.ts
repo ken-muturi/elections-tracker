@@ -116,10 +116,18 @@ export const getElections = async () => {
     return await prisma.election.findMany({
       orderBy: [{ year: "desc" }, { electionDate: "desc" }],
       include: {
-        positions: { include: { candidates: true }, orderBy: { sortOrder: "asc" } },
-        _count: { select: { agentAssignments: true, wards: true } },
+        positions: {
+          include: { candidates: true },
+          orderBy: { sortOrder: "asc" },
+        },
+        _count: {
+          select: {
+            agentAssignments: true,
+            pollingStations: { where: { isActive: true } },
+          },
+        },
       },
-    })
+    });
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
@@ -146,9 +154,14 @@ export const getElectionById = async (id: string) => {
           include: { candidates: { orderBy: { sortOrder: "asc" } } },
           orderBy: { sortOrder: "asc" },
         },
-        _count: { select: { wards: true, agentAssignments: true } },
+        _count: {
+          select: {
+            pollingStations: { where: { isActive: true } },
+            agentAssignments: true,
+          },
+        },
       },
-    })
+    });
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
@@ -238,12 +251,13 @@ export const createCandidate = async (input: CandidateInput) => {
 export const createCandidatesBulk = async (inputs: CandidateInput[]) => {
   try {
     await requireAdmin()
-    const results: Awaited<ReturnType<typeof prisma.candidate.create>>[] = []
-    for (const input of inputs) {
-      const created = await prisma.candidate.create({ data: input })
-      results.push(created)
-    }
-    return results
+    if (inputs.length === 0) return [];
+    // createMany is O(1) round-trips; fetch created rows back in one query
+    await prisma.candidate.createMany({ data: inputs, skipDuplicates: true });
+    return await prisma.candidate.findMany({
+      where: { positionId: inputs[0].positionId },
+      orderBy: { sortOrder: "asc" },
+    });
   } catch (error) {
     throw new Error(handleReturnError(error))
   }

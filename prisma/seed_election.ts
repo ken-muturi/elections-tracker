@@ -255,7 +255,6 @@ async function seedElectionGeography(
 
   // Build all ward data first
   const wardInputs: {
-    electionId: string;
     constituencyId: string;
     name: string;
     code: string;
@@ -263,7 +262,6 @@ async function seedElectionGeography(
   for (const entry of constituencyMap.values()) {
     for (let w = 1; w <= 3; w++) {
       wardInputs.push({
-        electionId,
         constituencyId: entry.id,
         name: `${entry.name} Ward ${w}`,
         code: `${entry.code}-W${w}`,
@@ -279,8 +277,9 @@ async function seedElectionGeography(
   console.log(`  → ${wardInputs.length} wards inserted`);
 
   // Fetch all wards back to get their IDs
+  const constituencyIds = [...constituencyMap.values()].map((e) => e.id);
   const wards = await prisma.ward.findMany({
-    where: { electionId },
+    where: { constituencyId: { in: constituencyIds } },
     select: { id: true, code: true, name: true, constituencyId: true },
   });
 
@@ -326,10 +325,22 @@ async function seedElectionGeography(
   console.log(`  → ${stationInputs.length} polling stations inserted`);
 
   // Fetch all stations back to get IDs
+  const wardIds = wards.map((w) => w.id);
   const stations = await prisma.pollingStation.findMany({
-    where: { wardRef: { electionId } },
+    where: { wardId: { in: wardIds } },
     select: { id: true, code: true, wardId: true },
   });
+
+  // Activate all stations for this election via junction table
+  await prisma.electionPollingStation.createMany({
+    data: stations.map((s) => ({
+      electionId,
+      pollingStationId: s.id,
+      isActive: true,
+    })),
+    skipDuplicates: true,
+  });
+  console.log(`  → ${stations.length} election_polling_station rows created`);
 
   // Build wardId → votersPerStream lookup
   const wardVoters = new Map<string, number>();
@@ -410,7 +421,11 @@ async function seedCandidates(electionId: string) {
     select: { id: true, code: true, name: true, countyId: true },
   });
   const wards = await prisma.ward.findMany({
-    where: { electionId },
+    where: {
+      pollingStations: {
+        some: { electionActivations: { some: { electionId, isActive: true } } },
+      },
+    },
     select: { id: true, code: true, constituencyId: true },
   });
 
@@ -760,7 +775,11 @@ async function seedAllVoteData(electionId: string, adminId: string) {
 
   // ── Fetch all streams with geography ───────────────────────────────────────
   const rawStreams = await prisma.stream.findMany({
-    where: { pollingStation: { wardRef: { electionId } } },
+    where: {
+      pollingStation: {
+        electionActivations: { some: { electionId, isActive: true } },
+      },
+    },
     select: {
       id: true,
       registeredVoters: true,

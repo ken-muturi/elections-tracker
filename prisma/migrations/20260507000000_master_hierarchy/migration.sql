@@ -2,8 +2,8 @@
 -- Wards, PollingStations, and Streams become master geographic data.
 -- A new junction table (election_polling_stations) records which stations
 -- participate in each election.
-
-BEGIN;
+--
+-- NOTE: Prisma wraps each migration in a transaction automatically.
 
 -- ─── Preflight: Abort if duplicate streams have result or assignment data ──
 DO $$ BEGIN
@@ -51,7 +51,6 @@ CREATE INDEX "election_polling_stations_polling_station_id_idx"
   ON "election_polling_stations"("polling_station_id");
 
 -- ─── Step 2: Populate junction from existing election-scoped data ──────────
--- Each non-deleted polling_station inherits its election via its ward.
 INSERT INTO "election_polling_stations" ("id", "election_id", "polling_station_id", "is_active")
 SELECT
   gen_random_uuid()::varchar(50),
@@ -61,10 +60,10 @@ SELECT
 FROM "polling_stations" ps
 INNER JOIN "wards" w ON w."id" = ps."ward_id"
 WHERE ps."deleted_at" IS NULL
+  AND w."election_id" IS NOT NULL
 ON CONFLICT DO NOTHING;
 
--- ─── Step 3: Deduplicate wards (same constituency_id + code, different elections) ─
--- Keep the lexicographically-first id per (constituency_id, code) as canonical.
+-- ─── Step 3: Deduplicate wards ─────────────────────────────────────────────
 CREATE TEMP TABLE _ward_canonical AS
 SELECT DISTINCT ON ("constituency_id", "code")
   "id"               AS canonical_id,
@@ -73,7 +72,64 @@ SELECT DISTINCT ON ("constituency_id", "code")
 FROM "wards"
 ORDER BY "constituency_id", "code", "id";
 
--- Remap ALL polling_stations (including soft-deleted) to canonical wards
+-- ─── Step 3a: Pre-merge conflicting stations + their streams ───────────────
+-- For each non-canonical ward, find its stations that conflict with stations
+-- already under the canonical ward. For each conflicting station pair, first
+-- merge their streams (handling stream conflicts too), then merge the stations.
+DO $$
+DECLARE
+  ps_r RECORD;
+  s_r  RECORD;
+BEGIN
+  FOR ps_r IN
+    SELECT
+      ps_dup.id    AS dup_id,
+      ps_canon.id  AS canon_id
+    FROM _ward_canonical wc
+    JOIN wards w_dup
+      ON w_dup.constituency_id = wc.constituency_id
+     AND w_dup.code            = wc.code
+     AND w_dup.id             != wc.canonical_id
+    JOIN polling_stations ps_dup   ON ps_dup.ward_id   = w_dup.id
+    JOIN polling_stations ps_canon ON ps_canon.ward_id  = wc.canonical_id
+                                  AND ps_canon.code     = ps_dup.code
+  LOOP
+    -- 3a-i: For each stream in dup_station that conflicts with a stream in
+    --       canon_station (same code), merge it into the canonical stream.
+    FOR s_r IN
+      SELECT
+        s_dup.id   AS dup_stream_id,
+        s_canon.id AS canon_stream_id
+      FROM streams s_dup
+      JOIN streams s_canon ON s_canon.polling_station_id = ps_r.canon_id
+                          AND s_canon.code               = s_dup.code
+      WHERE s_dup.polling_station_id = ps_r.dup_id
+    LOOP
+      UPDATE agent_streams  SET stream_id = s_r.canon_stream_id WHERE stream_id = s_r.dup_stream_id;
+      UPDATE stream_results SET stream_id = s_r.canon_stream_id WHERE stream_id = s_r.dup_stream_id;
+      DELETE FROM streams WHERE id = s_r.dup_stream_id;
+    END LOOP;
+
+    -- 3a-ii: Remap remaining (non-conflicting) streams to the canonical station
+    UPDATE streams
+      SET polling_station_id = ps_r.canon_id
+      WHERE polling_station_id = ps_r.dup_id;
+
+    -- 3a-iii: Merge election activation junction rows
+    INSERT INTO election_polling_stations (id, election_id, polling_station_id, is_active)
+      SELECT gen_random_uuid()::varchar(50), election_id, ps_r.canon_id, is_active
+      FROM election_polling_stations
+      WHERE polling_station_id = ps_r.dup_id
+      ON CONFLICT (election_id, polling_station_id) DO NOTHING;
+
+    DELETE FROM election_polling_stations WHERE polling_station_id = ps_r.dup_id;
+
+    -- 3a-iv: Delete the now-empty duplicate station
+    DELETE FROM polling_stations WHERE id = ps_r.dup_id;
+  END LOOP;
+END $$;
+
+-- ─── Step 3b: Remap remaining stations to canonical ward (no conflicts left) ─
 UPDATE "polling_stations"
 SET "ward_id" = wc.canonical_id
 FROM "wards" w
@@ -82,7 +138,6 @@ INNER JOIN _ward_canonical wc
 WHERE "polling_stations"."ward_id" = w."id"
   AND w."id" != wc.canonical_id;
 
--- Delete non-canonical wards (no more polling_stations point to them)
 DELETE FROM "wards"
 WHERE "id" NOT IN (SELECT canonical_id FROM _ward_canonical);
 
@@ -95,7 +150,6 @@ SELECT DISTINCT ON ("ward_id", "code")
 FROM "polling_stations"
 ORDER BY "ward_id", "code", "id";
 
--- Remap streams to canonical stations
 UPDATE "streams"
 SET "polling_station_id" = sc.canonical_id
 FROM "polling_stations" ps
@@ -104,7 +158,6 @@ INNER JOIN _station_canonical sc
 WHERE "streams"."polling_station_id" = ps."id"
   AND ps."id" != sc.canonical_id;
 
--- Remap election_polling_stations to canonical stations
 UPDATE "election_polling_stations"
 SET "polling_station_id" = sc.canonical_id
 FROM "polling_stations" ps
@@ -113,18 +166,16 @@ INNER JOIN _station_canonical sc
 WHERE "election_polling_stations"."polling_station_id" = ps."id"
   AND ps."id" != sc.canonical_id;
 
--- Remove duplicate junction rows created by the remap above
 DELETE FROM "election_polling_stations" a
 USING "election_polling_stations" b
 WHERE a."election_id" = b."election_id"
   AND a."polling_station_id" = b."polling_station_id"
   AND a."id" > b."id";
 
--- Delete non-canonical polling_stations
 DELETE FROM "polling_stations"
 WHERE "id" NOT IN (SELECT canonical_id FROM _station_canonical);
 
--- ─── Step 5: Deduplicate streams (same polling_station_id + code after remap) ─
+-- ─── Step 5: Deduplicate streams ──────────────────────────────────────────
 CREATE TEMP TABLE _stream_canonical AS
 SELECT DISTINCT ON ("polling_station_id", "code")
   "id"                  AS canonical_id,
@@ -133,7 +184,6 @@ SELECT DISTINCT ON ("polling_station_id", "code")
 FROM "streams"
 ORDER BY "polling_station_id", "code", "id";
 
--- Remap agent_streams to canonical streams
 UPDATE "agent_streams"
 SET "stream_id" = sc.canonical_id
 FROM "streams" s
@@ -142,7 +192,6 @@ INNER JOIN _stream_canonical sc
 WHERE "agent_streams"."stream_id" = s."id"
   AND s."id" != sc.canonical_id;
 
--- Remap stream_results to canonical streams
 UPDATE "stream_results"
 SET "stream_id" = sc.canonical_id
 FROM "streams" s
@@ -151,14 +200,12 @@ INNER JOIN _stream_canonical sc
 WHERE "stream_results"."stream_id" = s."id"
   AND s."id" != sc.canonical_id;
 
--- Remove stream_result duplicates that might appear after remap
 DELETE FROM "stream_results" a
 USING "stream_results" b
 WHERE a."stream_id" = b."stream_id"
   AND a."position_id" = b."position_id"
   AND a."id" > b."id";
 
--- Delete non-canonical streams
 DELETE FROM "streams"
 WHERE "id" NOT IN (SELECT canonical_id FROM _stream_canonical);
 
@@ -169,8 +216,5 @@ ALTER TABLE "wards" DROP CONSTRAINT IF EXISTS "wards_election_id_fkey";
 ALTER TABLE "wards" DROP COLUMN IF EXISTS "election_id";
 
 -- ─── Step 7: Add new master-level unique constraint ─────────────────────────
--- (May already be satisfied after deduplication above)
 ALTER TABLE "wards"
   ADD CONSTRAINT "wards_constituency_id_code_key" UNIQUE ("constituency_id", "code");
-
-COMMIT;

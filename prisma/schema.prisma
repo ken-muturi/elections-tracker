@@ -430,6 +430,7 @@ model ElectionPollingStation {
 
   @@unique([electionId, pollingStationId])
   @@index([electionId])
+  @@index([pollingStationId])
   @@map("election_polling_stations")
 }
 

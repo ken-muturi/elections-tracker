@@ -363,21 +363,52 @@ export const getElectionResultsByPosition = async (
       level === "COUNTY"
         ? prisma.county
             .findMany({ select: { id: true, name: true } })
-            .then((rows) => rows.map((r) => ({ id: r.id, name: r.name, countyName: null, constituencyName: null })))
+            .then((rows) =>
+              rows.map((r) => ({
+                id: r.id,
+                name: r.name,
+                countyName: null,
+                constituencyName: null,
+              })),
+            )
         : level === "CONSTITUENCY"
           ? prisma.constituency
-              .findMany({ select: { id: true, name: true, county: { select: { name: true } } } })
+              .findMany({
+                select: {
+                  id: true,
+                  name: true,
+                  county: { select: { name: true } },
+                },
+              })
               .then((rows) =>
-                rows.map((r) => ({ id: r.id, name: r.name, countyName: r.county.name, constituencyName: null })),
+                rows.map((r) => ({
+                  id: r.id,
+                  name: r.name,
+                  countyName: r.county.name,
+                  constituencyName: null,
+                })),
               )
           : level === "WARD"
             ? prisma.ward
                 .findMany({
-                  where: { electionId },
+                  where: {
+                    pollingStations: {
+                      some: {
+                        electionActivations: {
+                          some: { electionId, isActive: true },
+                        },
+                      },
+                    },
+                  },
                   select: {
                     id: true,
                     name: true,
-                    constituency: { select: { name: true, county: { select: { name: true } } } },
+                    constituency: {
+                      select: {
+                        name: true,
+                        county: { select: { name: true } },
+                      },
+                    },
                   },
                 })
                 .then((rows) =>
@@ -521,7 +552,13 @@ export const getElectionResults = async (electionId: string) => {
       prisma.county.findMany({ select: { id: true, name: true } }),
       prisma.constituency.findMany({ select: { id: true, name: true } }),
       prisma.ward.findMany({
-        where: { electionId },
+        where: {
+          pollingStations: {
+            some: {
+              electionActivations: { some: { electionId, isActive: true } },
+            },
+          },
+        },
         select: { id: true, name: true },
       }),
       prisma.electionPosition.findMany({
@@ -769,7 +806,11 @@ export const searchEntitiesAtLevel = async (
     if (level === "WARD") {
       const wards = await prisma.ward.findMany({
         where: {
-          electionId,
+          pollingStations: {
+            some: {
+              electionActivations: { some: { electionId, isActive: true } },
+            },
+          },
           ...(q ? { name: { contains: q, mode: "insensitive" } } : {}),
         },
         orderBy: { name: "asc" },
@@ -779,7 +820,7 @@ export const searchEntitiesAtLevel = async (
             select: { name: true, county: { select: { name: true } } },
           },
         },
-      })
+      });
       return wards.map((w) => ({
         id: w.id,
         name: w.name,

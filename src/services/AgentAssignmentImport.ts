@@ -81,16 +81,19 @@ export const importAgentAssignments = async (
           continue;
         }
 
-        // Find stream by code (and optionally polling station code)
+        // Find stream by code \u2014 case-insensitive (streams may be stored in any case)
         const streamWhere: {
-          code: string;
-          pollingStation?: { code: string };
+          code: { equals: string; mode: "insensitive" };
+          pollingStation?: { code: { equals: string; mode: "insensitive" } };
         } = {
-          code: row.streamCode.trim().toUpperCase(),
+          code: { equals: row.streamCode.trim(), mode: "insensitive" },
         };
         if (row.pollingStationCode) {
           streamWhere.pollingStation = {
-            code: row.pollingStationCode.trim().toUpperCase(),
+            code: {
+              equals: row.pollingStationCode.trim(),
+              mode: "insensitive",
+            },
           };
         }
 

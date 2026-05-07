@@ -246,8 +246,10 @@ export default function ElectionHierarchyManager({
     setAddTopPending(true)
     startTransition(async () => {
       try {
-        const constituency = constituencies.find((c) => c.id === f.constituencyId)!
-        let targetWard: WardData
+        const constituency = constituencies.find(
+          (c) => c.id === f.constituencyId,
+        )!;
+        let targetWard: WardData;
         if (f.wardId === "__new__") {
           const created = await createWard(
             f.constituencyId,
@@ -255,15 +257,22 @@ export default function ElectionHierarchyManager({
             f.wardCode.trim(),
           );
           targetWard = {
-            id: created.id, name: created.name, code: created.code,
+            id: created.id,
+            name: created.name,
+            code: created.code,
             constituencyId: created.constituencyId,
-            constituency: { name: constituency.name, county: { name: constituency.county.name } },
+            constituency: {
+              name: constituency.name,
+              county: { name: constituency.county.name },
+            },
             pollingStations: [],
-          }
-          setWards((prev) => [...prev, targetWard].sort((a, b) => a.name.localeCompare(b.name)))
-          setExpanded((prev) => new Set([...prev, created.id]))
+          };
+          setWards((prev) =>
+            [...prev, targetWard].sort((a, b) => a.name.localeCompare(b.name)),
+          );
+          setExpanded((prev) => new Set([...prev, created.id]));
         } else {
-          targetWard = wards.find((w) => w.id === f.wardId)!
+          targetWard = wards.find((w) => w.id === f.wardId)!;
         }
         const station = await createPollingStation(
           targetWard.id,
@@ -277,37 +286,54 @@ export default function ElectionHierarchyManager({
           },
           electionId,
         );
-        // Create inline streams sequentially
-        const createdStreams: StreamData[] = []
-        for (const s of addTopStreams) {
-          const stream = await createStream(
-            station.id, s.name.trim(), s.code.trim(),
-            s.voters ? Number(s.voters) : undefined
-          )
-          createdStreams.push({
-            id: stream.id, name: stream.name, code: stream.code,
-            registeredVoters: stream.registeredVoters ?? null,
-            isActive: stream.isActive, pollingStationId: stream.pollingStationId,
-          })
-        }
+        // Create all streams in parallel (no sequential await)
+        const streamResults = await Promise.all(
+          addTopStreams.map((s) =>
+            createStream(
+              station.id,
+              s.name.trim(),
+              s.code.trim(),
+              s.voters ? Number(s.voters) : undefined,
+            ),
+          ),
+        );
+        const createdStreams: StreamData[] = streamResults.map((stream) => ({
+          id: stream.id,
+          name: stream.name,
+          code: stream.code,
+          registeredVoters: stream.registeredVoters ?? null,
+          isActive: stream.isActive,
+          pollingStationId: stream.pollingStationId,
+        }));
         const newStation: StationData = {
-          id: station.id, name: station.name, code: station.code,
-          county: station.county, constituency: station.constituency,
-          ward: station.ward, registeredVoters: station.registeredVoters,
+          id: station.id,
+          name: station.name,
+          code: station.code,
+          county: station.county,
+          constituency: station.constituency,
+          ward: station.ward,
+          registeredVoters: station.registeredVoters,
           streams: createdStreams,
-        }
+        };
         setWards((prev) =>
           prev.map((w) =>
             w.id === targetWard.id
-              ? { ...w, pollingStations: [...w.pollingStations, newStation].sort((a, b) => a.name.localeCompare(b.name)) }
-              : w
-          )
-        )
-        setExpanded((prev) => new Set([...prev, targetWard.id]))
-        setAddTopForm(emptyTopForm)
-        setAddTopStreams([])
-        setShowAddTopStation(false)
-        toaster.success({ title: `Polling station added${createdStreams.length ? ` with ${createdStreams.length} stream${createdStreams.length > 1 ? "s" : ""}` : ""}` })
+              ? {
+                  ...w,
+                  pollingStations: [...w.pollingStations, newStation].sort(
+                    (a, b) => a.name.localeCompare(b.name),
+                  ),
+                }
+              : w,
+          ),
+        );
+        setExpanded((prev) => new Set([...prev, targetWard.id]));
+        setAddTopForm(emptyTopForm);
+        setAddTopStreams([]);
+        setShowAddTopStation(false);
+        toaster.success({
+          title: `Polling station added${createdStreams.length ? ` with ${createdStreams.length} stream${createdStreams.length > 1 ? "s" : ""}` : ""}`,
+        });
       } catch (e) {
         setAddTopError(e instanceof Error ? e.message : "Failed to add polling station")
       } finally {

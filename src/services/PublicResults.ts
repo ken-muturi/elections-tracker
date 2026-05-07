@@ -197,6 +197,20 @@ export async function getDrillDownNational(
     }
     const activeCountyIds = new Set(wardToCounty.values());
 
+    // Build set: constituencyId → present if it has active wards in this election
+    const activeConstituencyIds = new Set<string>();
+    for (const { pollingStation: ps } of electionActivations) {
+      activeConstituencyIds.add(ps.wardRef.constituencyId);
+    }
+    // Build map: countyId → count of active constituencies
+    const activeConstituenciesByCounty = new Map<string, number>();
+    for (const county of counties) {
+      const count = county.constituencies.filter((c) =>
+        activeConstituencyIds.has(c.id),
+      ).length;
+      activeConstituenciesByCounty.set(county.id, count);
+    }
+
     // Only counties that participate in this election
     const activeCounties = counties.filter((c) => activeCountyIds.has(c.id));
     const allWardIds = Array.from(wardToCounty.keys());
@@ -336,9 +350,7 @@ export async function getDrillDownNational(
         rejectedVotes: cRejected,
         reportedStreams: cResults.length,
         totalStreams: streamsByCounty.get(county.id) ?? 0,
-        totalDirectChildren: county.constituencies.filter(
-          (c) => c.wards.length > 0,
-        ).length,
+        totalDirectChildren: activeConstituenciesByCounty.get(county.id) ?? 0,
         candidates: buildCandidateSummaries(candidates, cMap),
         enteredVotes: childEntries.get(county.id) ?? null,
       };
@@ -418,6 +430,16 @@ export async function getDrillDownCounty(
       }
     }
     const activeConstituencyIds = new Set(wardToConstituency.values());
+    // Build map: constituencyId → count of active wards
+    const activeWardsByConstituency = new Map<string, number>();
+    for (const wardId of wardToConstituency.keys()) {
+      const cId = wardToConstituency.get(wardId)!;
+      activeWardsByConstituency.set(
+        cId,
+        (activeWardsByConstituency.get(cId) ?? 0) + 1,
+      );
+    }
+
     const activeConstituencies = constituencies.filter((c) =>
       activeConstituencyIds.has(c.id),
     );
@@ -527,7 +549,12 @@ export async function getDrillDownCounty(
     // Fetch level-entered data for children (constituencies) and parent (county)
     const constituencyIds = activeConstituencies.map((c) => c.id);
     const [childEntries, parentEntry] = await Promise.all([
-      fetchLevelEntries(positionId, "CONSTITUENCY", constituencyIds, candidates),
+      fetchLevelEntries(
+        positionId,
+        "CONSTITUENCY",
+        constituencyIds,
+        candidates,
+      ),
       fetchSingleLevelEntry(positionId, "COUNTY", countyId, candidates),
     ]);
 
@@ -551,7 +578,7 @@ export async function getDrillDownCounty(
         rejectedVotes: cRejected,
         reportedStreams: cResults.length,
         totalStreams: streamsByConstituency.get(con.id) ?? 0,
-        totalDirectChildren: con.wards.length,
+        totalDirectChildren: activeWardsByConstituency.get(con.id) ?? 0,
         candidates: buildCandidateSummaries(candidates, cMap),
         enteredVotes: childEntries.get(con.id) ?? null,
       };
@@ -840,9 +867,13 @@ export async function getDrillDownWard(
       }),
     ]);
 
-    // Stations + stream counts in one query via include
+    // Stations activated for this election in this ward (never cross-election bleed)
     const stations = await prisma.pollingStation.findMany({
-      where: { wardId, deletedAt: null },
+      where: {
+        wardId,
+        deletedAt: null,
+        electionActivations: { some: { electionId, isActive: true } },
+      },
       orderBy: { name: "asc" },
       select: {
         id: true,
@@ -944,7 +975,7 @@ export async function getDrillDownWard(
         candidates: buildCandidateSummaries(candidates, sMap),
         enteredVotes: childEntries.get(station.id) ?? null,
       };
-    })
+    });
 
     return {
       positionId: position.id,
