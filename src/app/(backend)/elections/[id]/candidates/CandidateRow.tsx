@@ -5,16 +5,20 @@ import { Box, Text, VStack, HStack, Flex, Input } from "@chakra-ui/react"
 import { FiEdit2, FiTrash2, FiCheck, FiX } from "react-icons/fi"
 import type { Candidate } from "@prisma/client"
 import { ENTITY_LABEL } from "./constants"
+import DeleteConfirmDialog from "@/components/Generic/DeleteConfirmationDialog";
 
 type CandidateRowProps = {
-  candidate: Candidate
-  index: number
-  needsEntityId: boolean
-  aggregationLevel: string
-  isPending: boolean
-  onEdit: (id: string, data: { name: string; party?: string; entityId?: string }) => void
-  onDelete: (id: string) => void
-}
+  candidate: Candidate;
+  index: number;
+  needsEntityId: boolean;
+  aggregationLevel: string;
+  isPending: boolean;
+  onEdit: (
+    id: string,
+    data: { name: string; party?: string; entityId?: string },
+  ) => void;
+  onDelete: (id: string) => void;
+};
 
 export default function CandidateRow({
   candidate,
@@ -25,27 +29,34 @@ export default function CandidateRow({
   onEdit,
   onDelete,
 }: CandidateRowProps) {
-  const [editing, setEditing] = useState(false)
-  const [editName, setEditName] = useState(candidate.name)
-  const [editParty, setEditParty] = useState(candidate.party ?? "")
-  const [editEntityId, setEditEntityId] = useState(candidate.entityId ?? "")
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(candidate.name);
+  const [editParty, setEditParty] = useState(candidate.party ?? "");
+  const [editEntityId, setEditEntityId] = useState(candidate.entityId ?? "");
 
   const startEdit = () => {
-    setEditName(candidate.name)
-    setEditParty(candidate.party ?? "")
-    setEditEntityId(candidate.entityId ?? "")
-    setEditing(true)
-  }
+    setEditName(candidate.name);
+    setEditParty(candidate.party ?? "");
+    setEditEntityId(candidate.entityId ?? "");
+    setEditing(true);
+  };
 
   const handleSave = () => {
-    if (!editName.trim()) return
+    if (!editName.trim()) return;
     onEdit(candidate.id, {
       name: editName.trim(),
       party: editParty.trim() || undefined,
       entityId: needsEntityId ? editEntityId.trim() || undefined : undefined,
-    })
-    setEditing(false)
-  }
+    });
+    setEditing(false);
+  };
+  const handleDeleteCandidate = async (id: string) => {
+    try {
+      await onDelete(id);
+    } catch (error) {
+      console.error("Error deleting candidate:", error);
+    }
+  };
 
   if (editing) {
     return (
@@ -147,7 +158,7 @@ export default function CandidateRow({
           </HStack>
         </VStack>
       </Box>
-    )
+    );
   }
 
   return (
@@ -220,27 +231,34 @@ export default function CandidateRow({
           >
             <FiEdit2 fontSize="0.75rem" />
           </Box>
-          <Box
-            as="button"
-            onClick={() => onDelete(candidate.id)}
-            w={7}
-            h={7}
-            borderRadius="lg"
-            borderWidth="1px"
-            borderColor="gray.200"
-            display="flex"
-            alignItems="center"
-            justifyContent="center"
-            color="gray.400"
-            cursor="pointer"
-            _hover={{ borderColor: "#fca5a5", color: "#ef4444" }}
-            transition="all 0.15s"
-            opacity={isPending ? 0.5 : 1}
+          <DeleteConfirmDialog
+            mainContent={<Text>Do you want to delete this candidate?</Text>}
+            hasConfirmText={true}
+            onConfirm={async () => {
+              await handleDeleteCandidate(candidate.id);
+            }}
           >
-            <FiTrash2 fontSize="0.75rem" />
-          </Box>
+            <Box
+              as="button"
+              w={7}
+              h={7}
+              borderRadius="lg"
+              borderWidth="1px"
+              borderColor="gray.200"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              color="gray.400"
+              cursor="pointer"
+              _hover={{ borderColor: "#fca5a5", color: "#ef4444" }}
+              transition="all 0.15s"
+              opacity={isPending ? 0.5 : 1}
+            >
+              <FiTrash2 fontSize="0.75rem" />
+            </Box>
+          </DeleteConfirmDialog>
         </HStack>
       </HStack>
     </Box>
-  )
+  );
 }
