@@ -49,7 +49,6 @@ const Details = ({ users: initalUsers, roles }: DetailProps) => {
         "gender",
         "nationalId",
         "phone",
-        "alternatePhone",
         "dateOfBirth",
         "nextOfKin",
         "nextOfKinContacts",

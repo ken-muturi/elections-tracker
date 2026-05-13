@@ -31,8 +31,9 @@ export type UserForm = {
   othernames: string;
   gender: string;
   phone: string;
-  alternatePhone?: string;
   roleId?: string;
+  nextOfKin?: string;
+  nextOfKinContacts?: string;
   partyId?: string;
   password?: string;
   passwordConfirm?: string;
@@ -49,8 +50,9 @@ export type UserDetail = {
   othernames: string;
   gender: string;
   phone: number;
-  alternatePhone: string;
   role: string;
   partyId?: string;
   partyTitle: string;
+  nextOfKin?: string;
+  nextOfKinContacts?: string;
 };

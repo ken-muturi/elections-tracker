@@ -1,4 +1,5 @@
 import { PartialTranslation } from "@/types";
+import next from "next";
 
 export const dictionary: Record<string, PartialTranslation[]> = {
   units: [
@@ -42,6 +43,18 @@ export const dictionary: Record<string, PartialTranslation[]> = {
     { body: { language: "fr", text: "Téléphone alternatif" } },
     { body: { language: "es", text: "Teléfono alternativo" } },
     { body: { language: "ar", text: "الهاتف البديل" } },
+  ],
+  nextOfKin: [
+    { body: { language: "en", text: "Next of Kin" } },
+    { body: { language: "fr", text: "Proche parent" } },
+    { body: { language: "es", text: "Próximo de Kin" } },
+    { body: { language: "ar", text: "الأقرباء" } },
+  ],
+  nextOfKinContacts: [
+    { body: { language: "en", text: "Next of Kin Contacts" } },
+    { body: { language: "fr", text: "Contacts du proche parent" } },
+    { body: { language: "es", text: "Contactos de Next of Kin" } },
+    { body: { language: "ar", text: "جهات اتصال الأقرباء" } },
   ],
   password: [
     { body: { language: "en", text: "Password" } },

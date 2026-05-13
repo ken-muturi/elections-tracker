@@ -44,7 +44,6 @@ const initialData: UserForm = {
   othernames: "",
   gender: "",
   phone: "",
-  alternatePhone: "",
   roleId: "",
   password: "",
   passwordConfirm: "",
@@ -55,7 +54,6 @@ const schema = Yup.object({
   othernames: Yup.string().required("Othernames Field is required"),
   gender: Yup.string().required("Gender field is required"),
   phone: Yup.string().required("Phone field is required"),
-  alternatePhone: Yup.string().required("Alternate Phone field is required"),
   roleId: Yup.string().required("Role is required"),
   partyId: Yup.string().optional(),
   image: Yup.string(),
@@ -87,7 +85,8 @@ const Form = ({ user, roles }: { user?: UserWithRelations; roles: Role[] }) => {
         password: user.password || "",
         passwordConfirm: user.password || "",
         phone: user.phone,
-        alternatePhone: user.alternatePhone,
+        nextOfKin: user.nextOfKin || "",
+        nextOfKinContacts: user.nextOfKinContacts || "",
         roleId: user.roleId,
         partyId: user.partyId,
       } as UserForm);
@@ -197,6 +196,13 @@ const Form = ({ user, roles }: { user?: UserWithRelations; roles: Role[] }) => {
                 label="Email"
                 variant="filled"
               />
+              <CustomInput
+                name="phone"
+                required
+                type="text"
+                label={translate(dictionary.phone)}
+                variant="filled"
+              />
               <CustomInputPassword
                 name="password"
                 type="password"
@@ -208,6 +214,41 @@ const Form = ({ user, roles }: { user?: UserWithRelations; roles: Role[] }) => {
                 type="password"
                 label={translate(dictionary.passwordConfirm)}
                 variant="filled"
+              />
+              <CustomInput
+                name="email"
+                required
+                type="text"
+                label="Email"
+                variant="filled"
+              />
+              <CustomRadio
+                label={translate(dictionary.gender)}
+                name="gender"
+                required
+                options={["female", "male"].map((d) => ({
+                  label: ucwords(d),
+                  value: d,
+                }))}
+              />
+              <CustomInput
+                name="nextOfKin"
+                required
+                type="text"
+                label="Next of Kin"
+                variant="filled"
+              />
+              <CustomInput
+                name="nextOfKinContacts"
+                required
+                type="text"
+                label="Next of Kin Contacts"
+                variant="filled"
+              />
+
+              <CustomTextarea
+                name="address"
+                label={translate(dictionary.address)}
               />
               <Box>
                 <Text mb={2} fontWeight="medium">
@@ -232,36 +273,6 @@ const Form = ({ user, roles }: { user?: UserWithRelations; roles: Role[] }) => {
                   />
                 )}
               </Box>
-
-              <CustomRadio
-                label={translate(dictionary.gender)}
-                name="gender"
-                required
-                options={["female", "male"].map((d) => ({
-                  label: ucwords(d),
-                  value: d,
-                }))}
-              />
-
-              <CustomTextarea
-                name="address"
-                label={translate(dictionary.address)}
-              />
-
-              <CustomInput
-                name="phone"
-                required
-                type="text"
-                label={translate(dictionary.phone)}
-                variant="filled"
-              />
-              <CustomInput
-                name="alternatePhone"
-                required
-                type="text"
-                label={translate(dictionary.alternatePhone)}
-                variant="filled"
-              />
               <HStack pt={5}>
                 <Button type="submit" colorPalette="red">
                   {translate(dictionary.save)}
