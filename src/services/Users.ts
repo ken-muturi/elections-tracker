@@ -103,8 +103,8 @@ export async function createUser(
         password: hashSync(data.password || crypto.randomUUID(), salt),
         dateOfBirth: "",
         nationalId: `UID-${Date.now()}`,
-        nextOfKin: "",
-        nextOfKinContacts: "",
+        nextOfKin: data.nextOfKin || "",
+        nextOfKinContacts: data.nextOfKinContacts || "",
       },
     });
   } catch (error) {

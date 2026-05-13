@@ -120,18 +120,13 @@ export const getElections = async () => {
           include: { candidates: true },
           orderBy: { sortOrder: "asc" },
         },
-        _count: {
-          select: {
-            agentAssignments: true,
-            pollingStations: { where: { isActive: true } },
-          },
-        },
+        _count: { select: { agentAssignments: true, wards: true } },
       },
     });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 /** Lightweight election list — id/title/year/isActive only. Used in dropdowns. */
 export const getElectionsLight = async () => {
@@ -139,11 +134,11 @@ export const getElectionsLight = async () => {
     return await prisma.election.findMany({
       orderBy: [{ year: "desc" }, { electionDate: "desc" }],
       select: { id: true, title: true, year: true, isActive: true },
-    })
+    });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 export const getElectionById = async (id: string) => {
   try {
@@ -154,46 +149,43 @@ export const getElectionById = async (id: string) => {
           include: { candidates: { orderBy: { sortOrder: "asc" } } },
           orderBy: { sortOrder: "asc" },
         },
-        _count: {
-          select: {
-            pollingStations: { where: { isActive: true } },
-            agentAssignments: true,
-          },
-        },
+        _count: { select: { wards: true, agentAssignments: true } },
       },
     });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 export const updateElection = async (
   id: string,
-  data: Partial<Pick<CreateElectionInput, "title" | "year" | "electionDate" | "description">> & { isActive?: boolean }
+  data: Partial<
+    Pick<CreateElectionInput, "title" | "year" | "electionDate" | "description">
+  > & { isActive?: boolean },
 ) => {
   try {
-    await requireAdmin()
-    return await prisma.election.update({ where: { id }, data })
+    await requireAdmin();
+    return await prisma.election.update({ where: { id }, data });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 export const deleteElection = async (id: string) => {
   try {
-    await requireSuperAdmin()
-    return await prisma.election.delete({ where: { id } })
+    await requireSuperAdmin();
+    return await prisma.election.delete({ where: { id } });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 // ─── Positions CRUD ────────────────────────────────────────────────────────
 
 export const addPosition = async (electionId: string, input: PositionInput) => {
   try {
-    await requireAdmin()
-    const type = validatePositionType(input.type)
+    await requireAdmin();
+    const type = validatePositionType(input.type);
     return await prisma.electionPosition.create({
       data: {
         electionId,
@@ -203,109 +195,121 @@ export const addPosition = async (electionId: string, input: PositionInput) => {
         description: input.description,
         sortOrder: input.sortOrder ?? 0,
       },
-    })
+    });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
-export const updatePosition = async (id: string, data: Partial<PositionInput>) => {
+export const updatePosition = async (
+  id: string,
+  data: Partial<PositionInput>,
+) => {
   try {
-    await requireAdmin()
-    if (data.type) data = { ...data, type: validatePositionType(data.type) }
-    return await prisma.electionPosition.update({ where: { id }, data })
+    await requireAdmin();
+    if (data.type) data = { ...data, type: validatePositionType(data.type) };
+    return await prisma.electionPosition.update({ where: { id }, data });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 export const deletePosition = async (id: string) => {
   try {
-    await requireAdmin()
-    return await prisma.electionPosition.delete({ where: { id } })
+    await requireAdmin();
+    return await prisma.electionPosition.delete({ where: { id } });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 // ─── Candidates CRUD ────────────────────────────────────────────────────────
 
 export type CandidateInput = {
-  positionId: string
-  name: string
-  party?: string
-  photoUrl?: string
-  entityId?: string
-  sortOrder?: number
-}
+  positionId: string;
+  name: string;
+  party?: string;
+  photoUrl?: string;
+  entityId?: string;
+  sortOrder?: number;
+};
 
 export const createCandidate = async (input: CandidateInput) => {
   try {
-    await requireAdmin()
-    return await prisma.candidate.create({ data: input })
+    await requireAdmin();
+    return await prisma.candidate.create({ data: input });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 export const createCandidatesBulk = async (inputs: CandidateInput[]) => {
   try {
-    await requireAdmin()
-    if (inputs.length === 0) return [];
-    // createMany is O(1) round-trips; fetch created rows back in one query
-    await prisma.candidate.createMany({ data: inputs, skipDuplicates: true });
-    return await prisma.candidate.findMany({
-      where: { positionId: inputs[0].positionId },
-      orderBy: { sortOrder: "asc" },
-    });
+    await requireAdmin();
+    const results: Awaited<ReturnType<typeof prisma.candidate.create>>[] = [];
+    for (const input of inputs) {
+      const created = await prisma.candidate.create({ data: input });
+      results.push(created);
+    }
+    return results;
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
-export const updateCandidate = async (id: string, data: Partial<CandidateInput>) => {
+export const updateCandidate = async (
+  id: string,
+  data: Partial<CandidateInput>,
+) => {
   try {
-    await requireAdmin()
-    return await prisma.candidate.update({ where: { id }, data })
+    await requireAdmin();
+    return await prisma.candidate.update({ where: { id }, data });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 export const deleteCandidate = async (id: string) => {
   try {
-    await requireAdmin()
-    return await prisma.candidate.delete({ where: { id } })
+    await requireAdmin();
+    return await prisma.candidate.delete({ where: { id } });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
-export const getCandidatesByPosition = async (positionId: string, entityId?: string) => {
+export const getCandidatesByPosition = async (
+  positionId: string,
+  entityId?: string,
+) => {
   try {
     return await prisma.candidate.findMany({
       where: { positionId, ...(entityId ? { entityId } : {}) },
       orderBy: { sortOrder: "asc" },
-    })
+    });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 // ─── Agent assignments ────────────────────────────────────────────────────
 
-export const assignAgentToStream = async (electionId: string, streamId: string, agentId: string) => {
+export const assignAgentToStream = async (
+  electionId: string,
+  streamId: string,
+  agentId: string,
+) => {
   try {
-    await requireAdmin()
+    await requireAdmin();
     return await prisma.agentStream.upsert({
       where: { electionId_streamId_agentId: { electionId, streamId, agentId } },
       create: { electionId, streamId, agentId },
       update: { isActive: true },
-    })
+    });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 export const getAgentAssignments = async (electionId: string) => {
   try {
@@ -315,26 +319,32 @@ export const getAgentAssignments = async (electionId: string) => {
         stream: {
           include: {
             pollingStation: {
-              select: { name: true, code: true, county: true, constituency: true, ward: true },
+              select: {
+                name: true,
+                code: true,
+                county: true,
+                constituency: true,
+                ward: true,
+              },
             },
           },
         },
-        agent: { select: { id: true, firstname: true, othernames: true, email: true } },
+        agent: {
+          select: { id: true, firstname: true, othernames: true, email: true },
+        },
       },
-    })
+    });
   } catch (error) {
-    throw new Error(handleReturnError(error))
+    throw new Error(handleReturnError(error));
   }
-}
+};
 
 export const getStreamsByElection = async (electionId: string) => {
   try {
     return await prisma.stream.findMany({
       where: {
         isActive: true,
-        pollingStation: {
-          electionActivations: { some: { electionId, isActive: true } },
-        },
+        pollingStation: { wardRef: { electionId } },
       },
       select: {
         id: true,

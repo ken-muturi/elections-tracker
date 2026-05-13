@@ -63,8 +63,8 @@ const Columns = ({
     columnHelper.accessor("phone", {
       header: translate(dictionary.phone),
     }),
-    columnHelper.accessor("alternatePhone", {
-      header: translate(dictionary.alternatePhone),
+    columnHelper.accessor("nextOfKinContacts", {
+      header: translate(dictionary.nextOfKinContacts),
     }),
     columnHelper.accessor("email", {
       header: translate(dictionary.email),
@@ -77,7 +77,7 @@ const Columns = ({
             </Tooltip.Trigger>
             <Tooltip.Content>
               <Tooltip.Arrow />
-              {`${d.email} - ${d.phone}`}
+              {`${d.email} Next of Kin: ${d.nextOfKin} Contacts: ${d.nextOfKinContacts}`}
             </Tooltip.Content>
           </Tooltip.Root>
         );
