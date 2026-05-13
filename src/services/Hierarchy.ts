@@ -81,6 +81,30 @@ export const getWardsByConstituencyAndElection = async (constituencyId: string, 
   }
 }
 
+/** All master wards for a constituency (not election-scoped) */
+export const getWardsByConstituency = async (constituencyId: string) => {
+  try {
+    return await prisma.ward.findMany({
+      where: { constituencyId },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, code: true, constituencyId: true },
+    });
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+/** Count of polling stations in a ward across ALL elections (blast-radius check) */
+export const getWardPollingStationCount = async (wardId: string) => {
+  try {
+    return await prisma.pollingStation.count({
+      where: { wardId, deletedAt: null },
+    });
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
 export const getPollingStationsByWard = async (wardId: string) => {
   try {
     return await prisma.pollingStation.findMany({
@@ -315,8 +339,12 @@ export const createWard = async (
   code: string,
 ) => {
   try {
-    return await prisma.ward.create({
-      data: { constituencyId, name, code: code.toUpperCase() },
+    return await prisma.ward.upsert({
+      where: {
+        constituencyId_code: { constituencyId, code: code.toUpperCase() },
+      },
+      create: { constituencyId, name, code: code.toUpperCase() },
+      update: { name }, // keep the master record up-to-date if it already exists
     });
   } catch (error) {
     throw new Error(handleReturnError(error));
@@ -347,6 +375,8 @@ export const createPollingStation = async (
         county: data.county,
         constituency: data.constituency,
         ward: data.ward,
+        deletedAt: null, // restore if previously soft-deleted
+        deletedBy: null,
       },
     });
     if (electionId) {
@@ -578,9 +608,12 @@ export const importPollingStationsFromElection = async (
   try {
     await requireAdmin();
 
-    if (!targetElectionId?.trim()) throw new Error("Target election ID is required.")
-    if (!sourceElectionId?.trim()) throw new Error("Source election ID is required.")
-    if (targetElectionId === sourceElectionId) throw new Error("Source and target elections must be different.")
+    if (!targetElectionId?.trim())
+      throw new Error("Target election ID is required.");
+    if (!sourceElectionId?.trim())
+      throw new Error("Source election ID is required.");
+    if (targetElectionId === sourceElectionId)
+      throw new Error("Source and target elections must be different.");
 
     const sourceActivations = await prisma.electionPollingStation.findMany({
       where: { electionId: sourceElectionId, isActive: true },
@@ -641,6 +674,21 @@ export const importPollingStationsFromElection = async (
           isActive: true,
         })),
         skipDuplicates: true,
+      });
+    }
+
+    // Re-activate any stations that already had a record but were deactivated
+    const reactivateIds = filtered
+      .map((a) => a.pollingStationId)
+      .filter((id) => existingTargetIds.has(id));
+    if (reactivateIds.length > 0) {
+      await prisma.electionPollingStation.updateMany({
+        where: {
+          electionId: targetElectionId,
+          pollingStationId: { in: reactivateIds },
+          isActive: false,
+        },
+        data: { isActive: true },
       });
     }
 

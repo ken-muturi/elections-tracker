@@ -1,0 +1,10 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Check DB Counties",
+			"type": "shell",
+			"command": "node check-db.mjs"
+		}
+	]
+}
