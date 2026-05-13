@@ -275,6 +275,7 @@ export default function VoteTable({
             fontSize="sm" fontWeight="700"
             cursor={exceedsVoters ? "not-allowed" : "pointer"}
             pointerEvents={exceedsVoters ? "none" : "auto"}
+            aria-disabled={exceedsVoters || undefined}
             _hover={exceedsVoters ? {} : { bg: "#1e293b" }}
             transition="all 0.15s"
             opacity={isPending ? 0.6 : 1}

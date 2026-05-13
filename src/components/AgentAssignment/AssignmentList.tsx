@@ -4,7 +4,7 @@ import { useState } from "react"
 import {
   Box, Text, VStack, HStack, Badge, Flex,
 } from "@chakra-ui/react"
-import { FiUsers, FiTrash2, FiRefreshCw } from "react-icons/fi"
+import { FiUsers, FiTrash2, FiEdit2 } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 import { useQueryClient } from "@tanstack/react-query"
 import { removeAgentAssignment } from "@/services/Elections"
@@ -169,17 +169,6 @@ export default function AssignmentList({ data, onReassign }: { data: Record<stri
                             <FiTrash2 size={11} />
                           </StyledIconButton>
                         </HStack>
-                        {onReassign && (
-                          <StyledIconButton
-                            variant="edit"
-                            aria-label="Reassign agent to different stream"
-                            size="xs"
-                            title="Reassign to a different stream"
-                            onClick={() => onReassign(a.electionId, a.agentId)}
-                          >
-                            <FiRefreshCw size={11} />
-                          </StyledIconButton>
-                        )}
                       </HStack>
                     ))}
                   </VStack>
