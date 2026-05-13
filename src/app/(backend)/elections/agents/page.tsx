@@ -3,13 +3,13 @@ import {
 } from "@chakra-ui/react"
 import prisma from "@/db"
 import AgentAssignmentImportWrapper from "@/components/AgentAssignmentImport/PageWrapper";
-import AssignAgentForm from "@/components/AgentAssignment/AssignAgentForm";
-import AssignmentList from "@/components/AgentAssignment/AssignmentList";
+import AgentAssignmentsClient from "@/components/AgentAssignment/AgentAssignmentsClient";
 
 
 async function getAgentCounts() {
   try {
     const assignments = await prisma.agentStream.findMany({
+      where: { isActive: true },
       include: {
         election: { select: { id: true, title: true, year: true, isActive: true } },
         stream: {
@@ -91,8 +91,8 @@ export default async function AgentAssignmentsPage() {
         <AgentAssignmentImportWrapper elections={elections} />
       </HStack>
 
-      {/* Manual assign */}
-      <AssignAgentForm />
+      {/* Manual assign + assignments list */}
+      <AgentAssignmentsClient data={agentData} />
 
       {/* Stats */}
       <SimpleGrid columns={{ base: 2, md: 4 }} gap={4}>
@@ -206,8 +206,7 @@ export default async function AgentAssignmentsPage() {
         </Box>
       </SimpleGrid>
 
-      {/* Per-election breakdown */}
-      <AssignmentList data={agentData} />
+      {/* Per-election breakdown - rendered inside AgentAssignmentsClient above */}
     </VStack>
   );
 }

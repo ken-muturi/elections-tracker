@@ -21,7 +21,7 @@ import {
   PollingStationForm as StationFormData,
 } from "@/services/PollingStations";
 import { getElectionsLight } from "@/services/Elections";
-import { getWardsByElection } from "@/services/Hierarchy";
+import { getAllWards } from "@/services/Hierarchy";
 
 const toaster = createToaster({ placement: "top-end" });
 
@@ -48,17 +48,14 @@ const PollingStationForm = ({
   useEffect(() => {
     if (!isEdit) {
       getElectionsLight().then(setElections).catch(() => {});
+      setWardsLoading(true);
+      getAllWards()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .then((w: any[]) => setWards(w))
+        .catch(() => {})
+        .finally(() => setWardsLoading(false));
     }
   }, [isEdit]);
-
-  useEffect(() => {
-    if (!selectedElectionId) { setWards([]); return; }
-    setWardsLoading(true);
-    getWardsByElection(selectedElectionId)
-      .then((w: any[]) => setWards(w))
-      .catch(() => {})
-      .finally(() => setWardsLoading(false));
-  }, [selectedElectionId]);
 
   const [form, setForm] = useState<StationFormData>({
     wardId: station?.wardId || "",
@@ -157,13 +154,6 @@ const PollingStationForm = ({
                       value={selectedElectionId}
                       onChange={(e) => {
                         setSelectedElectionId(e.target.value);
-                        setForm((prev) => ({
-                          ...prev,
-                          wardId: "",
-                          ward: "",
-                          constituency: "",
-                          county: "",
-                        }));
                       }}
                       style={selectStyle(!!selectedElectionId)}
                     >
@@ -183,22 +173,18 @@ const PollingStationForm = ({
                     <select
                       value={form.wardId}
                       onChange={(e) => handleWardSelect(e.target.value)}
-                      disabled={!selectedElectionId || wardsLoading}
+                      disabled={wardsLoading}
                       style={selectStyle(
                         !!form.wardId,
-                        !selectedElectionId || wardsLoading,
+                        wardsLoading,
                       )}
                     >
                       <option value="">
-                        {selectedElectionId
-                          ? wardsLoading
-                            ? "Loading…"
-                            : "Select ward…"
-                          : "Select election first"}
+                        {wardsLoading ? "Loading wards…" : "Select ward…"}
                       </option>
                       {wards.map((w) => (
                         <option key={w.id} value={w.id}>
-                          {w.name} ({w.code})
+                          {w.name} ({w.constituency?.county?.name}) ({w.code})
                         </option>
                       ))}
                     </select>

@@ -55,7 +55,7 @@ const schema = Yup.object({
   othernames: Yup.string().required("Othernames Field is required"),
   gender: Yup.string().required("Gender field is required"),
   phone: Yup.string().required("Phone field is required"),
-  alternatePhone: Yup.string().required("Alternate Phone field is required"),
+  alternatePhone: Yup.string().optional(),
   roleId: Yup.string().required("Role is required"),
   partyId: Yup.string().optional(),
   image: Yup.string(),

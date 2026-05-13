@@ -17,6 +17,7 @@ export default function CandidateManager({
   positionId,
   aggregationLevel,
   initialCandidates,
+  parties = [],
 }: CandidateManagerProps) {
   const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates)
   const [showAdd, setShowAdd] = useState(false)
@@ -115,6 +116,7 @@ export default function CandidateManager({
             needsEntityId={needsEntityId}
             aggregationLevel={aggregationLevel}
             isPending={isPending}
+            parties={parties}
             onEdit={handleEdit}
             onDelete={handleDelete}
           />
@@ -133,6 +135,7 @@ export default function CandidateManager({
             aggregationLevel={aggregationLevel}
             needsEntityId={needsEntityId}
             isPending={isPending}
+            parties={parties}
             onAdd={handleAdd}
             onCancel={() => {
               setShowAdd(false)

@@ -5,6 +5,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { cookies } from "next/headers"
 import { getElectionById } from "@/services/Elections"
+import { getParties } from "@/services/Parties"
 import { FiArrowLeft, FiUsers } from "react-icons/fi"
 import CandidatesFilter from "./CandidatesFilter"
 
@@ -15,7 +16,10 @@ export default async function CandidatesPage({
 }) {
   await cookies()
   const { id } = await params
-  const election = await getElectionById(id).catch(() => null)
+  const [election, parties] = await Promise.all([
+    getElectionById(id).catch(() => null),
+    getParties().catch(() => []),
+  ])
 
   if (!election) notFound()
 
@@ -70,7 +74,7 @@ export default async function CandidatesPage({
       </VStack>
 
       {/* Filter + positions — client component */}
-      <CandidatesFilter positions={election.positions} />
+      <CandidatesFilter positions={election.positions} parties={parties} />
     </VStack>
   )
 }

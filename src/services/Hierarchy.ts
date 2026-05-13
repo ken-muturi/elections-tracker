@@ -39,6 +39,22 @@ export const getAllConstituencies = async () => {
 
 // ─── Election-scoped hierarchy (Ward / PollingStation / Stream) ────────────
 
+/** All master wards (not election-scoped) — used when creating new polling stations */
+export const getAllWards = async () => {
+  try {
+    return await prisma.ward.findMany({
+      orderBy: [{ constituency: { county: { name: "asc" } } }, { constituency: { name: "asc" } }, { name: "asc" }],
+      include: {
+        constituency: {
+          select: { name: true, county: { select: { name: true } } },
+        },
+      },
+    })
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
 export const getWardsByElection = async (electionId: string) => {
   try {
     return await prisma.ward.findMany({

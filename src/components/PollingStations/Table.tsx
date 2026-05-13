@@ -28,7 +28,8 @@ import { Switch } from "@/components/ui/switch";
 import { getStreamColumns } from "./StreamColumns";
 
 const toaster = createToaster({ placement: "top-end" });
-type PollingStationWithStreams = PollingStation & { streams: Stream[] };
+type ElectionActivation = { election: { id: string; title: string; year: number } }
+type PollingStationWithStreams = PollingStation & { streams: Stream[]; electionActivations?: ElectionActivation[] };
 
 const columnHelper = createColumnHelper<PollingStationWithStreams>();
 
@@ -70,6 +71,25 @@ const getColumns = (
     header: "Reg. Voters",
     enableGrouping: false,
     cell: (cell) => cell.getValue()?.toLocaleString() ?? "-",
+  }),
+  columnHelper.display({
+    id: "elections",
+    header: "Elections",
+    enableGrouping: false,
+    enableSorting: false,
+    cell: ({ row }) => {
+      const activations = row.original.electionActivations
+      if (!activations?.length) return <span style={{ color: "#9ca3af", fontSize: "12px" }}>—</span>
+      return (
+        <HStack gap={1} flexWrap="wrap">
+          {activations.map(({ election }) => (
+            <Badge key={election.id} colorPalette="blue" size="xs" borderRadius="full">
+              {election.title} ({election.year})
+            </Badge>
+          ))}
+        </HStack>
+      )
+    },
   }),
   columnHelper.accessor("isActive", {
     header: "Status",

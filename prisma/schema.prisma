@@ -73,6 +73,7 @@ model User {
   gender            String    @db.VarChar(10)
   nationalId        String    @unique @map("national_id") @db.VarChar(20)
   phone             String    @db.VarChar(20)
+  alternatePhone    String?   @map("alternate_phone") @db.VarChar(20)
   nextOfKin         String    @map("next_of_kin") @db.VarChar(100)
   nextOfKinContacts String    @map("next_of_kin_contacts") @db.VarChar(100)
   address           String?   @db.VarChar(255)

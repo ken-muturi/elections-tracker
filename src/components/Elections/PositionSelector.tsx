@@ -10,11 +10,14 @@ import type { PositionSummary, ResultStat } from "./ResultsSummary";
 type PositionSelectorProps = {
   summaries: PositionSummary[];
   electionId: string;
+  /** Optional server-prefetched results, keyed by positionId, to avoid the initial loading spinner. */
+  prefetchedResults?: Record<string, ResultStat>;
 };
 
 export default function PositionSelector({
   summaries,
   electionId,
+  prefetchedResults,
 }: PositionSelectorProps) {
   const sorted = [...summaries].sort(
     (a, b) =>
@@ -25,8 +28,11 @@ export default function PositionSelector({
   const [selectedId, setSelectedId] = useState(sorted[0]?.positionId ?? "");
   const [loadingId, setLoadingId] = useState<string | null>(null);
 
-  const cacheRef = useRef<Record<string, ResultStat>>({});
-  const [cachedIds, setCachedIds] = useState<Set<string>>(new Set());
+  // Seed the cache with any server-prefetched results to avoid the initial spinner
+  const cacheRef = useRef<Record<string, ResultStat>>(prefetchedResults ?? {});
+  const [cachedIds, setCachedIds] = useState<Set<string>>(
+    new Set(Object.keys(prefetchedResults ?? {})),
+  );
   const inFlightRef = useRef<Set<string>>(new Set());
   const bgPrefetchFired = useRef(false);
 

@@ -4,11 +4,14 @@ import { useState } from "react"
 import {
   Box, Text, VStack, HStack, Badge, Flex,
 } from "@chakra-ui/react"
-import { FiUsers, FiTrash2 } from "react-icons/fi"
+import { FiUsers, FiTrash2, FiRefreshCw } from "react-icons/fi"
 import { MdHowToVote } from "react-icons/md"
 import { useQueryClient } from "@tanstack/react-query"
 import { removeAgentAssignment } from "@/services/Elections"
 import StyledIconButton from "@/components/Generic/StyledIconButton"
+import { createToaster } from "@chakra-ui/react"
+
+const toaster = createToaster({ placement: "top-end" })
 
 type Assignment = {
   id: string
@@ -27,7 +30,7 @@ type ElectionGroup = {
   assignments: Assignment[]
 }
 
-export default function AssignmentList({ data }: { data: Record<string, ElectionGroup> }) {
+export default function AssignmentList({ data, onReassign }: { data: Record<string, ElectionGroup>; onReassign?: (electionId: string, agentId: string) => void }) {
   const queryClient = useQueryClient()
   const [removing, setRemoving] = useState<string | null>(null)
 
@@ -37,8 +40,9 @@ export default function AssignmentList({ data }: { data: Record<string, Election
     try {
       await removeAgentAssignment(id)
       queryClient.invalidateQueries({ queryKey: ["agent-assignments"] })
-      // Refresh the page data (server component above)
       window.location.reload()
+    } catch (e: unknown) {
+      toaster.error({ title: "Failed to remove assignment", description: e instanceof Error ? e.message : "Unknown error" })
     } finally {
       setRemoving(null)
     }
@@ -143,15 +147,39 @@ export default function AssignmentList({ data }: { data: Record<string, Election
                           {" / "}<Text as="span" fontWeight="600">{a.stream.name}</Text>
                           <Text as="span" color="gray.400" ml={1}>({a.stream.code})</Text>
                         </Text>
-                        <StyledIconButton
-                          variant="delete"
-                          aria-label="Remove assignment"
-                          size="xs"
-                          onClick={() => handleRemove(a.id)}
-                          opacity={removing === a.id ? 0.5 : 1}
-                        >
-                          <FiTrash2 size={11} />
-                        </StyledIconButton>
+                        <HStack gap={1}>
+                          {onReassign && (
+                            <StyledIconButton
+                              variant="edit"
+                              aria-label="Reassign agent to different stream"
+                              size="xs"
+                              title="Reassign to another stream"
+                              onClick={() => onReassign(a.electionId, a.agentId)}
+                            >
+                              <FiEdit2 size={10} />
+                            </StyledIconButton>
+                          )}
+                          <StyledIconButton
+                            variant="delete"
+                            aria-label="Remove assignment"
+                            size="xs"
+                            onClick={() => handleRemove(a.id)}
+                            opacity={removing === a.id ? 0.5 : 1}
+                          >
+                            <FiTrash2 size={11} />
+                          </StyledIconButton>
+                        </HStack>
+                        {onReassign && (
+                          <StyledIconButton
+                            variant="edit"
+                            aria-label="Reassign agent to different stream"
+                            size="xs"
+                            title="Reassign to a different stream"
+                            onClick={() => onReassign(a.electionId, a.agentId)}
+                          >
+                            <FiRefreshCw size={11} />
+                          </StyledIconButton>
+                        )}
                       </HStack>
                     ))}
                   </VStack>

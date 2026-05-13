@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useImperativeHandle, useState } from "react"
 import {
   Box, Text, VStack, HStack, Input, Flex,
 } from "@chakra-ui/react"
@@ -9,9 +9,11 @@ import { useQuery } from "@tanstack/react-query"
 import { getElectionsLight, assignAgentToStream, getStreamsByElection } from "@/services/Elections"
 import { getUsers } from "@/services/Users"
 import useSyncMutation from "@/hooks/hooks/useSyncMutation"
+import React from "react"
 
 interface Props {
   onAssigned?: () => void
+  formRef?: React.MutableRefObject<{ prefill: (electionId: string, agentId: string) => void } | null>
 }
 
 type StreamOption = {
@@ -19,7 +21,7 @@ type StreamOption = {
   label: string // "Ward / Station / Stream"
 }
 
-export default function AssignAgentForm({ onAssigned }: Props) {
+export default function AssignAgentForm({ onAssigned, formRef }: Props) {
   const [electionId, setElectionId] = useState("")
   const [streamSearch, setStreamSearch] = useState("")
   const [selectedStreamId, setSelectedStreamId] = useState("")
@@ -29,6 +31,15 @@ export default function AssignAgentForm({ onAssigned }: Props) {
   const [selectedAgentId, setSelectedAgentId] = useState("")
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState("")
+
+  useImperativeHandle(formRef, () => ({
+    prefill: (eid: string, aid: string) => {
+      setElectionId(eid)
+      setSelectedAgentId(aid)
+      setSelectedStreamId("")
+      setStreamSearch("")
+    },
+  }))
 
   // ── Data ─────────────────────────────────────────────────────────────────
 

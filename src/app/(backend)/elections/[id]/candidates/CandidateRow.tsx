@@ -6,6 +6,7 @@ import { FiEdit2, FiTrash2, FiCheck, FiX } from "react-icons/fi"
 import type { Candidate } from "@prisma/client"
 import { ENTITY_LABEL } from "./constants"
 import DeleteConfirmDialog from "@/components/Generic/DeleteConfirmationDialog";
+import type { Party } from "@/services/Parties"
 
 type CandidateRowProps = {
   candidate: Candidate;
@@ -13,6 +14,7 @@ type CandidateRowProps = {
   needsEntityId: boolean;
   aggregationLevel: string;
   isPending: boolean;
+  parties?: Party[];
   onEdit: (
     id: string,
     data: { name: string; party?: string; entityId?: string },
@@ -26,6 +28,7 @@ export default function CandidateRow({
   needsEntityId,
   aggregationLevel,
   isPending,
+  parties = [],
   onEdit,
   onDelete,
 }: CandidateRowProps) {
@@ -83,20 +86,44 @@ export default function CandidateRow({
                 boxShadow: "0 0 0 3px rgba(201,217,39,0.15)",
               }}
             />
-            <Input
-              value={editParty}
-              onChange={(e) => setEditParty(e.target.value)}
-              placeholder="Party / Independent"
-              size="sm"
-              bg="white"
-              borderColor="gray.200"
-              borderRadius="lg"
-              w="160px"
-              _focus={{
-                borderColor: "#C9D927",
-                boxShadow: "0 0 0 3px rgba(201,217,39,0.15)",
-              }}
-            />
+            {parties.length > 0 ? (
+              <select
+                value={editParty}
+                onChange={(e) => setEditParty(e.target.value)}
+                style={{
+                  padding: "5px 8px",
+                  fontSize: "13px",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  background: "white",
+                  width: "180px",
+                  color: editParty ? "#1a202c" : "#a0aec0",
+                }}
+              >
+                <option value="">Party / Independent</option>
+                <option value="Independent">Independent</option>
+                {parties.map((p) => (
+                  <option key={p.id} value={p.abbreviation ?? p.name}>
+                    {p.abbreviation ? `${p.abbreviation} – ${p.name}` : p.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                value={editParty}
+                onChange={(e) => setEditParty(e.target.value)}
+                placeholder="Party / Independent"
+                size="sm"
+                bg="white"
+                borderColor="gray.200"
+                borderRadius="lg"
+                w="160px"
+                _focus={{
+                  borderColor: "#C9D927",
+                  boxShadow: "0 0 0 3px rgba(201,217,39,0.15)",
+                }}
+              />
+            )}
             {needsEntityId && (
               <Input
                 value={editEntityId}

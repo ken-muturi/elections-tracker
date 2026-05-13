@@ -173,7 +173,14 @@ export const updateElection = async (
 ) => {
   try {
     await requireAdmin()
-    return await prisma.election.update({ where: { id }, data })
+    const { electionDate, ...rest } = data
+    return await prisma.election.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(electionDate ? { electionDate: new Date(electionDate) } : {}),
+      },
+    })
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
@@ -252,10 +259,15 @@ export const createCandidatesBulk = async (inputs: CandidateInput[]) => {
   try {
     await requireAdmin()
     if (inputs.length === 0) return [];
-    // createMany is O(1) round-trips; fetch created rows back in one query
+    // Use a transaction to create all and fetch back only the newly created ones
+    const before = await prisma.candidate.count({ where: { positionId: inputs[0].positionId } });
     await prisma.candidate.createMany({ data: inputs, skipDuplicates: true });
+    // Return only candidates with sortOrder >= original count (i.e., newly appended)
     return await prisma.candidate.findMany({
-      where: { positionId: inputs[0].positionId },
+      where: {
+        positionId: inputs[0].positionId,
+        sortOrder: { gte: before },
+      },
       orderBy: { sortOrder: "asc" },
     });
   } catch (error) {

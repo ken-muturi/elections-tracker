@@ -25,6 +25,8 @@ export type VoteTableProps = {
   onNotesChange: (value: string) => void
   isSubmitted: boolean
   grandTotal: number
+  registeredVoters?: number | null
+  exceedsVoters?: boolean
   error?: Error | null
   success: string
   isPending: boolean
@@ -50,6 +52,8 @@ export default function VoteTable({
   onNotesChange,
   isSubmitted,
   grandTotal,
+  registeredVoters,
+  exceedsVoters,
   error,
   success,
   isPending,
@@ -195,6 +199,18 @@ export default function VoteTable({
         </HStack>
       </Box>
 
+      {/* Voter count warning */}
+      {exceedsVoters && registeredVoters != null && (
+        <Box px={4} py={3} bg="#fffbeb" borderRadius="lg" borderWidth="1px" borderColor="#fcd34d">
+          <HStack gap={1.5}>
+            <FiAlertCircle fontSize="0.85rem" color="#d97706" />
+            <Text fontSize="sm" color="#92400e" fontWeight="600">
+              Total votes ({grandTotal.toLocaleString()}) exceed registered voters ({registeredVoters.toLocaleString()})
+            </Text>
+          </HStack>
+        </Box>
+      )}
+
       {/* Notes */}
       <Box>
         <Text fontSize="xs" fontWeight="600" color="gray.500" mb={1.5}>
@@ -254,12 +270,15 @@ export default function VoteTable({
             as="button"
             onClick={onSubmit}
             px={5} py={2.5} borderRadius="lg"
-            bg="#0f172a" color="white"
+            bg={exceedsVoters ? "#fca5a5" : "#0f172a"}
+            color={exceedsVoters ? "#7f1d1d" : "white"}
             fontSize="sm" fontWeight="700"
-            cursor="pointer"
-            _hover={{ bg: "#1e293b" }}
+            cursor={exceedsVoters ? "not-allowed" : "pointer"}
+            pointerEvents={exceedsVoters ? "none" : "auto"}
+            _hover={exceedsVoters ? {} : { bg: "#1e293b" }}
             transition="all 0.15s"
             opacity={isPending ? 0.6 : 1}
+            title={exceedsVoters ? "Cannot submit: total votes exceed registered voters" : undefined}
           >
             <HStack gap={1.5}>
               <FiSend fontSize="0.85rem" />

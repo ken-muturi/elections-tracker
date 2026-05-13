@@ -25,7 +25,13 @@ export const getPollingStations = async (
     return await prisma.pollingStation.findMany({
       where: { deletedAt: null, ...where },
       orderBy: { name: "asc" },
-      include: { streams: { orderBy: { name: "asc" } } },
+      include: {
+        streams: { orderBy: { name: "asc" } },
+        electionActivations: {
+          where: { isActive: true },
+          include: { election: { select: { id: true, title: true, year: true } } },
+        },
+      },
     });
   } catch (error) {
     const message = handleReturnError(error)

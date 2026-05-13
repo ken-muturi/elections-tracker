@@ -83,7 +83,12 @@ export default function FormImageUpload({
         headers: { "Content-Type": file.type },
         body: file,
       })
-      if (!res.ok) throw new Error("Failed to upload image to storage")
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "")
+        if (errText.includes("NoSuchBucket") || errText.includes("bucket"))
+          throw new Error("Image storage is not configured. Please contact your administrator.")
+        throw new Error(`Failed to upload image (${res.status}). Please try again.`)
+      }
 
       // 3. Save record in DB
       const record = await saveResultFormImage({

@@ -14,6 +14,7 @@ import {
 } from "@/constants/elections"
 import type { AggregationLevel, Candidate as PrismaCandidate } from "@prisma/client"
 import CandidateManager from "./CandidateManager"
+import type { Party } from "@/services/Parties"
 
 type Candidate = PrismaCandidate
 
@@ -35,7 +36,7 @@ const LEVEL_BADGE_COLOR: Record<string, { bg: string; color: string }> = {
   NATIONAL:     { bg: "#fef3c7", color: "#92400e" },
 }
 
-export default function CandidatesFilter({ positions }: { positions: Position[] }) {
+export default function CandidatesFilter({ positions, parties }: { positions: Position[]; parties: Party[] }) {
   const [search, setSearch]           = useState("")
   const [activeLevel, setActiveLevel] = useState<AggregationLevel | "ALL">("ALL")
   const [activeType, setActiveType]   = useState<string>("ALL")
@@ -237,6 +238,7 @@ export default function CandidatesFilter({ positions }: { positions: Position[] 
               positionType={position.type}
               aggregationLevel={position.aggregationLevel}
               initialCandidates={position.candidates}
+              parties={parties}
             />
           </Box>
         )

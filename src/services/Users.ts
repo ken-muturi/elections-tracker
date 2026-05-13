@@ -97,6 +97,7 @@ export async function createUser(
         othernames: data.othernames,
         gender: data.gender,
         phone: data.phone,
+        alternatePhone: data.alternatePhone || null,
         image: data.image || "",
         roleId: data.roleId || "",
         partyId: data.partyId || "",

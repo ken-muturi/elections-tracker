@@ -25,6 +25,25 @@ function normaliseName(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim()
 }
 
+/**
+ * Kenya-specific county name aliases.
+ * Maps the normalised geojson COUNTY_NAM value → the normalised DB county name.
+ *
+ * Mismatches stem from:
+ *  • "Nairobi City" in the DB vs "NAIROBI" in the geojson
+ *  • "Tharaka-Nithi" (hyphen stripped → "tharakanithi") vs "THARAKA - NITHI" (spaces → "tharaka nithi")
+ *  • "Elgeyo/Marakwet" (slash stripped → "elgeyomarakwet") vs "ELEGEYO-MARAKWET" (different spelling, hyphen stripped → "elegeyomarakwet")
+ */
+const COUNTY_GEO_ALIASES: Record<string, string> = {
+  "nairobi":          "nairobi city",
+  "tharaka nithi":    "tharakanithi",
+  "elegeyomarakwet":  "elgeyomarakwet",
+}
+
+function resolveCountyAlias(normalisedGeoName: string): string {
+  return COUNTY_GEO_ALIASES[normalisedGeoName] ?? normalisedGeoName
+}
+
 function opacityFromShare(pct: number) {
   return Math.min(0.88, Math.max(0.22, (pct / 100) * 0.88))
 }
@@ -140,7 +159,8 @@ export default function PositionMap({
       const geoLayer = L.geoJSON(geojson, {
         style: (feature) => {
           if (!feature) return {};
-          const name = normaliseName(feature.properties?.[geo.nameKey] ?? "");
+          const rawGeoName = normaliseName(feature.properties?.[geo.nameKey] ?? "");
+          const name = aggregationLevel === "COUNTY" ? resolveCountyAlias(rawGeoName) : rawGeoName;
           const entity = entityByName.get(name);
           if (!entity)
             return {
@@ -168,7 +188,9 @@ export default function PositionMap({
         },
         onEachFeature: (feature, layer) => {
           const rawName = feature.properties?.[geo.nameKey] ?? "";
-          const entity = entityByName.get(normaliseName(rawName));
+          const normRaw = normaliseName(rawName);
+          const resolvedName = aggregationLevel === "COUNTY" ? resolveCountyAlias(normRaw) : normRaw;
+          const entity = entityByName.get(resolvedName);
           if (entity) matchedLayers.push(layer);
 
           layer.on({

@@ -53,6 +53,8 @@ export default function VoteEntryForm({
     0,
   )
   const grandTotal = totalCandidateVotes + rejectedVotes
+  const registeredVoters = stream.registeredVoters ?? stream.pollingStation.registeredVoters
+  const exceedsVoters = registeredVoters !== null && grandTotal > registeredVoters
 
   const saveMutation = useSyncMutation(
     async ({ andSubmit }: { andSubmit: boolean }) => {
@@ -161,6 +163,8 @@ export default function VoteEntryForm({
         onNotesChange={setNotes}
         isSubmitted={isSubmitted}
         grandTotal={grandTotal}
+        registeredVoters={registeredVoters}
+        exceedsVoters={exceedsVoters}
         error={saveMutation.error}
         success={success}
         isPending={saveMutation.isPending}
