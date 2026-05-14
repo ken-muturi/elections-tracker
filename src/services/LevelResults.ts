@@ -294,12 +294,18 @@ export const getElectionPositionsSummary = async (electionId: string) => {
     });
 
     const positionIds = positions.map((p) => p.id);
-    const streamStats = await prisma.streamResult.groupBy({
-      by: ["positionId"],
-      where: { positionId: { in: positionIds }, status: { in: ["SUBMITTED", "VERIFIED"] } },
-      _count: { id: true },
-      _sum: { totalVotes: true, rejectedVotes: true },
-    });
+    const [streamStats, totalExpectedRaw] = await Promise.all([
+      prisma.streamResult.groupBy({
+        by: ["positionId"],
+        where: { positionId: { in: positionIds }, status: { in: ["SUBMITTED", "VERIFIED"] } },
+        _count: { id: true },
+        _sum: { totalVotes: true, rejectedVotes: true },
+      }),
+      // Count total active streams for the election (same for all positions)
+      prisma.stream.count({
+        where: { pollingStation: { electionActivations: { some: { electionId, isActive: true } } }, isActive: true },
+      }),
+    ]);
 
     const streamStatMap = new Map(
       streamStats.map((r) => [
@@ -317,10 +323,9 @@ export const getElectionPositionsSummary = async (electionId: string) => {
       positionType: p.type,
       positionTitle: p.title,
       aggregationLevel: p.aggregationLevel,
-      streamStats: streamStatMap.get(p.id) ?? {
-        totalReported: 0,
-        totalVotes: 0,
-        rejectedVotes: 0,
+      streamStats: {
+        ...(streamStatMap.get(p.id) ?? { totalReported: 0, totalVotes: 0, rejectedVotes: 0 }),
+        totalExpected: totalExpectedRaw,
       },
       levelValidations: p._count.levelResults,
     }));

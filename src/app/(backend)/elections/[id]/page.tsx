@@ -269,7 +269,10 @@ export default async function ElectionDetailPage({
                       <HStack gap={1.5}>
                         <FiCheckCircle fontSize="0.75rem" color="#10b981" />
                         <Text fontSize="xs" color="#10b981" fontWeight="600">
-                          {resultData.streamStats.totalReported} streams in
+                          {resultData.streamStats.totalReported}
+                          {resultData.streamStats.totalExpected > 0 && (
+                            <> of {resultData.streamStats.totalExpected}</>)
+                          } streams in
                         </Text>
                       </HStack>
                     )}
