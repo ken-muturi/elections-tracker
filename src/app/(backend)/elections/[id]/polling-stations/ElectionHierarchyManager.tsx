@@ -76,6 +76,18 @@ interface Props {
   constituencies: ConstituencyOption[]
 }
 
+// ── Helper: extract a usable message from a server-action error ──────────────
+// Next.js replaces error messages with a generic digest string in production.
+// Detect that and fall back to a friendly message.
+function getActionError(e: unknown, fallback: string): string {
+  if (!(e instanceof Error)) return fallback
+  // Next.js sanitized error has a 'digest' property OR the generic message text
+  if ("digest" in e || e.message.includes("Server Components") || e.message.includes("digest")) {
+    return fallback
+  }
+  return e.message
+}
+
 // ── Small reusable inline form ─────────────────────────────────────────────
 
 function InlineForm({
@@ -442,7 +454,7 @@ export default function ElectionHierarchyManager({
         });
       } catch (e) {
         setAddTopError(
-          e instanceof Error ? e.message : "Failed to add polling station",
+          getActionError(e, "Failed to add polling station. Please try again."),
         );
       } finally {
         setAddTopPending(false);
@@ -459,7 +471,7 @@ export default function ElectionHierarchyManager({
       } catch (e) {
         toaster.error({
           title: "Delete failed",
-          description: e instanceof Error ? e.message : "Unknown",
+          description: getActionError(e, "Failed to delete ward. Please try again."),
         });
       }
     });
@@ -520,7 +532,7 @@ export default function ElectionHierarchyManager({
         toaster.success({ title: "Polling station added" });
       } catch (e) {
         setAddStationError(
-          e instanceof Error ? e.message : "Failed to add station",
+          getActionError(e, "Failed to add station. Please try again."),
         );
       } finally {
         setAddStationPending(false);
@@ -548,7 +560,7 @@ export default function ElectionHierarchyManager({
       } catch (e) {
         toaster.error({
           title: "Delete failed",
-          description: e instanceof Error ? e.message : "Unknown",
+          description: getActionError(e, "Failed to remove station. Please try again."),
         });
       }
     });
@@ -606,7 +618,7 @@ export default function ElectionHierarchyManager({
         toaster.success({ title: "Stream added" });
       } catch (e) {
         setAddStreamError(
-          e instanceof Error ? e.message : "Failed to add stream",
+          getActionError(e, "Failed to add stream. Please try again."),
         );
       } finally {
         setAddStreamPending(false);
@@ -643,7 +655,7 @@ export default function ElectionHierarchyManager({
       } catch (e) {
         toaster.error({
           title: "Delete failed",
-          description: e instanceof Error ? e.message : "Unknown",
+          description: getActionError(e, "Failed to remove stream. Please try again."),
         });
       }
     });
