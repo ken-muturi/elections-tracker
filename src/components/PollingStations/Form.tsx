@@ -50,7 +50,6 @@ const PollingStationForm = ({
       getElectionsLight().then(setElections).catch(() => {});
       setWardsLoading(true);
       getAllWards()
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .then((w: any[]) => setWards(w))
         .catch(() => {})
         .finally(() => setWardsLoading(false));
