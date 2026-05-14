@@ -50,6 +50,26 @@ export const upsertStreamResult = async (
 
     const submittedAt = status === "SUBMITTED" ? new Date() : undefined;
 
+    // ── Server-side voter cap: total votes must not exceed registered voters ──
+    if (input.totalVotes != null && input.totalVotes > 0) {
+      const stream = await prisma.stream.findUnique({
+        where: { id: input.streamId },
+        select: {
+          registeredVoters: true,
+          pollingStation: { select: { registeredVoters: true } },
+        },
+      });
+      const cap =
+        stream?.registeredVoters ??
+        stream?.pollingStation?.registeredVoters ??
+        null;
+      if (cap !== null && input.totalVotes > cap) {
+        throw new Error(
+          `Total votes (${input.totalVotes.toLocaleString()}) exceed the registered voter count for this stream (${cap.toLocaleString()}). Submission rejected.`,
+        );
+      }
+    }
+
     return await prisma.$transaction(async (tx) => {
       const existing = await tx.streamResult.findUnique({
         where: {
