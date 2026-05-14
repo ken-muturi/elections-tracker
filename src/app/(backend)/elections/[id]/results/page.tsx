@@ -40,6 +40,11 @@ export default async function ElectionResultsPage({
     (s, r) => s + r.streamStats.totalVotes,
     0,
   );
+  // All positions share the same pool of streams; use first result's totalExpected
+  const totalExpected = results[0]?.streamStats.totalExpected ?? 0;
+  const pctReported = totalExpected > 0
+    ? Math.round((totalStreamsReported / totalExpected) * 100)
+    : 0;
 
   return (
     <VStack gap={6} alignItems="stretch" w="full">
@@ -112,23 +117,21 @@ export default async function ElectionResultsPage({
       </VStack>
 
       {/* Summary row */}
-      <SimpleGrid columns={{ base: 2, md: 4 }} gap={4}>
+      <SimpleGrid columns={{ base: 2, md: 5 }} gap={4}>
         {[
-          { label: "Positions", value: results.length },
-          { label: "Streams In", value: totalStreamsReported.toLocaleString() },
-          { label: "Total Votes", value: totalVotesAll.toLocaleString() },
-          {
-            label: "Validated",
-            value: results.reduce((s, r) => s + r.levelValidations, 0),
-          },
-        ].map(({ label, value }) => (
+          { label: "Positions", value: results.length, sub: null },
+          { label: "Streams In", value: totalStreamsReported.toLocaleString(), sub: totalExpected > 0 ? `of ${totalExpected.toLocaleString()}` : null },
+          { label: "% Reported", value: `${pctReported}%`, sub: null, highlight: pctReported === 100 },
+          { label: "Total Votes", value: totalVotesAll.toLocaleString(), sub: null },
+          { label: "Validated", value: results.reduce((s, r) => s + r.levelValidations, 0), sub: null },
+        ].map(({ label, value, sub, highlight }) => (
           <Box
             key={label}
             bg="white"
             p={4}
             borderRadius="xl"
             borderWidth="1px"
-            borderColor="gray.100"
+            borderColor={highlight ? "#86efac" : "gray.100"}
             boxShadow="0 1px 3px 0 rgba(0,0,0,0.06)"
           >
             <Text
@@ -144,11 +147,14 @@ export default async function ElectionResultsPage({
             <Text
               fontSize="2xl"
               fontWeight="800"
-              color="gray.900"
+              color={highlight ? "#16a34a" : "gray.900"}
               lineHeight="1.1"
             >
               {value}
             </Text>
+            {sub && (
+              <Text fontSize="xs" color="gray.400" mt={0.5}>{sub}</Text>
+            )}
           </Box>
         ))}
       </SimpleGrid>
@@ -228,10 +234,13 @@ export default async function ElectionResultsPage({
                       {position.positionTitle}
                     </Text>
                     <Text fontSize="xs" color="gray.500">
-                      {position.streamStats.totalReported.toLocaleString()}{" "}
-                      streams ·{" "}
-                      {position.streamStats.totalVotes.toLocaleString()} votes ·{" "}
-                      {position.entities.length} {unitLabel.toLowerCase()}
+                      {position.streamStats.totalReported.toLocaleString()}
+                      {position.streamStats.totalExpected > 0 && (
+                        <> of {position.streamStats.totalExpected.toLocaleString()} streams</>
+                      )}
+                      {position.streamStats.totalExpected === 0 && <> streams</>}
+                      {" · "}{position.streamStats.totalVotes.toLocaleString()} votes
+                      {" · "}{position.entities.length} {unitLabel.toLowerCase()}
                       {position.entities.length !== 1 ? "s" : ""}
                     </Text>
                   </VStack>

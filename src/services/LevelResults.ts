@@ -548,7 +548,7 @@ export const getElectionResults = async (electionId: string) => {
     // 3. SQL-level aggregation: stream-result stats (count, sum) per position
     // 4. Level results — already small, kept as-is
 
-    const [counties, constituencies, wards, positions] = await Promise.all([
+    const [counties, constituencies, wards, positions, totalExpected] = await Promise.all([
       prisma.county.findMany({ select: { id: true, name: true } }),
       prisma.constituency.findMany({ select: { id: true, name: true } }),
       prisma.ward.findMany({
@@ -568,6 +568,13 @@ export const getElectionResults = async (electionId: string) => {
           levelResults: {
             where: { status: { in: ["SUBMITTED", "VERIFIED"] } },
             include: { votes: true },
+          },
+        },
+      }),
+      prisma.stream.count({
+        where: {
+          pollingStation: {
+            electionActivations: { some: { electionId, isActive: true } },
           },
         },
       }),
@@ -736,7 +743,7 @@ export const getElectionResults = async (electionId: string) => {
         positionTitle: position.title,
         aggregationLevel: level,
         entities,
-        streamStats: stats,
+        streamStats: { ...stats, totalExpected },
         levelValidations: position.levelResults.length,
       };
     });
