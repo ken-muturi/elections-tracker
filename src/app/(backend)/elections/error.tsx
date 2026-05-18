@@ -78,21 +78,21 @@ export default function ElectionsError({
         >
           Try again
         </button>
-        <a
-          href="/elections"
+        <button
+          onClick={() => { window.location.href = '/elections' }}
           style={{
             padding: "10px 20px",
             background: "white",
             color: "#374151",
             borderRadius: 8,
             border: "1px solid #d1d5db",
+            cursor: "pointer",
             fontSize: 14,
             fontWeight: 600,
-            textDecoration: "none",
           }}
         >
           Back to Elections
-        </a>
+        </button>
       </div>
     </div>
   );
