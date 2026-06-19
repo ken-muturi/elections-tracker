@@ -38,6 +38,7 @@ const COUNTY_GEO_ALIASES: Record<string, string> = {
   "nairobi":          "nairobi city",
   "tharaka nithi":    "tharakanithi",
   "elegeyomarakwet":  "elgeyomarakwet",
+  "baringo":          "baringoh",          // DB typo: stored as "Baringoh" instead of "Baringo"
 }
 
 function resolveCountyAlias(normalisedGeoName: string): string {
@@ -164,10 +165,10 @@ export default function PositionMap({
           const entity = entityByName.get(name);
           if (!entity)
             return {
-              fillColor: "#d1d5db",
-              fillOpacity: 0.3,
-              color: "#fff",
-              weight: 1,
+              fillColor: "#e5e7eb",
+              fillOpacity: 0.45,
+              color: "#9ca3af",
+              weight: 0.8,
             };
 
           const leader = entity.candidates[0];
@@ -198,7 +199,7 @@ export default function PositionMap({
               const l = e.target;
               const fill = entity?.candidates[0]
                 ? (candidateColorMap.get(entity.candidates[0].id) ?? lc.color)
-                : lc.color;
+                : "#9ca3af";
               l.setStyle({
                 weight: 2.5,
                 color: fill,
@@ -219,14 +220,18 @@ export default function PositionMap({
                   })
                   .join("<br/>");
                 tooltip.setContent(`<b>${rawName}</b><br/>${lines}`);
-                tooltip.setLatLng(e.latlng);
-                if (!tooltip.isOpen()) map.openTooltip(tooltip);
-                const el = tooltip.getElement();
-                if (el) {
-                  el.style.backgroundColor = fill + "28";
-                  el.style.borderLeft = `3px solid ${fill}`;
-                  el.style.borderRadius = "6px";
-                }
+              } else {
+                tooltip.setContent(
+                  `<b>${rawName}</b><br/><span style="color:#9ca3af;font-size:11px;font-style:italic">No results yet</span>`,
+                );
+              }
+              tooltip.setLatLng(e.latlng);
+              if (!tooltip.isOpen()) map.openTooltip(tooltip);
+              const el = tooltip.getElement();
+              if (el) {
+                el.style.backgroundColor = fill + "28";
+                el.style.borderLeft = `3px solid ${fill}`;
+                el.style.borderRadius = "6px";
               }
             },
             mouseout(e) {

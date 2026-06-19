@@ -26,6 +26,17 @@ function normaliseName(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim()
 }
 
+// Normalised GeoJSON COUNTY_NAM value → normalised DB county name (same mismatches as PositionMap)
+const COUNTY_GEO_ALIASES: Record<string, string> = {
+  "nairobi":          "nairobi city",
+  "tharaka nithi":    "tharakanithi",
+  "elegeyomarakwet":  "elgeyomarakwet",
+  "baringo":          "baringoh",
+}
+function resolveCountyAlias(n: string): string {
+  return COUNTY_GEO_ALIASES[n] ?? n
+}
+
 function opacityFromShare(pct: number) {
   // map 0–100% share → 0.25–0.85 opacity
   return Math.min(0.85, Math.max(0.25, (pct / 100) * 0.85))
@@ -117,16 +128,17 @@ export default function DrillMap({
       const geoLayer = L.geoJSON(geojson, {
         style: (feature) => {
           if (!feature) return {};
-          const name = normaliseName(
+          const rawNorm = normaliseName(
             feature.properties?.[levelGeo.nameKey] ?? "",
           );
+          const name = data.level === "NATIONAL" ? resolveCountyAlias(rawNorm) : rawNorm;
           const child = childByName.get(name);
           if (!child)
             return {
-              fillColor: "#d1d5db",
-              fillOpacity: 0.4,
-              color: "#fff",
-              weight: 1,
+              fillColor: "#e5e7eb",
+              fillOpacity: 0.45,
+              color: "#9ca3af",
+              weight: 0.8,
             };
 
           const leader = child.candidates[0];
@@ -144,7 +156,9 @@ export default function DrillMap({
         },
         onEachFeature: (feature, layer) => {
           const rawName = feature.properties?.[levelGeo.nameKey] ?? "";
-          const child = childByName.get(normaliseName(rawName));
+          const normRaw = normaliseName(rawName);
+          const resolvedName = data.level === "NATIONAL" ? resolveCountyAlias(normRaw) : normRaw;
+          const child = childByName.get(resolvedName);
           if (child) matchedLayers.push(layer);
 
           layer.on({
@@ -152,7 +166,7 @@ export default function DrillMap({
               const l = e.target;
               const fill = child?.candidates[0]
                 ? (colorById.get(child.candidates[0].candidateId) ?? lc.color)
-                : lc.color;
+                : "#9ca3af";
               l.setStyle({
                 weight: 2.5,
                 color: fill,
@@ -168,14 +182,18 @@ export default function DrillMap({
                   })
                   .join("<br/>");
                 tooltip.setContent(`<b>${rawName}</b><br/>${lines}`);
-                tooltip.setLatLng(e.latlng);
-                if (!tooltip.isOpen()) map.openTooltip(tooltip);
-                const el = tooltip.getElement();
-                if (el) {
-                  el.style.backgroundColor = fill + "28";
-                  el.style.borderLeft = `3px solid ${fill}`;
-                  el.style.borderRadius = "6px";
-                }
+              } else {
+                tooltip.setContent(
+                  `<b>${rawName}</b><br/><span style="color:#9ca3af;font-size:11px;font-style:italic">No results yet</span>`,
+                );
+              }
+              tooltip.setLatLng(e.latlng);
+              if (!tooltip.isOpen()) map.openTooltip(tooltip);
+              const el = tooltip.getElement();
+              if (el) {
+                el.style.backgroundColor = fill + "28";
+                el.style.borderLeft = `3px solid ${fill}`;
+                el.style.borderRadius = "6px";
               }
             },
             mouseout(e) {
