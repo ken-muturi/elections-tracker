@@ -15,6 +15,7 @@ import {
   getLevelResult,
   upsertLevelResult,
   computeAggregateFromStreams,
+  getRegisteredVotersForEntity,
   type LevelEntity,
 } from "@/services/LevelResults"
 import {
@@ -457,6 +458,12 @@ function LevelVoteEntryForm({
     staleTime: 60_000,
   })
 
+  const { data: registeredVoters } = useQuery<number | null>({
+    queryKey: ["level-registered-voters", level, entity.id],
+    queryFn: () => getRegisteredVotersForEntity(level, entity.id),
+    staleTime: 300_000,
+  })
+
   const isSubmitted =
     existingResult?.status === "SUBMITTED" ||
     existingResult?.status === "VERIFIED"
@@ -490,6 +497,8 @@ function LevelVoteEntryForm({
     0,
   )
   const grandTotal = totalCandidateVotes + rejectedVotes
+  const exceedsVoters =
+    registeredVoters != null && registeredVoters > 0 && grandTotal > registeredVoters
 
   const saveMutation = useSyncMutation(
     async ({ andSubmit }: { andSubmit: boolean }) => {
@@ -579,6 +588,8 @@ function LevelVoteEntryForm({
         onNotesChange={setNotes}
         isSubmitted={isSubmitted}
         grandTotal={grandTotal}
+        registeredVoters={registeredVoters ?? undefined}
+        exceedsVoters={exceedsVoters}
         error={saveMutation.error}
         success={success}
         isPending={saveMutation.isPending}

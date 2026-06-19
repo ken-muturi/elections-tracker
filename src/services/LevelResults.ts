@@ -24,6 +24,83 @@ export type LevelResultInput = {
 }
 
 /**
+ * Compute the total registered voter count for any geographic entity by
+ * summing pollingStation.registeredVoters across all stations under it.
+ * Returns null if no data is available (no stations have registeredVoters set).
+ */
+async function fetchRegisteredVotersCap(
+  level: AggregationLevel,
+  entityId: string,
+  electionId?: string,
+): Promise<number | null> {
+  const sumStations = async (where: Record<string, unknown>) => {
+    const r = await prisma.pollingStation.aggregate({
+      where: { ...where, deletedAt: null },
+      _sum: { registeredVoters: true },
+    })
+    return r._sum.registeredVoters
+  }
+
+  if (level === "POLLING_STATION") {
+    // For a single station, use its own field first, then fall back to summing streams
+    const station = await prisma.pollingStation.findUnique({
+      where: { id: entityId },
+      select: { registeredVoters: true },
+    })
+    return station?.registeredVoters ?? null
+  }
+
+  if (level === "WARD") {
+    return sumStations({ wardId: entityId })
+  }
+
+  if (level === "CONSTITUENCY") {
+    const wards = await prisma.ward.findMany({
+      where: { constituencyId: entityId },
+      select: { id: true },
+    })
+    return sumStations({ wardId: { in: wards.map((w) => w.id) } })
+  }
+
+  if (level === "COUNTY") {
+    const constituencies = await prisma.constituency.findMany({
+      where: { countyId: entityId },
+      select: { id: true },
+    })
+    const wards = await prisma.ward.findMany({
+      where: { constituencyId: { in: constituencies.map((c) => c.id) } },
+      select: { id: true },
+    })
+    return sumStations({ wardId: { in: wards.map((w) => w.id) } })
+  }
+
+  if (level === "NATIONAL") {
+    const where = electionId
+      ? { electionActivations: { some: { electionId, isActive: true } } }
+      : {}
+    return sumStations(where)
+  }
+
+  return null
+}
+
+/**
+ * Returns the total registered voter count for any geographic entity.
+ * Used by the client to show the cap in the vote entry form.
+ */
+export const getRegisteredVotersForEntity = async (
+  level: AggregationLevel,
+  entityId: string,
+  electionId?: string,
+): Promise<number | null> => {
+  try {
+    return await fetchRegisteredVotersCap(level, entityId, electionId)
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+/**
  * Upsert a level result (create or update).
  * Wrapped in a Prisma transaction for atomicity.
  * When status is SUBMITTED, `submittedAt` is set automatically.
@@ -34,6 +111,16 @@ export const upsertLevelResult = async (input: LevelResultInput, status: ResultS
     const role = (user.role ?? "").toLowerCase()
 
     const submittedAt = status === "SUBMITTED" ? new Date() : undefined
+
+    // ── Server-side voter cap: only enforced on SUBMIT ────────────────────
+    if (status === "SUBMITTED" && input.totalVotes != null && input.totalVotes > 0) {
+      const cap = await fetchRegisteredVotersCap(input.level, input.entityId)
+      if (cap !== null && input.totalVotes > cap) {
+        throw new Error(
+          `Total votes (${input.totalVotes.toLocaleString()}) exceed the registered voter count for this entity (${cap.toLocaleString()}). Submission rejected.`,
+        )
+      }
+    }
 
     return await prisma.$transaction(async (tx) => {
       const existing = await tx.levelResult.findUnique({
