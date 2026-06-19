@@ -242,24 +242,39 @@ const PollingStationsTable = ({
           }}
         />
       )}
-      {editStream && (
-        <StreamForm
-          stream={editStream}
-          onClose={() => {
-            setEditStream(null);
-            queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
-          }}
-        />
-      )}
-      {addStreamForStation && (
-        <StreamForm
-          pollingStationId={addStreamForStation.id}
-          onClose={() => {
-            setAddStreamForStation(null);
-            queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
-          }}
-        />
-      )}
+      {editStream && (() => {
+        const parentStation = stations?.find(s => s.id === editStream.pollingStationId);
+        const siblingTotal = (parentStation?.streams ?? []).reduce(
+          (s, st) => s + (st.id !== editStream.id ? (st.registeredVoters ?? 0) : 0), 0
+        );
+        return (
+          <StreamForm
+            stream={editStream}
+            stationVoterCap={parentStation?.registeredVoters}
+            siblingVoterTotal={siblingTotal}
+            onClose={() => {
+              setEditStream(null);
+              queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
+            }}
+          />
+        );
+      })()}
+      {addStreamForStation && (() => {
+        const siblingTotal = addStreamForStation.streams.reduce(
+          (s, st) => s + (st.registeredVoters ?? 0), 0
+        );
+        return (
+          <StreamForm
+            pollingStationId={addStreamForStation.id}
+            stationVoterCap={addStreamForStation.registeredVoters}
+            siblingVoterTotal={siblingTotal}
+            onClose={() => {
+              setAddStreamForStation(null);
+              queryClient.invalidateQueries({ queryKey: ["polling-stations"] });
+            }}
+          />
+        );
+      })()}
       <TableGroupable<PollingStationWithStreams, Stream>
         title="Polling Stations"
         data={stations || []}

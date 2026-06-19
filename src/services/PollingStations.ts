@@ -223,8 +223,41 @@ export type StreamForm = {
   registeredVoters?: number | null;
 };
 
+/**
+ * Ensures adding/updating a stream's registeredVoters does not push the total
+ * across all sibling streams beyond the polling station's own registered voter cap.
+ * Skips silently if the PS has no cap set or the stream sets no voters value.
+ */
+async function checkStreamVoterCap(
+  pollingStationId: string,
+  incomingVoters: number | null | undefined,
+  excludeStreamId?: string,
+): Promise<void> {
+  if (!incomingVoters || incomingVoters <= 0) return;
+  const station = await prisma.pollingStation.findUnique({
+    where: { id: pollingStationId },
+    select: {
+      registeredVoters: true,
+      streams: {
+        where: excludeStreamId ? { id: { not: excludeStreamId } } : {},
+        select: { registeredVoters: true },
+      },
+    },
+  });
+  if (!station?.registeredVoters) return; // no cap on this PS — allow anything
+  const siblingTotal = station.streams.reduce((s, st) => s + (st.registeredVoters ?? 0), 0);
+  const newTotal = siblingTotal + incomingVoters;
+  if (newTotal > station.registeredVoters) {
+    const remaining = Math.max(0, station.registeredVoters - siblingTotal);
+    throw new Error(
+      `This stream's registered voters (${incomingVoters.toLocaleString()}) would bring the total to ${newTotal.toLocaleString()}, exceeding the polling station cap of ${station.registeredVoters.toLocaleString()}. Available: ${remaining.toLocaleString()}.`,
+    );
+  }
+}
+
 export const createStream = async (pollingStationId: string, data: StreamForm) => {
   try {
+    await checkStreamVoterCap(pollingStationId, data.registeredVoters);
     return await prisma.stream.create({
       data: {
         pollingStationId,
@@ -252,6 +285,15 @@ export const deleteStream = async (id: string) => {
 
 export const updateStream = async (id: string, data: StreamForm) => {
   try {
+    if (data.registeredVoters != null && data.registeredVoters > 0) {
+      const existing = await prisma.stream.findUnique({
+        where: { id },
+        select: { pollingStationId: true },
+      });
+      if (existing) {
+        await checkStreamVoterCap(existing.pollingStationId, data.registeredVoters, id);
+      }
+    }
     return await prisma.stream.update({
       where: { id },
       data,

@@ -420,6 +420,26 @@ export const createStream = async (
   registeredVoters?: number
 ) => {
   try {
+    // Enforce: streams' total registered voters must not exceed the polling station's cap
+    if (registeredVoters && registeredVoters > 0) {
+      const station = await prisma.pollingStation.findUnique({
+        where: { id: pollingStationId },
+        select: {
+          registeredVoters: true,
+          streams: { select: { registeredVoters: true } },
+        },
+      });
+      if (station?.registeredVoters) {
+        const siblingTotal = station.streams.reduce((s, st) => s + (st.registeredVoters ?? 0), 0);
+        const newTotal = siblingTotal + registeredVoters;
+        if (newTotal > station.registeredVoters) {
+          const remaining = Math.max(0, station.registeredVoters - siblingTotal);
+          throw new Error(
+            `This stream's registered voters (${registeredVoters.toLocaleString()}) would bring the total to ${newTotal.toLocaleString()}, exceeding the polling station cap of ${station.registeredVoters.toLocaleString()}. Available: ${remaining.toLocaleString()}.`,
+          );
+        }
+      }
+    }
     return await prisma.stream.create({
       data: { pollingStationId, name, code, registeredVoters },
     })

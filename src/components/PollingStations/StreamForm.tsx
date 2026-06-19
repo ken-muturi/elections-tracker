@@ -22,10 +22,10 @@ import {
 const toaster = createToaster({ placement: "top-end" });
 
 type Props =
-  | { stream: Stream; pollingStationId?: never; onClose: () => void }
-  | { stream?: never; pollingStationId: string; onClose: () => void };
+  | { stream: Stream; pollingStationId?: never; stationVoterCap?: number | null; siblingVoterTotal?: number; onClose: () => void }
+  | { stream?: never; pollingStationId: string; stationVoterCap?: number | null; siblingVoterTotal?: number; onClose: () => void };
 
-const StreamForm = ({ stream, pollingStationId, onClose }: Props) => {
+const StreamForm = ({ stream, pollingStationId, stationVoterCap, siblingVoterTotal = 0, onClose }: Props) => {
   const isEdit = !!stream;
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<StreamFormData>({
@@ -106,6 +106,19 @@ const StreamForm = ({ stream, pollingStationId, onClose }: Props) => {
                   }
                   size="sm"
                 />
+                {stationVoterCap != null && stationVoterCap > 0 && (() => {
+                  const ownVoters = isEdit ? (stream.registeredVoters ?? 0) : 0;
+                  const available = stationVoterCap - siblingVoterTotal + (isEdit ? ownVoters : 0);
+                  const entered = form.registeredVoters ?? 0;
+                  const wouldExceed = entered > available;
+                  return (
+                    <Text fontSize="xs" mt={1} color={wouldExceed ? "#dc2626" : "gray.500"}>
+                      {wouldExceed
+                        ? `⚠ Exceeds capacity — max ${available.toLocaleString()} voters available`
+                        : `Polling station cap: ${stationVoterCap.toLocaleString()} — ${available.toLocaleString()} available`}
+                    </Text>
+                  );
+                })()}
               </Box>
             </VStack>
           </Dialog.Body>
