@@ -25,6 +25,15 @@ import { getAllWards } from "@/services/Hierarchy";
 
 const toaster = createToaster({ placement: "top-end" });
 
+// Detect Next.js production-sanitized server action errors
+function getActionError(e: unknown, fallback: string): string {
+  if (!(e instanceof Error)) return fallback;
+  if ("digest" in e || e.message.includes("Server Components") || e.message.includes("digest") || !e.message.trim()) {
+    return fallback;
+  }
+  return e.message;
+}
+
 const PollingStationForm = ({
   station,
   onClose,
@@ -44,14 +53,17 @@ const PollingStationForm = ({
     constituency: { name: string; county: { name: string } };
   }[]>([]);
   const [wardsLoading, setWardsLoading] = useState(false);
+  const [wardsError, setWardsError] = useState(false);
+  const [wardSearch, setWardSearch] = useState("");
 
   useEffect(() => {
     if (!isEdit) {
       getElectionsLight().then(setElections).catch(() => {});
       setWardsLoading(true);
+      setWardsError(false);
       getAllWards()
         .then((w: any[]) => setWards(w))
-        .catch(() => {})
+        .catch(() => setWardsError(true))
         .finally(() => setWardsLoading(false));
     }
   }, [isEdit]);
@@ -87,7 +99,7 @@ const PollingStationForm = ({
       return;
     }
     if (!form.wardId) {
-      toaster.error({ title: "Please select a ward (choose an election first)" });
+      toaster.error({ title: "Please select a ward from the dropdown above" });
       return;
     }
     setSaving(true);
@@ -104,7 +116,10 @@ const PollingStationForm = ({
       }
       onClose();
     } catch (e: any) {
-      toaster.error({ title: "Error saving polling station", description: e.message });
+      toaster.error({
+        title: `Error ${isEdit ? "updating" : "creating"} polling station`,
+        description: getActionError(e, "An unexpected error occurred. Please try again."),
+      });
     } finally {
       setSaving(false);
     }
@@ -169,24 +184,48 @@ const PollingStationForm = ({
                     <Text fontSize="sm" fontWeight="500" mb={1}>
                       Ward * {wardsLoading && <Spinner size="xs" ml={1} />}
                     </Text>
-                    <select
-                      value={form.wardId}
-                      onChange={(e) => handleWardSelect(e.target.value)}
-                      disabled={wardsLoading}
-                      style={selectStyle(
-                        !!form.wardId,
-                        wardsLoading,
-                      )}
-                    >
-                      <option value="">
-                        {wardsLoading ? "Loading wards…" : "Select ward…"}
-                      </option>
-                      {wards.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name} ({w.constituency?.county?.name}) ({w.code})
-                        </option>
-                      ))}
-                    </select>
+                    {wardsError ? (
+                      <Text fontSize="xs" color="red.500">
+                        Failed to load wards. Please refresh and try again.
+                      </Text>
+                    ) : (
+                      <>
+                        <Input
+                          size="sm"
+                          placeholder="Search ward by name, code or county…"
+                          value={wardSearch}
+                          onChange={(e) => setWardSearch(e.target.value)}
+                          mb={1}
+                          disabled={wardsLoading}
+                        />
+                        <select
+                          value={form.wardId}
+                          onChange={(e) => handleWardSelect(e.target.value)}
+                          disabled={wardsLoading}
+                          style={selectStyle(!!form.wardId, wardsLoading)}
+                        >
+                          <option value="">
+                            {wardsLoading ? "Loading wards…" : "Select ward…"}
+                          </option>
+                          {wards
+                            .filter((w) => {
+                              if (!wardSearch.trim()) return true;
+                              const q = wardSearch.toLowerCase();
+                              return (
+                                w.name.toLowerCase().includes(q) ||
+                                w.code.toLowerCase().includes(q) ||
+                                w.constituency?.name?.toLowerCase().includes(q) ||
+                                w.constituency?.county?.name?.toLowerCase().includes(q)
+                              );
+                            })
+                            .map((w) => (
+                              <option key={w.id} value={w.id}>
+                                {w.name} — {w.constituency?.name} — {w.constituency?.county?.name} ({w.code})
+                              </option>
+                            ))}
+                        </select>
+                      </>
+                    )}
                   </Box>
                 </SimpleGrid>
               )}
@@ -220,50 +259,54 @@ const PollingStationForm = ({
                 <Box>
                   <Text fontSize="sm" fontWeight="500" mb={1}>
                     County *{" "}
-                    {!isEdit && form.county && (
+                    {!isEdit && (
                       <Text as="span" fontSize="xs" color="gray.400">
                         (auto-filled)
                       </Text>
                     )}
                   </Text>
                   <Input
-                    placeholder="e.g. Nairobi"
+                    placeholder="Auto-filled from ward"
                     value={form.county}
-                    onChange={(e) => handleChange("county", e.target.value)}
+                    onChange={(e) => isEdit && handleChange("county", e.target.value)}
+                    readOnly={!isEdit}
+                    bg={!isEdit ? "gray.50" : undefined}
                     size="sm"
                   />
                 </Box>
                 <Box>
                   <Text fontSize="sm" fontWeight="500" mb={1}>
                     Constituency *{" "}
-                    {!isEdit && form.constituency && (
+                    {!isEdit && (
                       <Text as="span" fontSize="xs" color="gray.400">
                         (auto-filled)
                       </Text>
                     )}
                   </Text>
                   <Input
-                    placeholder="e.g. Westlands"
+                    placeholder="Auto-filled from ward"
                     value={form.constituency}
-                    onChange={(e) =>
-                      handleChange("constituency", e.target.value)
-                    }
+                    onChange={(e) => isEdit && handleChange("constituency", e.target.value)}
+                    readOnly={!isEdit}
+                    bg={!isEdit ? "gray.50" : undefined}
                     size="sm"
                   />
                 </Box>
                 <Box>
                   <Text fontSize="sm" fontWeight="500" mb={1}>
                     Ward Name *{" "}
-                    {!isEdit && form.ward && (
+                    {!isEdit && (
                       <Text as="span" fontSize="xs" color="gray.400">
                         (auto-filled)
                       </Text>
                     )}
                   </Text>
                   <Input
-                    placeholder="e.g. Parklands"
+                    placeholder="Auto-filled from ward"
                     value={form.ward}
-                    onChange={(e) => handleChange("ward", e.target.value)}
+                    onChange={(e) => isEdit && handleChange("ward", e.target.value)}
+                    readOnly={!isEdit}
+                    bg={!isEdit ? "gray.50" : undefined}
                     size="sm"
                   />
                 </Box>
