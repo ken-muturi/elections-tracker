@@ -1,3 +1,1 @@
-import { createToaster } from "@chakra-ui/react"
-
-export const toaster = createToaster({ placement: "top-end" })
+export { toaster } from "@/components/ui/toaster"

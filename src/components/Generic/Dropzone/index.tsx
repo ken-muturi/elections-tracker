@@ -9,8 +9,8 @@ import {
   Square,
   Text,
   VStack,
-  createToaster,
 } from "@chakra-ui/react";
+import { toaster } from "@/components/ui/toaster";
 import { FiUploadCloud } from "react-icons/fi";
 import { dictionary } from "./dictionary";
 import { useUX } from "@/context/UXContext";
@@ -27,9 +27,6 @@ const Dropzone = ({
   maxSize,
   ...props
 }: DropzoneProps) => {
-  const toaster = createToaster({
-    placement: "top-end",
-  });
   const { translate } = useUX();
 
   const onDrop = useCallback(

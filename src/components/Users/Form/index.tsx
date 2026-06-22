@@ -10,8 +10,8 @@ import {
   HStack,
   Box,
   Text,
-  createToaster,
 } from "@chakra-ui/react";
+import { toaster } from "@/components/ui/toaster";
 import { Role } from "@prisma/client";
 
 import { Formik, Form as FormikForm } from "formik";
@@ -62,9 +62,6 @@ const schema = Yup.object({
 });
 
 const Form = ({ user, roles }: { user?: UserWithRelations; roles: Role[] }) => {
-  const toaster = createToaster({
-    placement: "top-end",
-  });
   const [initialValues, setInitialValues] = useState<UserForm>(initialData);
   const { translate } = useUX();
   const queryClient = useQueryClient();

@@ -10,7 +10,6 @@ import {
   Input,
   Text,
   VStack,
-  createToaster,
 } from "@chakra-ui/react";
 import { Stream } from "@prisma/client";
 import {
@@ -19,7 +18,7 @@ import {
   StreamForm as StreamFormData,
 } from "@/services/PollingStations";
 
-const toaster = createToaster({ placement: "top-end" });
+import { toaster } from "@/components/ui/toaster";
 
 type Props =
   | { stream: Stream; pollingStationId?: never; stationVoterCap?: number | null; siblingVoterTotal?: number; onClose: () => void }

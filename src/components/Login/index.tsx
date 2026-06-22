@@ -12,9 +12,9 @@ import {
   Text,
   Heading,
   HStack,
-  createToaster,
   Separator,
 } from "@chakra-ui/react";
+import { toaster } from "@/components/ui/toaster";
 import { ProgressCircle } from "@chakra-ui/react";
 import { useState } from "react";
 import CustomInput from "../Generic/Formik/CustomInput";
@@ -62,7 +62,6 @@ const features = [
 export default function FormPage() {
   const { translate } = useUX();
   const [loading, setLoading] = useState(false);
-  const toaster = createToaster({ placement: "top-end" });
   const searchParams = useSearchParams();
   let callbackUrl = searchParams.get("callbackUrl");
 

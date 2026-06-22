@@ -6,7 +6,6 @@ import {
   Badge,
   Button,
   HStack,
-  createToaster,
 } from "@chakra-ui/react";
 import { ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,7 +26,7 @@ import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
 import { Switch } from "@/components/ui/switch";
 import { getStreamColumns } from "./StreamColumns";
 
-const toaster = createToaster({ placement: "top-end" });
+import { toaster } from "@/components/ui/toaster";
 type ElectionActivation = { election: { id: string; title: string; year: number } }
 type PollingStationWithStreams = PollingStation & { streams: Stream[]; electionActivations?: ElectionActivation[] };
 

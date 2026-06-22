@@ -1,7 +1,7 @@
 'use client'
 
 import CustomInput from '@/components/Generic/Formik/CustomInput';
-import { Button, HStack, Spacer, VStack, createToaster } from '@chakra-ui/react';
+import { Button, HStack, Spacer, VStack } from '@chakra-ui/react';
 import { Formik, Form as FormikForm } from 'formik';
 import React, { useEffect, useState } from 'react'
 import { RoleDetail, RoleForm, } from '../type';
@@ -12,6 +12,7 @@ import { useUX } from '@/context/UXContext';
 import { dictionary } from '../dictionary';
 import CustomTextarea from "@/components/Generic/Formik/CustomTextarea";
 import FullPageLoader from "@/components/Generic/FullPageLoader";
+import { toaster } from "@/components/ui/toaster";
 
 const initialData: RoleForm = {
   title: "",
@@ -19,9 +20,6 @@ const initialData: RoleForm = {
 };
 
 const Form = ({ role }: { role?: RoleDetail }) => {
-  const toaster = createToaster({
-    placement: "top-end",
-  });
   const queryClient = useQueryClient();
   const { translate } = useUX();
   const [initialValues, setInitialValues] = useState<RoleForm>(initialData);

@@ -12,6 +12,7 @@ import { UXProvider } from "@/context/UXContext";
 import { SessionProvider } from "next-auth/react";
 import { RtlProvider } from "@/context/RTLProvider";
 import { Session } from "next-auth";
+import { Toaster } from "@/components/ui/toaster";
 
 const makeQueryClient = () =>
   new QueryClient({
@@ -50,6 +51,7 @@ export const Providers = ({
         <QueryClientProvider client={queryClient}>
           <UXProvider>
             <RtlProvider>{children}</RtlProvider>
+            <Toaster />
             <ReactQueryDevtools initialIsOpen={false} />
           </UXProvider>
         </QueryClientProvider>

@@ -6,7 +6,6 @@ import {
   Box,
   VStack,
   Input,
-  createToaster,
   Flex,
   Button,
   Text,
@@ -22,8 +21,7 @@ import {
 } from "@/services/PollingStations";
 import { getElectionsLight } from "@/services/Elections";
 import { getAllWards } from "@/services/Hierarchy";
-
-const toaster = createToaster({ placement: "top-end" });
+import { toaster } from "@/components/ui/toaster";
 
 // Detect Next.js production-sanitized server action errors
 function getActionError(e: unknown, fallback: string): string {
