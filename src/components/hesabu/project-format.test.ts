@@ -9,15 +9,15 @@ test("fmtKesShort scales B / M / plain", () => {
 })
 
 test("totals never present a partial sum as complete", () => {
-  assert.equal(projectTotalLabel({ cardName: "A", count: 9, withAmount: 7, totalAllocated: 45_200_000 }), "KES 45.2M (stated for 7 of 9)")
-  assert.equal(projectTotalLabel({ cardName: "A", count: 3, withAmount: 3, totalAllocated: 45_200_000 }), "KES 45.2M")
-  assert.equal(projectTotalLabel({ cardName: "A", count: 2, withAmount: 0, totalAllocated: 0 }), "amounts not stated")
+  assert.equal(projectTotalLabel({ key: "A", possibleDuplicates: 0, count: 9, withAmount: 7, totalAllocated: 45_200_000 }), "KES 45.2M (stated for 7 of 9)")
+  assert.equal(projectTotalLabel({ key: "A", possibleDuplicates: 0, count: 3, withAmount: 3, totalAllocated: 45_200_000 }), "KES 45.2M")
+  assert.equal(projectTotalLabel({ key: "A", possibleDuplicates: 0, count: 2, withAmount: 0, totalAllocated: 0 }), "amounts not stated")
 })
 
 test("projectLine handles empty and singular", () => {
   assert.equal(projectLine(undefined), "No documented projects yet")
-  assert.equal(projectLine({ cardName: "A", count: 1, withAmount: 1, totalAllocated: 2_000_000 }), "📄 1 documented project · KES 2.0M")
-  assert.equal(projectLine({ cardName: "A", count: 3, withAmount: 3, totalAllocated: 2_000_000 }), "📄 3 documented projects · KES 2.0M")
+  assert.equal(projectLine({ key: "A", possibleDuplicates: 0, count: 1, withAmount: 1, totalAllocated: 2_000_000 }), "📄 1 documented project · KES 2.0M")
+  assert.equal(projectLine({ key: "A", possibleDuplicates: 0, count: 3, withAmount: 3, totalAllocated: 2_000_000 }), "📄 3 documented projects · KES 2.0M")
 })
 
 test("joinNames", () => {
@@ -46,4 +46,12 @@ test("final review: orFallback keeps the page alive when a query fails", async (
   } finally {
     console.error = orig
   }
+})
+
+test("possible duplicates are noted, and excluded from the 'of N' denominator", () => {
+  // 9 rows, 1 is a possible duplicate (its amount already excluded server-side): 7 of the other 8 have amounts
+  const s = { key: "A", count: 9, possibleDuplicates: 1, withAmount: 7, totalAllocated: 45_200_000 }
+  assert.equal(projectTotalLabel(s), "KES 45.2M (stated for 7 of 8)")
+  assert.equal(projectLine(s), "📄 9 documented projects · KES 45.2M (stated for 7 of 8) · 1 possible duplicate")
+  assert.equal(projectLine({ ...s, possibleDuplicates: 2, withAmount: 7, count: 9 }), "📄 9 documented projects · KES 45.2M · 2 possible duplicates")
 })

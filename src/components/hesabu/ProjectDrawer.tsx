@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { Badge, Box, Button, CloseButton, Drawer, HStack, Link, Portal, Spinner, Text, VStack } from "@chakra-ui/react"
-import { getProjectsForCard, ProjectRowData } from "@/services/Hesabu"
+import { getProjects, ProjectFilter, ProjectRowData } from "@/services/Hesabu"
 import { SOURCE_INFO, SourceKey } from "@/constants/hesabu-sources"
 import { fmtKesShort, projectTotalLabel } from "./project-format"
 
@@ -11,8 +11,8 @@ type Props = {
   onClose: () => void
   countyCode: string
   fiscalYear: string
-  /** null = county-wide bucket */
-  cardName: string | null
+  /** Which projects: one ward card ({ cardName: null } = county-wide) or one sector */
+  filter: ProjectFilter
   label: string
 }
 
@@ -26,7 +26,9 @@ const STATUS: Record<string, { label: string; bg: string; color: string }> = {
 const sourceLabel = (key: string) =>
   key in SOURCE_INFO ? SOURCE_INFO[key as SourceKey].name.split(" — ")[0] : key
 
-export const ProjectDrawer = ({ open, onClose, countyCode, fiscalYear, cardName, label }: Props) => {
+export const ProjectDrawer = ({ open, onClose, countyCode, fiscalYear, filter, label }: Props) => {
+  const bySector = "sector" in filter
+  const filterKey = bySector ? `s:${filter.sector}` : `c:${filter.cardName ?? ""}`
   const [rows, setRows] = useState<ProjectRowData[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
@@ -41,22 +43,27 @@ export const ProjectDrawer = ({ open, onClose, countyCode, fiscalYear, cardName,
     setError(null)
     setStatus(null)
     setSource(null)
-    getProjectsForCard(countyCode, fiscalYear, cardName)
+    getProjects(countyCode, fiscalYear, filter)
       .then((r) => { if (!cancelled) setRows(r) })
       .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : "Could not load projects") })
     return () => { cancelled = true }
-  }, [open, countyCode, fiscalYear, cardName, attempt])
+    // filter is re-created by the parent on each render; filterKey captures its identity
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, countyCode, fiscalYear, filterKey, attempt])
 
   const statuses = useMemo(() => [...new Set((rows ?? []).map((r) => r.status))], [rows])
   const sources = useMemo(() => [...new Set((rows ?? []).flatMap((r) => r.sources.map((s) => s.source)))], [rows])
   const visible = (rows ?? []).filter(
     (r) => (!status || r.status === status) && (!source || r.sources.some((s) => s.source === source))
   )
+  // Same rule as the card line: possible duplicates are listed but not paid for twice
+  const distinctRows = (rows ?? []).filter((r) => !r.possibleDuplicateOf)
   const summary = rows && {
-    cardName,
+    key: label,
     count: rows.length,
-    withAmount: rows.filter((r) => r.budgetAllocated != null).length,
-    totalAllocated: rows.reduce((s, r) => s + (r.budgetAllocated ?? 0), 0),
+    possibleDuplicates: rows.length - distinctRows.length,
+    withAmount: distinctRows.filter((r) => r.budgetAllocated != null).length,
+    totalAllocated: distinctRows.reduce((s, r) => s + (r.budgetAllocated ?? 0), 0),
   }
 
   const chip = (active: boolean, text: string, onClick: () => void) => (
@@ -118,7 +125,14 @@ export const ProjectDrawer = ({ open, onClose, countyCode, fiscalYear, cardName,
                           </HStack>
                           <HStack gap={2} mt={2} flexWrap="wrap">
                             <Badge bg={st.bg} color={st.color} borderRadius="full" px={2} fontSize="2xs">{st.label}</Badge>
-                            <Text fontSize="xs" color="gray.500">{r.sector}</Text>
+                            <Text fontSize="xs" color="gray.500">
+                              {bySector ? r.cardName ?? "County-wide" : r.sector}
+                            </Text>
+                            {r.possibleDuplicateOf && (
+                              <Badge bg="orange.100" color="orange.800" borderRadius="full" px={2} fontSize="2xs">
+                                Possible duplicate
+                              </Badge>
+                            )}
                             {r.sources.map((s) => (
                               <Link key={s.url} href={s.url} target="_blank" rel="noopener noreferrer" fontSize="2xs" color="teal.700"
                                 border="1px solid" borderColor="teal.200" borderRadius="full" px={2} py={0.5}>
@@ -126,6 +140,11 @@ export const ProjectDrawer = ({ open, onClose, countyCode, fiscalYear, cardName,
                               </Link>
                             ))}
                           </HStack>
+                          {r.possibleDuplicateOf && (
+                            <Text fontSize="2xs" color="orange.700" mt={1}>
+                              ≈ Possibly the same as: {r.possibleDuplicateOf} — its amount is not counted twice
+                            </Text>
+                          )}
                           {r.matchedOn && (
                             <Text fontSize="2xs" color="gray.400" mt={1}>Matched on: {r.locationText ?? r.matchedOn}</Text>
                           )}

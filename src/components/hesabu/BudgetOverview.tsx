@@ -1,9 +1,20 @@
+"use client"
+
+import { useState } from "react"
 import { Box, Text, HStack, Grid } from "@chakra-ui/react"
 import { CountyFull, TrendPoint } from "@/services/Hesabu"
 import { SectorCard } from "./SectorCard"
 import { TrendChart } from "./TrendChart"
+import { ProjectDrawer } from "./ProjectDrawer"
+import { ProjectCardSummary } from "./project-format"
 
-type Props = { county: CountyFull; trendData: TrendPoint[]; currentYear: string }
+type Props = {
+  county: CountyFull
+  trendData: TrendPoint[]
+  currentYear: string
+  countyCode: string
+  sectorSummary: ProjectCardSummary[]
+}
 
 const fmtB = (n: bigint) => {
   const v = Number(n)
@@ -13,7 +24,9 @@ const fmtB = (n: bigint) => {
 const pct = (a: bigint, b: bigint) =>
   b > 0n ? Math.round((Number(a) / Number(b)) * 100) : 0
 
-export const BudgetOverview = ({ county, trendData, currentYear }: Props) => {
+export const BudgetOverview = ({ county, trendData, currentYear, countyCode, sectorSummary }: Props) => {
+  const [openSector, setOpenSector] = useState<string | null>(null)
+  const bySector = new Map(sectorSummary.map((s) => [s.key, s]))
   const recurrentPct = pct(county.recurrentExpenditure, county.totalBudget)
   const devPct = pct(county.developmentExpenditure, county.totalBudget)
 
@@ -173,8 +186,23 @@ export const BudgetOverview = ({ county, trendData, currentYear }: Props) => {
         Sector Budget Breakdown
       </Text>
       {county.sectors.map((s) => (
-        <SectorCard key={s.id} sector={s} totalBudget={county.totalBudget} />
+        <SectorCard
+          key={s.id}
+          sector={s}
+          totalBudget={county.totalBudget}
+          projects={bySector.get(s.name)}
+          onOpenProjects={() => setOpenSector(s.name)}
+        />
       ))}
+
+      <ProjectDrawer
+        open={openSector !== null}
+        onClose={() => setOpenSector(null)}
+        countyCode={countyCode}
+        fiscalYear={currentYear}
+        filter={{ sector: openSector ?? "" }}
+        label={openSector ?? ""}
+      />
     </Box>
   )
 }

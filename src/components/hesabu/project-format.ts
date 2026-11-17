@@ -1,8 +1,14 @@
 /** Pure formatting helpers for the Hesabu project drill-down (no React, no server imports) */
 
+/**
+ * Project count and cost for one group — a ward card (key = card name, null = county-wide)
+ * or a sector (key = sector name). Possible duplicates are counted in `count` but their
+ * amounts are excluded from `withAmount` / `totalAllocated`, so a project is never paid for twice.
+ */
 export type ProjectCardSummary = {
-  cardName: string | null
+  key: string | null
   count: number
+  possibleDuplicates: number
   withAmount: number
   totalAllocated: number
 }
@@ -16,12 +22,15 @@ export function fmtKesShort(n: number): string {
 export function projectTotalLabel(s: ProjectCardSummary): string {
   if (s.withAmount === 0) return "amounts not stated"
   const total = fmtKesShort(s.totalAllocated)
-  return s.withAmount < s.count ? `${total} (stated for ${s.withAmount} of ${s.count})` : total
+  const distinct = s.count - (s.possibleDuplicates ?? 0)
+  return s.withAmount < distinct ? `${total} (stated for ${s.withAmount} of ${distinct})` : total
 }
 
 export function projectLine(s: ProjectCardSummary | undefined): string {
   if (!s || s.count === 0) return "No documented projects yet"
-  return `📄 ${s.count} documented project${s.count === 1 ? "" : "s"} · ${projectTotalLabel(s)}`
+  const dups = s.possibleDuplicates ?? 0
+  const dupNote = dups > 0 ? ` · ${dups} possible duplicate${dups === 1 ? "" : "s"}` : ""
+  return `📄 ${s.count} documented project${s.count === 1 ? "" : "s"} · ${projectTotalLabel(s)}${dupNote}`
 }
 
 export function joinNames(names: string[]): string {

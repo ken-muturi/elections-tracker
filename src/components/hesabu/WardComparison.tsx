@@ -18,7 +18,7 @@ type Props = {
 
 export const WardComparison = ({ county, countyCode, fiscalYear, projectSummary }: Props) => {
   const [drawer, setDrawer] = useState<{ cardName: string | null; label: string } | null>(null)
-  const byCard = new Map(projectSummary.map((s) => [s.cardName, s]))
+  const byCard = new Map(projectSummary.map((s) => [s.key, s]))
 
   return (
     <Box>
@@ -48,7 +48,7 @@ export const WardComparison = ({ county, countyCode, fiscalYear, projectSummary 
         onClose={() => setDrawer(null)}
         countyCode={countyCode}
         fiscalYear={fiscalYear}
-        cardName={drawer?.cardName ?? null}
+        filter={{ cardName: drawer?.cardName ?? null }}
         label={drawer?.label ?? ""}
       />
     </Box>
