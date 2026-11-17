@@ -263,7 +263,7 @@ model HProject {
   summary         String   @db.Text
   confidence      String   @db.VarChar(20)
   primarySource   String   @map("primary_source") @db.VarChar(30)
-  /// [{ source, url }]
+  /// Array of { source, url } objects (not a PrismaJson type annotation)
   sources         Json
   sourceDate      String?  @map("source_date") @db.VarChar(20)
   dedupKey        String   @map("dedup_key") @db.VarChar(64)
