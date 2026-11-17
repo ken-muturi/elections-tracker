@@ -19,7 +19,7 @@
     "hesabu:scrape:priority": "tsx scripts/hesabu/index.ts --counties=Baringo,Wajir,Isiolo,Marsabit,Kilifi",
     "hesabu:scrape:all": "tsx scripts/hesabu/index.ts --counties=all",
     "hesabu:scrape:fast": "tsx scripts/hesabu/index.ts --skip-cob --skip-county-sites",
-    "hesabu:test": "tsx --test scripts/hesabu/lib/wards.test.ts"
+    "hesabu:test": "tsx --test scripts/hesabu/lib/wards.test.ts scripts/hesabu/processors/location-matcher.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed_election.ts"
