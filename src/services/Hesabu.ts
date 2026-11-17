@@ -2,6 +2,7 @@
 
 import prisma from "@/db"
 import { handleReturnError } from "@/db/error-handling"
+import type { ProjectCardSummary } from "@/components/hesabu/project-format"
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -304,6 +305,80 @@ export const voteOnReport = async (
       select: { votes: true },
     })
     return { newVoteCount: updated?.votes ?? 0, alreadyVoted: false }
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scraped projects (h_projects) — drill-down behind ward cards
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ProjectRowData = {
+  id: string
+  title: string
+  sector: string
+  status: string
+  budgetAllocated: number | null
+  budgetSpent: number | null
+  summary: string
+  confidence: string
+  primarySource: string
+  sources: { source: string; url: string }[]
+  sourceDate: string | null
+  matchedOn: string | null
+  locationText: string | null
+}
+
+/** Per-card project count and stated-amount total (cardName null = county-wide). One query. */
+export const getProjectSummaryByCard = async (
+  countyCode: string,
+  fiscalYear: string,
+): Promise<ProjectCardSummary[]> => {
+  try {
+    const groups = await prisma.hProject.groupBy({
+      by: ["cardName"],
+      where: { countyCode, fiscalYear },
+      _count: { _all: true, budgetAllocated: true },
+      _sum: { budgetAllocated: true },
+    })
+    return groups.map((g) => ({
+      cardName: g.cardName,
+      count: g._count._all,
+      withAmount: g._count.budgetAllocated,
+      totalAllocated: Number(g._sum.budgetAllocated ?? 0n),
+    }))
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+/** Projects for one card (null = county-wide), highest amount first, unstated amounts last. */
+export const getProjectsForCard = async (
+  countyCode: string,
+  fiscalYear: string,
+  cardName: string | null,
+): Promise<ProjectRowData[]> => {
+  try {
+    const rows = await prisma.hProject.findMany({
+      where: { countyCode, fiscalYear, cardName },
+      orderBy: [{ budgetAllocated: { sort: "desc", nulls: "last" } }, { title: "asc" }],
+    })
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      sector: r.sector,
+      status: r.status,
+      budgetAllocated: r.budgetAllocated == null ? null : Number(r.budgetAllocated),
+      budgetSpent: r.budgetSpent == null ? null : Number(r.budgetSpent),
+      summary: r.summary,
+      confidence: r.confidence,
+      primarySource: r.primarySource,
+      sources: r.sources as ProjectRowData["sources"],
+      sourceDate: r.sourceDate,
+      matchedOn: r.matchedOn,
+      locationText: r.locationText,
+    }))
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
