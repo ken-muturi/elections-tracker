@@ -227,8 +227,8 @@ export const HesabuDashboard = ({
         {/* Footer */}
         <Text fontSize="xs" color="gray.400" textAlign="center" mt={6}>
           Data sourced from{" "}
-          {county.dataSource ?? "official county budget documents"} &bull; Last
-          updated FY {county.fiscalYear} &bull; Built with Hesabu platform
+          {county.dataSource ?? "official county budget documents"} &bull; Showing
+          FY {currentYear} &bull; Built with Hesabu platform
         </Text>
       </Box>
     </Box>

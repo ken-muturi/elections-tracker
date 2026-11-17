@@ -41,7 +41,7 @@ export const WardComparison = ({ county, countyCode, fiscalYear, projectSummary 
         />
       </SimpleGrid>
 
-      <EquityAlert wards={county.wards} />
+      <EquityAlert wards={county.wards} countyName={county.name} />
 
       <ProjectDrawer
         open={drawer !== null}
