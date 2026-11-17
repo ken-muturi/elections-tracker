@@ -15,6 +15,11 @@ LOG="$LOG_DIR/scrape-$(date +%Y-%m-%d_%H%M).log"
 cd "$PROJECT_DIR"
 echo "=== $(date) — npm run $SCRIPT ===" >> "$LOG"
 npm run "$SCRIPT" >> "$LOG" 2>&1
+# Load fresh output into the dashboard DB (set -e: only runs if the scrape succeeded)
+if [[ "$SCRIPT" == hesabu:scrape* ]]; then
+  echo "=== $(date) — npm run hesabu:load ===" >> "$LOG"
+  npm run hesabu:load >> "$LOG" 2>&1
+fi
 echo "=== finished $(date) ===" >> "$LOG"
 
 # keep the last 24 logs
