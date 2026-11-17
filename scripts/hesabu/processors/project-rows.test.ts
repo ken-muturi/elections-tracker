@@ -47,3 +47,30 @@ test("missing sources fall back to sourceUrl", () => {
   const { rows } = build([rep({ source: undefined, sources: undefined })])
   assert.deepEqual(rows[0].sources, [{ source: "unknown", url: "https://tenders.go.ke/tenders/1" }])
 })
+
+const tender = (id: number, contract: string, title: string, amount: number): ExtractedReport =>
+  rep({
+    title, budgetAllocated: amount, source: "tenders",
+    sourceUrl: `https://tenders.go.ke/tenders/${id}`,
+    sources: [{ source: "tenders", url: `https://tenders.go.ke/tenders/${id}` }],
+    summary: `Contract ${contract} awarded on 2025-11-14 to GAAMEY INVESTMENT LIMITED for KES ${amount} via Request for Quotations.`,
+  })
+
+test("same contract number + amount under two tender records → one row with both links", () => {
+  const { rows, stats } = build([
+    tender(279578, "011750", "Proposed Rehabilitation Of Shaletey Water Pan At Bute Ward In Wajir North", 3660659),
+    tender(292484, "011750", "Proposed Rehabilitation Of Shaletey Water Pan At Bute In Wajir North Constituency", 3660659),
+  ])
+  assert.equal(rows.length, 1)
+  assert.equal(stats.mergedContracts, 1)
+  assert.deepEqual(rows[0].sources.map((s) => s.url), ["https://tenders.go.ke/tenders/279578", "https://tenders.go.ke/tenders/292484"])
+})
+
+test("same amount but different contract numbers are NOT merged (Tarbaj vs Eldas dumpsites)", () => {
+  const { rows, stats } = build([
+    tender(1, "012953", "Proposed Establishment Of Dumpsite At Tarbaj", 3990500),
+    tender(2, "012961", "Proposed Establishment Ofdumpsite At Eldas", 3990500),
+  ])
+  assert.equal(rows.length, 2)
+  assert.equal(stats.mergedContracts, 0)
+})

@@ -267,6 +267,8 @@ model HProject {
   sources         Json
   sourceDate      String?  @map("source_date") @db.VarChar(20)
   dedupKey        String   @map("dedup_key") @db.VarChar(64)
+  /// dedupKey of the row this one probably duplicates (same project, other record/source)
+  possibleDuplicateOf String? @map("possible_duplicate_of") @db.VarChar(64)
   scrapedAt       DateTime @map("scraped_at")
   loadedAt        DateTime @default(now()) @map("loaded_at")
 

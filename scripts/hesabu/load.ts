@@ -59,10 +59,14 @@ async function main() {
       console.log(
         `${meta.name.padEnd(10)} ${String(rows.length).padStart(4)} projects · ${stats.placed} placed ` +
         `(card-name ${m["card-name"]}, ward ${m.ward}, constituency ${m.constituency}) · ${stats.countyWide} county-wide · ` +
-        `${stats.unknownFy} unknown FY · ${stats.duplicates} dup · ${stats.skippedEmpty} empty`
+        `${stats.unknownFy} unknown FY · ${stats.duplicates} dup · ${stats.mergedContracts} merged (same contract) · ` +
+        `${stats.possibleDuplicates} possible dup · ${stats.skippedEmpty} empty`
       )
       if (process.env.HESABU_LOAD_DEBUG) {
         console.table(rows.filter((r) => r.cardName).map((r) => ({ card: r.cardName, on: r.matchedOn, title: r.title.slice(0, 70) })))
+        const byKey = new Map(rows.map((r) => [r.dedupKey, r]))
+        for (const r of rows.filter((x) => x.possibleDuplicateOf))
+          console.log(`  ≈ "${r.title.slice(0, 60)}" (${r.primarySource}) ~ "${byKey.get(r.possibleDuplicateOf!)?.title.slice(0, 60)}"`)
       }
 
       if (!dryRun) {
