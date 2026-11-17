@@ -3,19 +3,9 @@
  * county output records per-source coverage (not every source has data for every county).
  */
 
-export const SOURCE_KEYS = ["news", "cob", "oag", "tenders", "bajeti", "gpris", "hawkeye", "county-sites"] as const
-export type SourceKey = (typeof SOURCE_KEYS)[number]
-
-export const SOURCE_INFO: Record<SourceKey, { name: string; kind: "official" | "secondary" | "media"; site: string }> = {
-  news: { name: "News media (Brave search)", kind: "media", site: "various" },
-  cob: { name: "Controller of Budget — County Budget Implementation Review", kind: "official", site: "https://cob.go.ke" },
-  oag: { name: "Office of the Auditor-General (via Parliament library)", kind: "official", site: "https://libraryir.parliament.go.ke" },
-  tenders: { name: "Public Procurement Information Portal", kind: "official", site: "https://tenders.go.ke" },
-  bajeti: { name: "National Treasury — Bajeti Yetu", kind: "official", site: "https://bajetiyetu.treasury.go.ke" },
-  gpris: { name: "Government Projects Reporting & Information System", kind: "official", site: "https://gpris.go.ke" },
-  hawkeye: { name: "Hawkeye Kenya (derived from OAG)", kind: "secondary", site: "https://hawkeye.africa" },
-  "county-sites": { name: "County government website", kind: "official", site: "various" },
-}
+export { SOURCE_KEYS, SOURCE_INFO } from "../../../src/constants/hesabu-sources"
+export type { SourceKey } from "../../../src/constants/hesabu-sources"
+import type { SourceKey } from "../../../src/constants/hesabu-sources"
 
 /** One place a report was found */
 export interface SourceRef {
