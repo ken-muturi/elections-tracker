@@ -11,8 +11,15 @@ export interface MatchResult {
   method: "card-name" | "ward" | "constituency" | null
 }
 
-/** IEBC ward names that are common words — matching them causes false positives */
-const GENERIC = new Set(["township", "central", "town", "majengo", "market", "mjini", "county", "headquarters"])
+/**
+ * IEBC ward names that are common words — matching them causes false positives.
+ * The common-English ones were found by intersecting kenya-wards.json aliases with /usr/share/dict/words;
+ * real place names that happen to be words (Karen, Kikuyu, Samburu, Mara) are deliberately kept.
+ */
+const GENERIC = new Set([
+  "township", "central", "town", "majengo", "market", "mjini", "county", "headquarters",
+  "airport", "engineer", "hospital", "municipality", "pipeline", "racecourse", "road", "south", "estate",
+])
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim()
 
@@ -67,12 +74,13 @@ export function matchCard(
       for (const a of as) if (contains(text, a) && (!best || a.length > best.alias.length)) best = { name: card.name, alias: a }
     if (best) return { cardName: best.name, matchedOn: best.alias, method: "card-name" }
 
-    // 2. IEBC ward → constituency → card
+    // 2. IEBC ward → constituency → card (an alias found in several constituencies is ambiguous)
     for (const cons of constituencies)
       for (const ward of cons.wards)
         for (const a of aliases(ward, countyNorm))
           if (contains(text, a)) {
-            const names = cardsFor(cons.name)
+            const owners = constituencies.filter((c) => c.wards.some((w) => aliases(w, countyNorm).includes(a)))
+            const names = owners.length === 1 ? cardsFor(cons.name) : []
             return names.length === 1
               ? { cardName: names[0], matchedOn: a, method: "ward" }
               : { cardName: null, matchedOn: a, method: null }

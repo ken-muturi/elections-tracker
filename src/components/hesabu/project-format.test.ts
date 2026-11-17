@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { fmtKesShort, projectTotalLabel, projectLine, joinNames, pickEquityFlags } from "./project-format"
+import { fmtKesShort, projectTotalLabel, projectLine, joinNames, pickEquityFlags, orFallback } from "./project-format"
 
 test("fmtKesShort scales B / M / plain", () => {
   assert.equal(fmtKesShort(2_340_000_000), "KES 2.34B")
@@ -33,4 +33,17 @@ test("pickEquityFlags: lowest third under threshold, max 3", () => {
   assert.deepEqual(pickEquityFlags([w(80), w(70)]), [])
   const twelve = Array.from({ length: 12 }, (_, i) => w(10 + i))
   assert.equal(pickEquityFlags(twelve).length, 3)
+})
+
+test("final review: orFallback keeps the page alive when a query fails", async () => {
+  const errors: unknown[] = []
+  const orig = console.error
+  console.error = (...a: unknown[]) => { errors.push(a) }
+  try {
+    assert.deepEqual(await orFallback(Promise.reject(new Error("relation h_projects does not exist")), [], "projects"), [])
+    assert.equal(errors.length, 1)
+    assert.deepEqual(await orFallback(Promise.resolve([1]), [], "projects"), [1])
+  } finally {
+    console.error = orig
+  }
 })

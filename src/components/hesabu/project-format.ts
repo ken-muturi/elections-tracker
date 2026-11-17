@@ -37,3 +37,13 @@ export function pickEquityFlags<T extends { citizenSatisfactionScore: number }>(
     .slice(0, limit)
     .filter((w) => w.citizenSatisfactionScore < threshold)
 }
+
+/** Resolve to `fallback` (and log) if an optional query fails, so one section can't take down the page */
+export async function orFallback<T>(promise: Promise<T>, fallback: T, label: string): Promise<T> {
+  try {
+    return await promise
+  } catch (err) {
+    console.error(`[hesabu] ${label} unavailable:`, err instanceof Error ? err.message : err)
+    return fallback
+  }
+}

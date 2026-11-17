@@ -8,6 +8,7 @@ import {
   getProjectSummaryByCard,
 } from "@/services/Hesabu";
 import { HesabuDashboard } from "@/components/hesabu/Dashboard"
+import { orFallback } from "@/components/hesabu/project-format"
 
 export const metadata = {
   title: "Hesabu — Country Budget Transparency",
@@ -47,7 +48,8 @@ export default async function HesabuPage({ searchParams }: Props) {
   const [county, trendData, projectSummary] = await Promise.all([
     getCountyByCode(resolvedCode, fiscalYear),
     getHistoricalTrend(resolvedCode),
-    getProjectSummaryByCard(resolvedCode, fiscalYear),
+    // Optional: the dashboard still renders if h_projects is missing or the query fails
+    orFallback(getProjectSummaryByCard(resolvedCode, fiscalYear), [], "project summary"),
   ]);
 
   if (!county) notFound()

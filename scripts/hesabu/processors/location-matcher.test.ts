@@ -84,3 +84,22 @@ test("spacing variants: card 'Garba Tulla' matches 'Garbatulla' and vice versa",
   assert.equal(matchCard(p("Garbatulla hospital"), cards, cons, "Isiolo").cardName, "Garba Tulla")
   assert.equal(matchCard(p("Garba Tulla hospital"), cards, cons, "Isiolo").cardName, "Garba Tulla")
 })
+
+test("final review: common-word IEBC ward names (Hospital, Road, Airport…) are ignored", () => {
+  const cards: Card[] = [{ name: "Thika Town", subCounty: "Thika Town" }]
+  const cons: ConstituencyWards[] = [{ name: "Thika Town", wards: ["Township", "Kamenu", "Hospital", "Gatuanyaga", "Ngoliba"] }]
+  assert.equal(matchCard(p("Upgrade of Kiambu Level 5 Hospital"), cards, cons, "Kiambu").cardName, null)
+  const kwale: ConstituencyWards[] = [{ name: "Msambweni", wards: ["Road", "Airport", "Pipeline", "Municipality", "Racecourse", "Engineer", "South"] }]
+  const kc: Card[] = [{ name: "Msambweni", subCounty: "Msambweni" }]
+  for (const t of ["Gravelling of access road", "Airport road", "Water pipeline", "Municipality offices", "Racecourse fencing", "Engineer's office", "South block"])
+    assert.equal(matchCard(p(t), kc, kwale, "Kwale").cardName, null, t)
+})
+
+test("final review: a ward alias present in two constituencies → null (not first-wins)", () => {
+  const cards: Card[] = [{ name: "Naivasha", subCounty: "Naivasha" }, { name: "Nakuru Town East", subCounty: "Nakuru Town East" }]
+  const cons: ConstituencyWards[] = [
+    { name: "Naivasha", wards: ["Biashara", "Hells Gate"] },
+    { name: "Nakuru Town East", wards: ["Biashara", "Kivumbini"] },
+  ]
+  assert.deepEqual(matchCard(p("Biashara market stalls"), cards, cons, "Nakuru"), { cardName: null, matchedOn: "biashara", method: null })
+})
