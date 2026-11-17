@@ -1,7 +1,8 @@
 import { Box, Text, HStack, SimpleGrid } from "@chakra-ui/react"
 import { WardData } from "@/services/Hesabu"
+import { ProjectCardSummary, projectLine } from "./project-format"
 
-type Props = { ward: WardData }
+type Props = { ward: WardData; projects?: ProjectCardSummary; onOpenProjects?: () => void }
 
 const Dot = ({ color }: { color: string }) => (
   <Box w="8px" h="8px" borderRadius="full" bg={color} flexShrink={0} />
@@ -25,7 +26,7 @@ const DotBar = ({ value, color }: { value: number; color: string }) => {
   )
 }
 
-export const WardCard = ({ ward }: Props) => {
+export const WardCard = ({ ward, projects, onOpenProjects }: Props) => {
   const completionRate =
     ward.totalProjects > 0
       ? (ward.completedProjects / ward.totalProjects) * 100
@@ -107,6 +108,25 @@ export const WardCard = ({ ward }: Props) => {
           {ward.citizenSatisfactionScore}%
         </Text>
       </HStack>
+
+      {/* Documented projects (scraped) — opens drill-down */}
+      <Box
+        as={projects?.count ? "button" : "div"}
+        mt={4}
+        pt={3}
+        w="full"
+        textAlign="left"
+        borderTop="1px solid"
+        borderColor="gray.100"
+        cursor={projects?.count ? "pointer" : "default"}
+        onClick={projects?.count ? onOpenProjects : undefined}
+        _hover={projects?.count ? { color: "teal.700" } : undefined}
+      >
+        <Text fontSize="xs" fontWeight="semibold" color={projects?.count ? "teal.600" : "gray.400"}>
+          {projectLine(projects)}
+          {projects?.count ? " →" : ""}
+        </Text>
+      </Box>
     </Box>
   )
 }

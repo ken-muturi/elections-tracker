@@ -5,6 +5,7 @@ import {
   getAvailableFiscalYears,
   getHistoricalTrend,
   getUniqueCounties,
+  getProjectSummaryByCard,
 } from "@/services/Hesabu";
 import { HesabuDashboard } from "@/components/hesabu/Dashboard"
 
@@ -43,9 +44,10 @@ export default async function HesabuPage({ searchParams }: Props) {
       ? yearParam
       : (resolvedYears[0] ?? "2025/2026");
 
-  const [county, trendData] = await Promise.all([
+  const [county, trendData, projectSummary] = await Promise.all([
     getCountyByCode(resolvedCode, fiscalYear),
     getHistoricalTrend(resolvedCode),
+    getProjectSummaryByCard(resolvedCode, fiscalYear),
   ]);
 
   if (!county) notFound()
@@ -61,6 +63,7 @@ export default async function HesabuPage({ searchParams }: Props) {
       trendData={trendData}
       uniqueCounties={uniqueCounties}
       currentCountyCode={resolvedCode}
+      projectSummary={projectSummary}
     />
   );
 }
