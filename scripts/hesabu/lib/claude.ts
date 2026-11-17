@@ -37,6 +37,8 @@ export interface ExtractedReport {
   source?: SourceKey
   /** Every source this item was found in — more than one after dedup merges */
   sources?: SourceRef[]
+  /** Set when the source failed this run and the item was kept from an earlier run (that run's scrapedAt) */
+  carriedOverFrom?: string
 }
 
 const SYSTEM_PROMPT = `You are a Kenya county budget analyst. Extract structured budget/project data from scraped Kenyan news articles or government documents.
