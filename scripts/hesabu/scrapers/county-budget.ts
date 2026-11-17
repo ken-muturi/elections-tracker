@@ -8,37 +8,46 @@ import { fetchUrl } from "../lib/http"
 import { searchWeb } from "../lib/search"
 import { extractReportsWithClaude, ExtractedReport } from "../lib/claude"
 import { CountyMeta, SEARCH_QUERIES } from "../constants"
+import { readableText } from "../lib/html"
 
 const KIPPRA_BASE = "https://repository.kippra.or.ke"
 
+const PAGE_MAX_CHARS = 12_000
+
+/** Homepage text, used to spot "soft 404s" — budget URLs that just serve the homepage */
+async function homepageText(county: CountyMeta): Promise<string> {
+  const res = await fetchUrl(`https://${county.website}/`, { retries: 0 })
+  return res ? readableText(cheerio.load(res.html)) : ""
+}
+
 async function scrapeCountyGovSite(county: CountyMeta): Promise<ExtractedReport[]> {
-  const reports: ExtractedReport[] = []
   const tryUrls = [
     `https://${county.website}/budget`,
     `https://${county.website}/finance`,
     `https://${county.website}/documents`,
-    `https://www.${county.website}/budget`,
   ]
+  const home = await homepageText(county)
 
   for (const url of tryUrls) {
-    const res = await fetchUrl(url, { minDelay: 3000, maxDelay: 6000 })
+    const res = await fetchUrl(url, { minDelay: 3000, maxDelay: 6000, retries: 0 })
     if (!res || res.status !== 200) continue
 
     const $ = cheerio.load(res.html)
-    const text = $.text().trim()
+    const text = readableText($)
+    if (text.length < 300) continue
+    if (home && text.slice(0, 2000) === home.slice(0, 2000)) {
+      console.log(`     ↷ ${url} serves the homepage — skipped`)
+      continue
+    }
 
-    if (text.length < 100) continue
-
-    const extracted = await extractReportsWithClaude(
-      text.slice(0, 5000),
-      county.name,
-      url
-    )
-    reports.push(...extracted)
-    break // Got a working page, stop trying
+    console.log(`     📄 ${$("title").text().trim().slice(0, 70)} (${text.length} chars)`)
+    return extractReportsWithClaude(text, county.name, url, {
+      maxChars: PAGE_MAX_CHARS,
+      sourceKind: `${county.name} County Government website page`,
+    })
   }
 
-  return reports
+  return []
 }
 
 async function scrapeKIPPRA(countyName: string): Promise<ExtractedReport[]> {
@@ -86,7 +95,7 @@ export async function scrapeCountyBudgetSources(county: CountyMeta): Promise<Ext
   const kippraReports = await scrapeKIPPRA(county.name)
   allReports.push(...kippraReports)
 
-  // 3. DuckDuckGo search for budget documents
+  // 3. Web search for budget documents
   const budgetQueries = SEARCH_QUERIES.budget(county.name)
   for (const q of budgetQueries.slice(0, 2)) {
     const results = await searchWeb(q, 4)
@@ -94,10 +103,10 @@ export async function scrapeCountyBudgetSources(county: CountyMeta): Promise<Ext
       if (r.url.includes(county.website) || r.url.includes("treasury.go.ke") || r.url.includes("kippra")) {
         const fetched = await fetchUrl(r.url)
         if (!fetched) continue
-        const $ = cheerio.load(fetched.html)
-        const text = $.text().slice(0, 5000)
-        if (text.length > 200) {
-          const extracted = await extractReportsWithClaude(text, county.name, r.url)
+        if (!/html/i.test(fetched.contentType)) continue // PDFs etc. aren't parsed here
+        const text = readableText(cheerio.load(fetched.html))
+        if (text.length > 300) {
+          const extracted = await extractReportsWithClaude(text, county.name, r.url, { maxChars: PAGE_MAX_CHARS })
           allReports.push(...extracted)
         }
       }
