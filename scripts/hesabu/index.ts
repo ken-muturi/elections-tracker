@@ -38,6 +38,7 @@ import { scrapeBajetiForCounty } from "./scrapers/bajeti"
 import { scrapeOagForCounty } from "./scrapers/oag"
 import { scrapeHawkeyeForCounty } from "./scrapers/hawkeye"
 import { deduplicateReports } from "./processors/deduplicator"
+import { carryOverReports, PreviousOutput } from "./processors/carry-over"
 import { ExtractedReport } from "./lib/claude"
 import { SOURCE_KEYS, SourceKey, SourceCoverage, SOURCE_INFO } from "./lib/sources"
 
@@ -62,10 +63,23 @@ function ensureOutputDir() {
   }
 }
 
+function outputPath(county: CountyMeta): string {
+  return path.join(OUTPUT_DIR, county.name.toLowerCase().replace(/[^a-z0-9]/g, "-") + ".json")
+}
+
+/** The county's last written output, or null if there is none or it can't be read */
+function readPreviousOutput(county: CountyMeta): PreviousOutput | null {
+  try {
+    const prev = JSON.parse(fs.readFileSync(outputPath(county), "utf-8"))
+    return Array.isArray(prev?.reports) && typeof prev?.scrapedAt === "string" ? prev : null
+  } catch {
+    return null
+  }
+}
+
 function writeOutput(output: CountyOutput) {
   ensureOutputDir()
-  const filename = output.county.name.toLowerCase().replace(/[^a-z0-9]/g, "-") + ".json"
-  const filepath = path.join(OUTPUT_DIR, filename)
+  const filepath = outputPath(output.county)
   fs.writeFileSync(filepath, JSON.stringify(output, null, 2), "utf-8")
   console.log(`\n💾 Saved: ${filepath}`)
 }
@@ -156,6 +170,13 @@ async function scrapeCounty(county: CountyMeta, skip: Set<SourceKey>): Promise<C
     }
   }
 
+  // Safeguard: sources that failed or were skipped keep their items from the previous run.
+  // Carried items go last so a fresh copy of the same item (from a source that did run) wins the merge.
+  const notRun = SOURCE_KEYS.filter((k) => coverage[k].status === "error" || coverage[k].status === "skipped")
+  const carried = carryOverReports(readPreviousOutput(county), notRun)
+  for (const [key, n] of Object.entries(carried.counts) as [SourceKey, number][]) coverage[key].carriedOver = n
+  allReports.push(...carried.reports)
+
   // Deduplicate
   const deduplicated = deduplicateReports(allReports)
 
@@ -167,7 +188,7 @@ async function scrapeCounty(county: CountyMeta, skip: Set<SourceKey>): Promise<C
   }
 
   console.log(`\n📊 ${county.name} summary:`)
-  console.log(`   Raw reports:        ${allReports.length}`)
+  console.log(`   Raw reports:        ${allReports.length} (${carried.reports.length} carried over)`)
   console.log(`   After dedup:        ${deduplicated.length}`)
   console.log(`   Sources:            ${sources.length}`)
   console.log(`   Errors:             ${errors.length}`)
@@ -175,7 +196,8 @@ async function scrapeCounty(county: CountyMeta, skip: Set<SourceKey>): Promise<C
   for (const key of SOURCE_KEYS) {
     const c = coverage[key]
     const icon = { found: "✓", "no-data": "–", error: "✗", skipped: "·" }[c.status]
-    console.log(`     ${icon} ${key.padEnd(13)} ${c.status === "found" ? `${c.reports} reports` : c.status}`)
+    const kept = c.carriedOver ? ` — kept ${c.carriedOver} from previous run` : ""
+    console.log(`     ${icon} ${key.padEnd(13)} ${c.status === "found" ? `${c.reports} reports` : c.status}${kept}`)
   }
 
   return {

@@ -18,4 +18,6 @@ export interface SourceCoverage {
   status: "found" | "no-data" | "error" | "skipped"
   reports: number
   error?: string
+  /** Items kept from the previous run because this source failed or was skipped */
+  carriedOver?: number
 }

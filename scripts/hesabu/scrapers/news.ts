@@ -18,7 +18,10 @@ export interface NewsArticle {
   wordCount: number
 }
 
-const NEWS_DOMAINS = ["nation.africa", "standardmedia.co.ke", "the-star.co.ke", "peopledaily.digital", "kenyanews.go.ke"]
+const NEWS_DOMAINS = [
+  "nation.africa", "standardmedia.co.ke", "the-star.co.ke", "peopledaily.digital", "kenyanews.go.ke",
+  "eastleighvoice.co.ke", "citizen.digital", "businessdailyafrica.com", "capitalfm.co.ke", "kbc.co.ke",
+]
 
 function isNewsDomain(url: string): boolean {
   return NEWS_DOMAINS.some((d) => url.includes(d))
@@ -89,7 +92,7 @@ export async function scrapeCountyNews(countyName: string): Promise<NewsScrapeRe
   const freshness = `${isoDay(cutoff)}to${isoDay(new Date())}`
 
   for (const q of queries) {
-    const results = await searchWeb(q, 5, { freshness })
+    const results = await searchWeb(q, 5, { freshness, includeDomains: NEWS_DOMAINS })
     // Only keep news domain results
     const filtered = results.filter((r) => isNewsDomain(r.url))
     allResults.push(...filtered)
