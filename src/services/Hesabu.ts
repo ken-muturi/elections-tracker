@@ -3,6 +3,9 @@
 import prisma from "@/db"
 import { handleReturnError } from "@/db/error-handling"
 import type { ProjectCardSummary } from "@/components/hesabu/project-format"
+import { orFallback } from "@/components/hesabu/project-format"
+import { toComparisonCounties, type ProjectCounts } from "@/components/hesabu/compare-data"
+import type { ComparisonCounty } from "@/components/hesabu/compare-metrics"
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -438,3 +441,59 @@ export const getProjects = async (
 }
 
 // The full 47-county list lives in src/constants/hesabu.ts (not a server action)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// County comparison
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Fiscal years with any county data, newest first */
+export const getComparisonYears = async (): Promise<string[]> => {
+  try {
+    const rows = await prisma.hCounty.findMany({
+      where: { isDataAvailable: true },
+      distinct: ["fiscalYear"],
+      orderBy: { fiscalYear: "desc" },
+      select: { fiscalYear: true },
+    })
+    return rows.map((r) => r.fiscalYear)
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+async function loadProjectCounts(fiscalYear: string): Promise<ProjectCounts> {
+  const [groups, scraped] = await Promise.all([
+    prisma.hProject.groupBy({
+      by: ["countyCode", "status"],
+      where: { fiscalYear, possibleDuplicateOf: null },
+      _count: { _all: true },
+    }),
+    prisma.hProject.groupBy({ by: ["countyCode"], _count: { _all: true } }),
+  ])
+  return {
+    groups: groups.map((g) => ({ countyCode: g.countyCode, status: g.status, count: g._count._all })),
+    scrapedCodes: scraped.map((s) => s.countyCode),
+  }
+}
+
+/** Every county with data for the year, with project coverage; project failures degrade to "unavailable" */
+export const getCountyComparison = async (fiscalYear: string): Promise<ComparisonCounty[]> => {
+  if (typeof fiscalYear !== "string") throw new Error("Invalid parameters.")
+  try {
+    const [rows, projects] = await Promise.all([
+      prisma.hCounty.findMany({
+        where: { fiscalYear, isDataAvailable: true },
+        orderBy: { name: "asc" },
+        select: {
+          code: true, name: true, totalBudget: true, equitableShare: true, developmentExpenditure: true,
+          revenueTarget: true, revenueCollected: true, devAbsorptionRate: true,
+          sectors: { select: { name: true, allocatedAmount: true } },
+        },
+      }),
+      orFallback<ProjectCounts | null>(loadProjectCounts(fiscalYear), null, "comparison project counts"),
+    ])
+    return toComparisonCounties(rows, projects)
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
