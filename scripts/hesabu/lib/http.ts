@@ -66,7 +66,10 @@ export async function fetchUrl(
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      if (attempt < retries) {
+      // 4xx (other than 429) won't change on retry — e.g. 403 bot walls, 404s
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined
+      const permanent = status !== undefined && status >= 400 && status < 500 && status !== 429
+      if (attempt < retries && !permanent) {
         console.warn(`  ↻ Retry ${attempt + 1}/${retries} for ${url} — ${msg}`)
         await delay(5000 * (attempt + 1))
       } else {
@@ -77,13 +80,16 @@ export async function fetchUrl(
   return null
 }
 
-export async function fetchBuffer(url: string): Promise<Buffer | null> {
+export async function fetchBuffer(
+  url: string,
+  opts: { timeoutMs?: number } = {}
+): Promise<Buffer | null> {
   try {
     await rateLimit(2000, 4000)
     const res = await axios.get<Buffer>(url, {
       headers: { "User-Agent": randomUA() },
       responseType: "arraybuffer",
-      timeout: 30_000,
+      timeout: opts.timeoutMs ?? 30_000,
     })
     return Buffer.from(res.data)
   } catch (err: unknown) {

@@ -7,6 +7,7 @@ import { fetchUrl } from "../lib/http"
 import { searchWeb, SearchResult } from "../lib/search"
 import { extractReportsWithClaude, ExtractedReport } from "../lib/claude"
 import { SEARCH_QUERIES } from "../constants"
+import { publishedDate, readableText } from "../lib/html"
 
 export interface NewsArticle {
   title: string
@@ -23,47 +24,38 @@ function isNewsDomain(url: string): boolean {
   return NEWS_DOMAINS.some((d) => url.includes(d))
 }
 
+/** Start of the previous financial year (Kenya FY runs July–June) — older news is skipped */
+function newsCutoff(now = new Date()): Date {
+  const fyStartYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1
+  return new Date(Date.UTC(fyStartYear - 1, 6, 1))
+}
+
+const isoDay = (d: Date) => d.toISOString().slice(0, 10)
+
 /** Extract article text from a news page */
 async function scrapeArticle(url: string): Promise<NewsArticle | null> {
-  const res = await fetchUrl(url)
+  const res = await fetchUrl(url, { retries: 1 })
   if (!res) return null
 
   const $ = cheerio.load(res.html)
-
-  // Remove nav, footer, ads, scripts
-  $("nav, footer, script, style, aside, .ad, .advertisement, .related, .comments").remove()
 
   const title =
     $("h1").first().text().trim() ||
     $("meta[property='og:title']").attr("content") ||
     "Untitled"
 
-  const datePublished =
-    $("meta[property='article:published_time']").attr("content") ||
-    $("time").attr("datetime") ||
-    undefined
+  // Fall back to a date in the URL (the Star: /2026-05-21-slug)
+  const datePublished = publishedDate($) ?? url.match(/\/(20\d\d-\d\d-\d\d)-/)?.[1]
 
-  // Try common article content selectors
-  const contentSelectors = [
-    "article",
-    ".article-body",
-    ".story-body",
-    ".content-body",
-    ".post-content",
-    "main p",
-    ".entry-content",
-  ]
-
-  let text = ""
-  for (const sel of contentSelectors) {
-    const candidate = $(sel).text().trim()
-    if (candidate.length > text.length) text = candidate
-  }
-
-  if (text.length < 100) {
-    // Fallback: all paragraphs
-    text = $("p").map((_, el) => $(el).text().trim()).get().join(" ")
-  }
+  // Paragraphs are the most reliable body across Nation / Standard / Star layouts
+  const $c = cheerio.load(res.html)
+  $c("nav, footer, header, script, style, aside, .ad, .advertisement, .related, .comments").remove()
+  let text = $c("p")
+    .map((_, el) => $c(el).text().trim())
+    .get()
+    .filter((p) => p && !/^audio by vocalize$/i.test(p))
+    .join("\n")
+  if (text.length < 500) text = readableText($)
 
   const source = new URL(url).hostname.replace("www.", "")
 
@@ -93,8 +85,11 @@ export async function scrapeCountyNews(countyName: string): Promise<NewsScrapeRe
     ...SEARCH_QUERIES.audit(countyName),
   ]
 
+  const cutoff = newsCutoff()
+  const freshness = `${isoDay(cutoff)}to${isoDay(new Date())}`
+
   for (const q of queries) {
-    const results = await searchWeb(q, 5)
+    const results = await searchWeb(q, 5, { freshness })
     // Only keep news domain results
     const filtered = results.filter((r) => isNewsDomain(r.url))
     allResults.push(...filtered)
@@ -113,14 +108,35 @@ export async function scrapeCountyNews(countyName: string): Promise<NewsScrapeRe
   const articles: NewsArticle[] = []
   const reports: ExtractedReport[] = []
 
-  for (const result of unique.slice(0, 10)) {
+  const MAX_ARTICLES = 10
+  for (const result of unique) {
+    if (articles.length >= MAX_ARTICLES) break
     console.log(`  📄 Scraping: ${result.title.slice(0, 60)}...`)
     const article = await scrapeArticle(result.url)
     if (!article || article.wordCount < 80) continue
 
+    // Search freshness is approximate — drop articles we can date as too old
+    const published = article.datePublished ? new Date(article.datePublished) : undefined
+    if (published && !isNaN(+published) && published < cutoff) {
+      console.log(`     ↷ Skipped (published ${isoDay(published)}, before ${isoDay(cutoff)})`)
+      continue
+    }
+    // Many hits are national stories; only extract from ones that discuss this county
+    const countyRe = new RegExp(countyName.replace(/[^a-z]/gi, "."), "gi")
+    const inTitle = countyRe.test(`${article.title} ${result.title}`)
+    const mentions = (article.text.match(countyRe) ?? []).length
+    if (!inTitle && mentions < 2) {
+      console.log(`     ↷ Skipped (mentions ${countyName} ${mentions}×)`)
+      continue
+    }
+
     articles.push(article)
 
-    const extracted = await extractReportsWithClaude(article.text, countyName, article.url)
+    const extracted = await extractReportsWithClaude(article.text, countyName, article.url, {
+      maxChars: 12_000,
+      sourceKind: `News article — ${article.source}${article.datePublished ? `, published ${article.datePublished.slice(0, 10)}` : ""}`,
+    })
+    for (const r of extracted) r.sourceDate ??= article.datePublished?.slice(0, 10)
     reports.push(...extracted)
   }
 
