@@ -35,6 +35,7 @@ type Props = {
   uniqueCounties: CountyOption[];
   currentCountyCode: string;
   projectSummary: ProjectCardSummary[];
+  sectorSummary: ProjectCardSummary[];
 };
 
 export const HesabuDashboard = ({
@@ -46,6 +47,7 @@ export const HesabuDashboard = ({
   uniqueCounties,
   currentCountyCode,
   projectSummary,
+  sectorSummary,
 }: Props) => {
   const [activeTab, setActiveTab] = useState<Tab>("budget");
 
@@ -208,6 +210,8 @@ export const HesabuDashboard = ({
                 county={county}
                 trendData={trendData}
                 currentYear={currentYear}
+                countyCode={currentCountyCode}
+                sectorSummary={sectorSummary}
               />
             )}
             {activeTab === "wards" && (

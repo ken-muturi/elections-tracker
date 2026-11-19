@@ -328,42 +328,93 @@ export type ProjectRowData = {
   sourceDate: string | null
   matchedOn: string | null
   locationText: string | null
+  /** Ward card the project sits on (null = county-wide) — shown in sector view */
+  cardName: string | null
+  /** Title of the project this one is probably a duplicate of, if flagged */
+  possibleDuplicateOf: string | null
 }
 
-/** Per-card project count and stated-amount total (cardName null = county-wide). One query. */
-export const getProjectSummaryByCard = async (
-  countyCode: string,
-  fiscalYear: string,
-): Promise<ProjectCardSummary[]> => {
-  try {
-    const groups = await prisma.hProject.groupBy({
-      by: ["cardName"],
-      where: { countyCode, fiscalYear },
-      _count: { _all: true, budgetAllocated: true },
-      _sum: { budgetAllocated: true },
-    })
-    return groups.map((g) => ({
-      cardName: g.cardName,
+type ProjectGroupBy = "cardName" | "sector"
+
+/** Count + stated-amount total per group; possible duplicates counted but their amounts excluded */
+async function summarizeProjects(by: ProjectGroupBy, countyCode: string, fiscalYear: string): Promise<ProjectCardSummary[]> {
+  if (typeof countyCode !== "string" || typeof fiscalYear !== "string") throw new Error("Invalid parameters.")
+  const where = { countyCode, fiscalYear }
+  const [all, distinct, dups] = await Promise.all([
+    prisma.hProject.groupBy({ by: [by], where, _count: { _all: true } }),
+    prisma.hProject.groupBy({
+      by: [by], where: { ...where, possibleDuplicateOf: null },
+      _count: { budgetAllocated: true }, _sum: { budgetAllocated: true },
+    }),
+    prisma.hProject.groupBy({ by: [by], where: { ...where, possibleDuplicateOf: { not: null } }, _count: { _all: true } }),
+  ])
+  const keyOf = (g: { cardName?: string | null; sector?: string }) => (by === "cardName" ? g.cardName ?? null : g.sector ?? null)
+  return all.map((g) => {
+    const key = keyOf(g)
+    const d = distinct.find((x) => keyOf(x) === key)
+    return {
+      key,
       count: g._count._all,
-      withAmount: g._count.budgetAllocated,
-      totalAllocated: Number(g._sum.budgetAllocated ?? 0n),
-    }))
+      possibleDuplicates: dups.find((x) => keyOf(x) === key)?._count._all ?? 0,
+      withAmount: d?._count.budgetAllocated ?? 0,
+      totalAllocated: Number(d?._sum.budgetAllocated ?? 0n),
+    }
+  })
+}
+
+/** Per ward card (key = card name; null = county-wide / location not stated) */
+export const getProjectSummaryByCard = async (countyCode: string, fiscalYear: string): Promise<ProjectCardSummary[]> => {
+  try {
+    return await summarizeProjects("cardName", countyCode, fiscalYear)
   } catch (error) {
     throw new Error(handleReturnError(error))
   }
 }
 
-/** Projects for one card (null = county-wide), highest amount first, unstated amounts last. */
-export const getProjectsForCard = async (
+/** Per sector (key = sector name, same names as h_sectors) */
+export const getProjectSummaryBySector = async (countyCode: string, fiscalYear: string): Promise<ProjectCardSummary[]> => {
+  try {
+    return await summarizeProjects("sector", countyCode, fiscalYear)
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+export type ProjectFilter = { cardName: string | null } | { sector: string }
+
+const MAX_PROJECTS = 500
+
+/** Projects for one ward card or one sector, highest amount first, unstated amounts last. */
+export const getProjects = async (
   countyCode: string,
   fiscalYear: string,
-  cardName: string | null,
+  filter: ProjectFilter,
 ): Promise<ProjectRowData[]> => {
   try {
+    // Server-action args arrive from the client untyped — accept only plain strings / null
+    const isStr = (v: unknown): v is string => typeof v === "string"
+    if (!isStr(countyCode) || !isStr(fiscalYear) || !filter || typeof filter !== "object") throw new Error("Invalid parameters.")
+    let where: { countyCode: string; fiscalYear: string; cardName?: string | null; sector?: string }
+    if ("sector" in filter) {
+      if (!isStr(filter.sector)) throw new Error("Invalid parameters.")
+      where = { countyCode, fiscalYear, sector: filter.sector }
+    } else {
+      if (filter.cardName !== null && !isStr(filter.cardName)) throw new Error("Invalid parameters.")
+      where = { countyCode, fiscalYear, cardName: filter.cardName }
+    }
+
     const rows = await prisma.hProject.findMany({
-      where: { countyCode, fiscalYear, cardName },
+      where,
       orderBy: [{ budgetAllocated: { sort: "desc", nulls: "last" } }, { title: "asc" }],
+      take: MAX_PROJECTS,
     })
+    // Titles of the projects that flagged rows probably duplicate (may sit on another card/sector)
+    const dupKeys = [...new Set(rows.map((r) => r.possibleDuplicateOf).filter((k): k is string => !!k))]
+    const partners = dupKeys.length
+      ? await prisma.hProject.findMany({ where: { countyCode, dedupKey: { in: dupKeys } }, select: { dedupKey: true, title: true } })
+      : []
+    const partnerTitle = new Map(partners.map((p) => [p.dedupKey, p.title]))
+
     return rows.map((r) => ({
       id: r.id,
       title: r.title,
@@ -378,6 +429,8 @@ export const getProjectsForCard = async (
       sourceDate: r.sourceDate,
       matchedOn: r.matchedOn,
       locationText: r.locationText,
+      cardName: r.cardName,
+      possibleDuplicateOf: r.possibleDuplicateOf ? partnerTitle.get(r.possibleDuplicateOf) ?? "another listed project" : null,
     }))
   } catch (error) {
     throw new Error(handleReturnError(error))

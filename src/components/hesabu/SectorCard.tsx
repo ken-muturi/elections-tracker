@@ -1,7 +1,14 @@
 import { Box, Text, HStack } from "@chakra-ui/react"
 import { SectorData } from "@/services/Hesabu"
+import { ProjectCardSummary, projectLine } from "./project-format"
 
-type Props = { sector: SectorData; totalBudget: bigint }
+type Props = {
+  sector: SectorData
+  totalBudget: bigint
+  /** Documented (scraped) projects in this sector — opens the drill-down */
+  projects?: ProjectCardSummary
+  onOpenProjects?: () => void
+}
 
 const fmtM = (n: bigint) => {
   const v = Number(n)
@@ -13,7 +20,7 @@ const fmtM = (n: bigint) => {
 const getAbsorptionColor = (rate: number) =>
   rate >= 75 ? "#2A9D8F" : rate >= 55 ? "#E9C46A" : "#E63946"
 
-export const SectorCard = ({ sector, totalBudget }: Props) => {
+export const SectorCard = ({ sector, totalBudget, projects, onOpenProjects }: Props) => {
   const absorption =
     Number(sector.allocatedAmount) > 0
       ? (Number(sector.spentAmount) / Number(sector.allocatedAmount)) * 100
@@ -103,6 +110,24 @@ export const SectorCard = ({ sector, totalBudget }: Props) => {
           </Text>
         </HStack>
       )}
+
+      {/* Documented projects (scraped) in this sector — opens drill-down */}
+      <Box
+        as={projects?.count ? "button" : "div"}
+        mt={3}
+        pt={2}
+        w="full"
+        textAlign="left"
+        borderTop="1px solid"
+        borderColor="gray.100"
+        cursor={projects?.count ? "pointer" : "default"}
+        onClick={projects?.count ? onOpenProjects : undefined}
+      >
+        <Text as="span" fontSize="xs" fontWeight="semibold" color={projects?.count ? "teal.600" : "gray.400"}>
+          {projectLine(projects)}
+          {projects?.count ? " →" : ""}
+        </Text>
+      </Box>
     </Box>
   )
 }

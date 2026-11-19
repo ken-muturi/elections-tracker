@@ -6,6 +6,7 @@ import {
   getHistoricalTrend,
   getUniqueCounties,
   getProjectSummaryByCard,
+  getProjectSummaryBySector,
 } from "@/services/Hesabu";
 import { HesabuDashboard } from "@/components/hesabu/Dashboard"
 import { orFallback } from "@/components/hesabu/project-format"
@@ -45,11 +46,12 @@ export default async function HesabuPage({ searchParams }: Props) {
       ? yearParam
       : (resolvedYears[0] ?? "2025/2026");
 
-  const [county, trendData, projectSummary] = await Promise.all([
+  const [county, trendData, projectSummary, sectorSummary] = await Promise.all([
     getCountyByCode(resolvedCode, fiscalYear),
     getHistoricalTrend(resolvedCode),
     // Optional: the dashboard still renders if h_projects is missing or the query fails
     orFallback(getProjectSummaryByCard(resolvedCode, fiscalYear), [], "project summary"),
+    orFallback(getProjectSummaryBySector(resolvedCode, fiscalYear), [], "sector project summary"),
   ]);
 
   if (!county) notFound()
@@ -66,6 +68,7 @@ export default async function HesabuPage({ searchParams }: Props) {
       uniqueCounties={uniqueCounties}
       currentCountyCode={resolvedCode}
       projectSummary={projectSummary}
+      sectorSummary={sectorSummary}
     />
   );
 }
