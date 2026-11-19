@@ -15,6 +15,9 @@ import { CitizenReports } from "@/components/hesabu/CitizenReports"
 import { YearSelector } from "@/components/hesabu/YearSelector"
 import { CountySelector } from "@/components/hesabu/CountySelector";
 import type { ProjectCardSummary } from "@/components/hesabu/project-format";
+import Link from "next/link"
+import { buildCompareHref } from "@/components/hesabu/compare-params"
+import { DEFAULT_METRIC } from "@/components/hesabu/compare-metrics"
 
 type Tab = "budget" | "wards" | "reports"
 
@@ -119,6 +122,15 @@ export const HesabuDashboard = ({
               availableYears={availableYears}
               currentYear={currentYear}
             />
+            <Link
+              href={buildCompareHref({ view: "side", year: currentYear, counties: [currentCountyCode], metric: DEFAULT_METRIC })}
+              style={{
+                background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8,
+                color: "white", fontSize: 13, fontWeight: 600, padding: "6px 12px", whiteSpace: "nowrap",
+              }}
+            >
+              ⇄ Compare counties
+            </Link>
           </HStack>
         </HStack>
       </Box>
