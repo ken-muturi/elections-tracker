@@ -447,18 +447,19 @@ export const getElectionResultsByPosition = async (
 
     const level = position.aggregationLevel;
 
-    type GeoInfo = { name: string; countyName: string | null; constituencyName: string | null };
+    type GeoInfo = { name: string; code: string | null; countyName: string | null; constituencyName: string | null };
 
     // Build a normalised geo map that includes parent names for hierarchical display.
     // Only fetch the table(s) actually needed for this position's aggregation level.
     const geoPromise: Promise<(GeoInfo & { id: string })[]> =
       level === "COUNTY"
         ? prisma.county
-            .findMany({ select: { id: true, name: true } })
+            .findMany({ select: { id: true, name: true, code: true } })
             .then((rows) =>
               rows.map((r) => ({
                 id: r.id,
                 name: r.name,
+                code: r.code,
                 countyName: null,
                 constituencyName: null,
               })),
@@ -469,6 +470,7 @@ export const getElectionResultsByPosition = async (
                 select: {
                   id: true,
                   name: true,
+                  code: true,
                   county: { select: { name: true } },
                 },
               })
@@ -476,6 +478,7 @@ export const getElectionResultsByPosition = async (
                 rows.map((r) => ({
                   id: r.id,
                   name: r.name,
+                  code: r.code,
                   countyName: r.county.name,
                   constituencyName: null,
                 })),
@@ -507,6 +510,7 @@ export const getElectionResultsByPosition = async (
                   rows.map((r) => ({
                     id: r.id,
                     name: r.name,
+                    code: null,
                     countyName: r.constituency.county.name,
                     constituencyName: r.constituency.name,
                   })),
@@ -530,8 +534,45 @@ export const getElectionResultsByPosition = async (
       }),
     ]);
 
-    const geoInfoById = new Map(geoRows.map((r) => [r.id, r as GeoInfo]));
     const candidateVoteMap = new Map(candidateVoteTotals.map((r) => [r.candidateId, r._sum.votes ?? 0]));
+
+    // ── Robust entityId → geo resolution ──────────────────────────────────
+    // entityIds are meant to be geo cuids, but real data also stores county
+    // codes ("047"), zero-stripped codes ("47") and plain names ("Laikipia").
+    // Resolve all of these so a corrupted id maps to its real county/constituency
+    // instead of a phantom entity that matches no map polygon (missing county).
+    const geoInfoById = new Map(geoRows.map((r) => [r.id, r]));
+    const normCode = (c: string | null | undefined) =>
+      c == null ? null : (c.replace(/[^0-9]/g, "").replace(/^0+/, "") || "0");
+    const normGeoName = (s: string) =>
+      s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+    const geoInfoByCode = new Map<string, GeoInfo & { id: string }>();
+    const geoInfoByName = new Map<string, GeoInfo & { id: string }>();
+    for (const r of geoRows) {
+      const nc = normCode(r.code);
+      if (nc && !geoInfoByCode.has(nc)) geoInfoByCode.set(nc, r);
+      const nn = normGeoName(r.name);
+      if (nn && !geoInfoByName.has(nn)) geoInfoByName.set(nn, r);
+    }
+
+    const NATIONAL_GEO: GeoInfo & { id: string | null } = {
+      id: null, name: "National", code: null, countyName: null, constituencyName: null,
+    };
+    const resolveGeo = (entityId: string | null): GeoInfo & { id: string | null } => {
+      if (level === "NATIONAL" || entityId === null) return NATIONAL_GEO;
+      const byId = geoInfoById.get(entityId);
+      if (byId) return byId;
+      const nc = normCode(entityId);
+      const byCode = nc ? geoInfoByCode.get(nc) : undefined;
+      if (byCode) return byCode;
+      const byName = geoInfoByName.get(normGeoName(entityId));
+      if (byName) return byName;
+      return { id: entityId, name: entityId, code: null, countyName: null, constituencyName: null };
+    };
+    // Canonical map key for an entityId — the resolved geo id when known, so
+    // duplicate/corrupted ids for the same place fold into one entity.
+    const canonicalKey = (entityId: string | null) =>
+      resolveGeo(entityId).id ?? entityId ?? "national";
 
     const levelAgg = new Map<string, number>();
     const levelTotals = new Map<string, { totalVotes: number; rejectedVotes: number }>();
@@ -539,21 +580,17 @@ export const getElectionResultsByPosition = async (
       for (const v of lr.votes) {
         levelAgg.set(v.candidateId, (levelAgg.get(v.candidateId) ?? 0) + v.votes);
       }
-      const existing = levelTotals.get(lr.entityId) ?? { totalVotes: 0, rejectedVotes: 0 };
-      levelTotals.set(lr.entityId, {
+      const key = canonicalKey(lr.entityId);
+      const existing = levelTotals.get(key) ?? { totalVotes: 0, rejectedVotes: 0 };
+      levelTotals.set(key, {
         totalVotes: existing.totalVotes + (lr.totalVotes ?? 0),
         rejectedVotes: existing.rejectedVotes + (lr.rejectedVotes ?? 0),
       });
     }
 
-    const resolveGeoInfo = (entityId: string | null): GeoInfo => {
-      if (level === "NATIONAL" || entityId === null)
-        return { name: "National", countyName: null, constituencyName: null };
-      return geoInfoById.get(entityId) ?? { name: entityId, countyName: null, constituencyName: null };
-    };
-
     const entityMap = new Map<string, {
       entityId: string;
+      entityCode: string | null;
       entityName: string;
       countyName: string | null;
       constituencyName: string | null;
@@ -561,18 +598,22 @@ export const getElectionResultsByPosition = async (
     }>();
 
     for (const c of position.candidates) {
-      const rawEntityId = level === "NATIONAL" ? "national" : (c.entityId ?? "national");
-      const geo = resolveGeoInfo(rawEntityId === "national" ? null : rawEntityId);
-      if (!entityMap.has(rawEntityId)) {
-        entityMap.set(rawEntityId, {
-          entityId: rawEntityId,
+      const rawEntityId = level === "NATIONAL" ? null : (c.entityId ?? null);
+      const geo = resolveGeo(rawEntityId);
+      // Key by the resolved geo id so candidates whose entityId was stored as a
+      // code/name/duplicate all fold into the one real entity.
+      const key = geo.id ?? rawEntityId ?? "national";
+      if (!entityMap.has(key)) {
+        entityMap.set(key, {
+          entityId: key,
+          entityCode: geo.code,
           entityName: geo.name,
           countyName: geo.countyName,
           constituencyName: geo.constituencyName,
           candidates: [],
         });
       }
-      entityMap.get(rawEntityId)!.candidates.push({
+      entityMap.get(key)!.candidates.push({
         id: c.id,
         name: c.name,
         party: c.party,
@@ -590,6 +631,7 @@ export const getElectionResultsByPosition = async (
         const totals = levelTotals.get(entity.entityId) ?? { totalVotes: 0, rejectedVotes: 0 };
         return {
           entityId: entity.entityId,
+          entityCode: entity.entityCode,
           entityName: entity.entityName,
           countyName: entity.countyName,
           constituencyName: entity.constituencyName,

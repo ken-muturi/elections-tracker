@@ -79,9 +79,31 @@ export default function DrillMap({
       if (cancelled || !mapRef.current) return;
 
       const childByName = new Map<string, ChildResult>();
+      const childByCode = new Map<string, ChildResult>();
       for (const child of data.children) {
         childByName.set(normaliseName(child.entityName), child);
+        if (child.entityCode != null && child.entityCode !== "")
+          childByCode.set(String(parseInt(child.entityCode, 10)), child);
       }
+
+      // Resolve a geojson feature → child result. At the national (county) view
+      // match by numeric county code first (immune to name-spelling drift like
+      // "Baringo"/"Baringoh"), then fall back to the aliased name.
+      const matchFeature = (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        feature: any,
+      ): ChildResult | undefined => {
+        if (data.level === "NATIONAL") {
+          const code = feature?.properties?.COUNTY_COD;
+          if (code != null && code !== "") {
+            const byCode = childByCode.get(String(parseInt(String(code), 10)));
+            if (byCode) return byCode;
+          }
+        }
+        const raw = normaliseName(feature?.properties?.[levelGeo!.nameKey] ?? "");
+        const name = data.level === "NATIONAL" ? resolveCountyAlias(raw) : raw;
+        return childByName.get(name);
+      };
 
       const res = await fetch(levelGeo.path);
       if (!res.ok || cancelled) return;
@@ -128,11 +150,7 @@ export default function DrillMap({
       const geoLayer = L.geoJSON(geojson, {
         style: (feature) => {
           if (!feature) return {};
-          const rawNorm = normaliseName(
-            feature.properties?.[levelGeo.nameKey] ?? "",
-          );
-          const name = data.level === "NATIONAL" ? resolveCountyAlias(rawNorm) : rawNorm;
-          const child = childByName.get(name);
+          const child = matchFeature(feature);
           if (!child)
             return {
               fillColor: "#e5e7eb",
@@ -156,9 +174,7 @@ export default function DrillMap({
         },
         onEachFeature: (feature, layer) => {
           const rawName = feature.properties?.[levelGeo.nameKey] ?? "";
-          const normRaw = normaliseName(rawName);
-          const resolvedName = data.level === "NATIONAL" ? resolveCountyAlias(normRaw) : normRaw;
-          const child = childByName.get(resolvedName);
+          const child = matchFeature(feature);
           if (child) matchedLayers.push(layer);
 
           layer.on({
