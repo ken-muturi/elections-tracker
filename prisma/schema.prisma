@@ -245,6 +245,36 @@ model HVote {
   @@map("h_votes")
 }
 
+/// Project or audit item scraped from public sources (not citizen-filed).
+/// Linked to dashboard cards by (countyCode, fiscalYear, cardName), not FK — HWard rows are per-year.
+model HProject {
+  id              String   @id @default(cuid()) @db.VarChar(50)
+  countyCode      String   @map("county_code") @db.VarChar(5)
+  fiscalYear      String   @map("fiscal_year") @db.VarChar(15)
+  /// Matched card name (HWard.name) — null = county-wide / location not stated
+  cardName        String?  @map("card_name") @db.VarChar(150)
+  locationText    String?  @map("location_text") @db.VarChar(300)
+  matchedOn       String?  @map("matched_on") @db.VarChar(150)
+  title           String   @db.VarChar(500)
+  sector          String   @db.VarChar(100)
+  status          String   @db.VarChar(20)
+  budgetAllocated BigInt?  @map("budget_allocated")
+  budgetSpent     BigInt?  @map("budget_spent")
+  summary         String   @db.Text
+  confidence      String   @db.VarChar(20)
+  primarySource   String   @map("primary_source") @db.VarChar(30)
+  /// Array of { source, url } objects (not a PrismaJson type annotation)
+  sources         Json
+  sourceDate      String?  @map("source_date") @db.VarChar(20)
+  dedupKey        String   @map("dedup_key") @db.VarChar(64)
+  scrapedAt       DateTime @map("scraped_at")
+  loadedAt        DateTime @default(now()) @map("loaded_at")
+
+  @@unique([countyCode, dedupKey])
+  @@index([countyCode, fiscalYear, cardName])
+  @@map("h_projects")
+}
+
 model VerificationRequest {
   id         String   @id @default(cuid())
   identifier String

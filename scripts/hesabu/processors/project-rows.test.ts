@@ -1,0 +1,49 @@
+import { test } from "node:test"
+import assert from "node:assert/strict"
+import { buildProjectRows, dedupKey } from "./project-rows"
+import type { ExtractedReport } from "../lib/claude"
+
+const cards = [{ name: "Tarbaj", subCounty: "Tarbaj" }]
+const cons = [{ name: "Tarbaj", wards: ["Wargadud"] }]
+const rep = (o: Partial<ExtractedReport>): ExtractedReport => ({
+  title: "Wargadud dispensary", fiscalYear: "2025/2026", sector: "Health", status: "ongoing",
+  summary: "s", confidence: "verified", sourceUrl: "https://tenders.go.ke/tenders/1",
+  source: "tenders", sources: [{ source: "tenders", url: "https://tenders.go.ke/tenders/1" }], ...o,
+})
+const build = (reports: ExtractedReport[]) =>
+  buildProjectRows({ countyCode: "008", countyName: "Wajir", scrapedAt: "2026-11-16T00:00:00Z", reports }, cards, cons)
+
+test("maps a report to a placed row with BigInt amount and sources", () => {
+  const { rows, stats } = build([rep({ budgetAllocated: 1_250_000.4 })])
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].cardName, "Tarbaj")
+  assert.equal(rows[0].budgetAllocated, 1_250_000n)
+  assert.equal(rows[0].primarySource, "tenders")
+  assert.deepEqual(rows[0].sources, [{ source: "tenders", url: "https://tenders.go.ke/tenders/1" }])
+  assert.equal(stats.placed, 1)
+  assert.equal(stats.byMethod.ward, 1)
+})
+
+test("identical items in one file collapse to one row", () => {
+  const { rows, stats } = build([rep({}), rep({ title: "  WARGADUD   Dispensary " })])
+  assert.equal(rows.length, 1)
+  assert.equal(stats.duplicates, 1)
+})
+
+test("dedupKey is stable and differs by amount", () => {
+  assert.equal(dedupKey("2025/2026", "A b", 5), dedupKey("2025/2026", "a  B", 5))
+  assert.notEqual(dedupKey("2025/2026", "A b", 5), dedupKey("2025/2026", "A b", 6))
+})
+
+test("empty titles skipped, unknown FY counted but kept", () => {
+  const { rows, stats } = build([rep({ title: "  " }), rep({ fiscalYear: "unknown", title: "Other" })])
+  assert.equal(stats.skippedEmpty, 1)
+  assert.equal(stats.unknownFy, 1)
+  assert.equal(rows.length, 1)
+  assert.equal(stats.countyWide, 1)
+})
+
+test("missing sources fall back to sourceUrl", () => {
+  const { rows } = build([rep({ source: undefined, sources: undefined })])
+  assert.deepEqual(rows[0].sources, [{ source: "unknown", url: "https://tenders.go.ke/tenders/1" }])
+})

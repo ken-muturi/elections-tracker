@@ -14,6 +14,7 @@ import { WardComparison } from "@/components/hesabu/WardComparison"
 import { CitizenReports } from "@/components/hesabu/CitizenReports"
 import { YearSelector } from "@/components/hesabu/YearSelector"
 import { CountySelector } from "@/components/hesabu/CountySelector";
+import type { ProjectCardSummary } from "@/components/hesabu/project-format";
 
 type Tab = "budget" | "wards" | "reports"
 
@@ -33,6 +34,7 @@ type Props = {
   trendData: TrendPoint[];
   uniqueCounties: CountyOption[];
   currentCountyCode: string;
+  projectSummary: ProjectCardSummary[];
 };
 
 export const HesabuDashboard = ({
@@ -43,6 +45,7 @@ export const HesabuDashboard = ({
   trendData,
   uniqueCounties,
   currentCountyCode,
+  projectSummary,
 }: Props) => {
   const [activeTab, setActiveTab] = useState<Tab>("budget");
 
@@ -207,7 +210,14 @@ export const HesabuDashboard = ({
                 currentYear={currentYear}
               />
             )}
-            {activeTab === "wards" && <WardComparison county={county} />}
+            {activeTab === "wards" && (
+              <WardComparison
+                county={county}
+                countyCode={currentCountyCode}
+                fiscalYear={currentYear}
+                projectSummary={projectSummary}
+              />
+            )}
             {activeTab === "reports" && (
               <CitizenReports county={county} initialReports={reports} />
             )}
@@ -217,8 +227,8 @@ export const HesabuDashboard = ({
         {/* Footer */}
         <Text fontSize="xs" color="gray.400" textAlign="center" mt={6}>
           Data sourced from{" "}
-          {county.dataSource ?? "official county budget documents"} &bull; Last
-          updated FY {county.fiscalYear} &bull; Built with Hesabu platform
+          {county.dataSource ?? "official county budget documents"} &bull; Showing
+          FY {currentYear} &bull; Built with Hesabu platform
         </Text>
       </Box>
     </Box>
