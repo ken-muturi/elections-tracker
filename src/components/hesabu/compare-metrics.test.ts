@@ -108,3 +108,39 @@ test("cellText", () => {
   assert.equal(cellText(metric("projects"), county("001", { projects: { state: "scraped", total: 0, stalled: 0 } }), y), "0")
   assert.equal(cellText(metric("devShare"), county("001", { totalBudget: 0 }), y), "—")
 })
+
+test("summarizeRanking: a highlighted county with no data for the year is named and listed under No data", async () => {
+  const { summarizeRanking } = await import("./compare-metrics")
+  const cs = [county("008", { name: "Wajir" }), county("030", { name: "Baringo", devAbsorptionRate: 64 })]
+  const s = summarizeRanking(metric("absorption", cs), cs, ["004", "008"], [{ code: "004", name: "Tana River" }], "2025/2026")
+  assert.deepEqual(s.rankLines.map((l) => `${l.name}: ${l.text}`), ["Tana River: no data for FY 2025/2026", "Wajir: 2nd of 2"])
+  assert.deepEqual(s.noData, ["Tana River"])
+})
+
+test("summarizeRanking: N counts only counties with a value", async () => {
+  const { summarizeRanking } = await import("./compare-metrics")
+  const none = { state: "not-scraped" as const, total: 0, stalled: 0 }
+  const cs = [
+    county("008", { name: "Wajir", projects: { state: "scraped", total: 137, stalled: 1 } }),
+    county("030", { name: "Baringo", projects: { state: "scraped", total: 51, stalled: 23 } }),
+    county("047", { name: "Nairobi City", projects: none }),
+    county("001", { name: "Mombasa", projects: none }),
+  ]
+  const s = summarizeRanking(metric("projects", cs), cs, ["008", "047"], [], "2025/2026")
+  assert.equal(s.withData, 2)
+  assert.deepEqual(s.rankLines.map((l) => `${l.name}: ${l.text}`), ["Wajir: 1st of 2", "Nairobi City: not yet scraped"])
+  assert.deepEqual(s.notScraped, ["Nairobi City", "Mombasa"])
+  assert.deepEqual(s.noData, [])
+  assert.equal(s.projectsUnavailable, false)
+})
+
+test("summarizeRanking: failed project queries are reported as unavailable, not as No data", async () => {
+  const { summarizeRanking } = await import("./compare-metrics")
+  const un = { state: "unavailable" as const, total: 0, stalled: 0 }
+  const cs = [county("008", { projects: un }), county("030", { projects: un })]
+  const s = summarizeRanking(metric("projects", cs), cs, ["008"], [], "2025/2026")
+  assert.equal(s.projectsUnavailable, true)
+  assert.deepEqual(s.noData, [])
+  assert.deepEqual(s.notScraped, [])
+  assert.equal(s.rankLines[0].text, "project data unavailable")
+})

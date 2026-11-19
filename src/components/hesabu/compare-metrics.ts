@@ -151,3 +151,63 @@ export function cellText(metric: MetricDef, county: ComparisonCounty | null, yea
   }
   return formatValue(metric.unit, v)
 }
+
+export interface RankingSummary {
+  uniform: boolean
+  /** Counties that have a value for this figure (the N in "Xth of N") */
+  withData: number
+  ranked: (RankedRow & { name: string; highlighted: boolean })[]
+  rankLines: { code: string; name: string; text: string }[]
+  /** Names with no value (including highlighted counties with no data for the year) */
+  noData: string[]
+  /** Project figures only: counties whose documents haven't been scraped */
+  notScraped: string[]
+  /** Project figures only: the project queries failed */
+  projectsUnavailable: boolean
+}
+
+export function summarizeRanking(
+  metric: MetricDef,
+  counties: ComparisonCounty[],
+  highlighted: string[],
+  options: { code: string; name: string }[],
+  year: string,
+): RankingSummary {
+  const nameOf = (code: string) => counties.find((c) => c.code === code)?.name ?? options.find((o) => o.code === code)?.name ?? code
+  const stateOf = (code: string) => counties.find((c) => c.code === code)?.projects.state
+  const isProjects = metric.group === "Projects"
+  const rows = counties.map((c) => ({ code: c.code, value: metric.value(c) }))
+  const { ranked, missing } = rankRows(rows)
+  const projectsUnavailable = isProjects && counties.some((c) => c.projects.state === "unavailable")
+
+  const notScraped = isProjects ? missing.filter((code) => stateOf(code) === "not-scraped") : []
+  const noData = missing
+    .filter((code) => !(isProjects && (stateOf(code) === "not-scraped" || stateOf(code) === "unavailable")))
+    .concat(highlighted.filter((code) => !counties.some((c) => c.code === code)))
+    .map(nameOf)
+
+  const rankLines = highlighted.map((code) => {
+    const r = ranked.find((x) => x.code === code)
+    const inYear = counties.some((c) => c.code === code)
+    const text = r
+      ? `${ordinal(r.rank)} of ${ranked.length}`
+      : !inYear
+        ? `no data for FY ${year}`
+        : isProjects && stateOf(code) === "not-scraped"
+          ? "not yet scraped"
+          : isProjects && stateOf(code) === "unavailable"
+            ? "project data unavailable"
+            : "no data"
+    return { code, name: nameOf(code), text }
+  })
+
+  return {
+    uniform: isUniform(rows.map((r) => r.value), metric.unit),
+    withData: ranked.length,
+    ranked: ranked.map((r) => ({ ...r, name: nameOf(r.code), highlighted: highlighted.includes(r.code) })),
+    rankLines,
+    noData,
+    notScraped: notScraped.map(nameOf),
+    projectsUnavailable,
+  }
+}

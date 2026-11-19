@@ -47,7 +47,7 @@ export function CompareView({ params, years, countyOptions, counties }: Props) {
             <CompareTable metrics={metrics} columns={selectedColumns(params.counties, counties, countyOptions)}
               allCounties={counties} year={params.year} />
           ) : (
-            <CompareRanking metric={metric} counties={counties} highlighted={params.counties} year={params.year} />
+            <CompareRanking metric={metric} counties={counties} highlighted={params.counties} countyOptions={countyOptions} year={params.year} />
           )}
           <Text fontSize="xs" color="gray.500">{DATA_NOTE}</Text>
         </VStack>
