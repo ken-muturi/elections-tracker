@@ -20,7 +20,7 @@
     "hesabu:scrape:all": "tsx scripts/hesabu/index.ts --counties=all",
     "hesabu:scrape:fast": "tsx scripts/hesabu/index.ts --skip-cob --skip-county-sites",
     "hesabu:load": "tsx scripts/hesabu/load.ts",
-    "hesabu:test": "tsx --test scripts/hesabu/lib/wards.test.ts scripts/hesabu/processors/location-matcher.test.ts scripts/hesabu/processors/project-rows.test.ts scripts/hesabu/processors/possible-duplicates.test.ts scripts/hesabu/processors/carry-over.test.ts src/components/hesabu/project-format.test.ts"
+    "hesabu:test": "tsx --test scripts/hesabu/lib/wards.test.ts scripts/hesabu/lib/search.test.ts scripts/hesabu/processors/location-matcher.test.ts scripts/hesabu/processors/project-rows.test.ts scripts/hesabu/processors/possible-duplicates.test.ts scripts/hesabu/processors/carry-over.test.ts src/components/hesabu/project-format.test.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed_election.ts"
