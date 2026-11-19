@@ -11,6 +11,7 @@ export type ResultStat = {
   aggregationLevel: string
   entities: {
     entityId: string
+    entityCode?: string | null
     entityName: string
     countyName?: string | null
     constituencyName?: string | null

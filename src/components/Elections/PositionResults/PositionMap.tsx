@@ -112,8 +112,31 @@ export default function PositionMap({
       if (cancelled || !mapRef.current) return;
 
       const entityByName = new Map<string, Entity>();
-      for (const entity of entities)
+      const entityByCode = new Map<string, Entity>();
+      for (const entity of entities) {
         entityByName.set(normaliseName(entity.entityName), entity);
+        if (entity.entityCode != null && entity.entityCode !== "")
+          entityByCode.set(String(parseInt(entity.entityCode, 10)), entity);
+      }
+
+      // Resolve a geojson feature → result entity. For counties, match by the
+      // numeric county code first (immune to name-spelling drift like
+      // "Baringo"/"Baringoh"), then fall back to the aliased county name.
+      const matchFeature = (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        feature: any,
+      ): Entity | undefined => {
+        if (aggregationLevel === "COUNTY") {
+          const code = feature?.properties?.COUNTY_COD;
+          if (code != null && code !== "") {
+            const byCode = entityByCode.get(String(parseInt(String(code), 10)));
+            if (byCode) return byCode;
+          }
+        }
+        const raw = normaliseName(feature?.properties?.[geo.nameKey] ?? "");
+        const name = aggregationLevel === "COUNTY" ? resolveCountyAlias(raw) : raw;
+        return entityByName.get(name);
+      };
 
       const res = await fetch(geo.path);
       if (!res.ok || cancelled) return;
@@ -160,9 +183,7 @@ export default function PositionMap({
       const geoLayer = L.geoJSON(geojson, {
         style: (feature) => {
           if (!feature) return {};
-          const rawGeoName = normaliseName(feature.properties?.[geo.nameKey] ?? "");
-          const name = aggregationLevel === "COUNTY" ? resolveCountyAlias(rawGeoName) : rawGeoName;
-          const entity = entityByName.get(name);
+          const entity = matchFeature(feature);
           if (!entity)
             return {
               fillColor: "#e5e7eb",
@@ -189,9 +210,7 @@ export default function PositionMap({
         },
         onEachFeature: (feature, layer) => {
           const rawName = feature.properties?.[geo.nameKey] ?? "";
-          const normRaw = normaliseName(rawName);
-          const resolvedName = aggregationLevel === "COUNTY" ? resolveCountyAlias(normRaw) : normRaw;
-          const entity = entityByName.get(resolvedName);
+          const entity = matchFeature(feature);
           if (entity) matchedLayers.push(layer);
 
           layer.on({
