@@ -32,3 +32,12 @@ test("project coverage: scraped, scraped-with-nothing-this-year, never scraped, 
   const [failed] = toComparisonCounties([row("030")], null)
   assert.deepEqual(failed.projects, { state: "unavailable", total: 0, stalled: 0 })
 })
+
+test("audit count uses the latest audit up to the year; none gives null", () => {
+  const audits = [{ countyCode: "030", fiscalYear: "2023/2024", findings: 25 }, { countyCode: "030", fiscalYear: "2026/2027", findings: 9 }]
+  const [baringo, nairobi] = toComparisonCounties([row("030"), row("047")], null, audits, "2025/2026")
+  assert.deepEqual(baringo.audit, { fiscalYear: "2023/2024", findings: 25 })
+  assert.equal(nairobi.audit, null)
+  assert.equal(toComparisonCounties([row("030")], null, audits, "2015/2016")[0].audit, null)
+  assert.equal(toComparisonCounties([row("030")], null)[0].audit, null)
+})

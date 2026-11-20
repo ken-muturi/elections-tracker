@@ -494,7 +494,7 @@ async function loadProjectCounts(fiscalYear: string): Promise<ProjectCounts> {
 export const getCountyComparison = async (fiscalYear: string): Promise<ComparisonCounty[]> => {
   if (typeof fiscalYear !== "string") throw new Error("Invalid parameters.")
   try {
-    const [rows, projects] = await Promise.all([
+    const [rows, projects, audits] = await Promise.all([
       prisma.hCounty.findMany({
         where: { fiscalYear, isDataAvailable: true },
         orderBy: { name: "asc" },
@@ -505,8 +505,12 @@ export const getCountyComparison = async (fiscalYear: string): Promise<Compariso
         },
       }),
       orFallback<ProjectCounts | null>(loadProjectCounts(fiscalYear), null, "comparison project counts"),
+      orFallback(
+        prisma.hAudit.findMany({ where: { entity: "County Executive" }, select: { countyCode: true, fiscalYear: true, totalFindings: true } })
+          .then((r) => r.map((a) => ({ countyCode: a.countyCode, fiscalYear: a.fiscalYear, findings: a.totalFindings }))),
+        [], "comparison audits"),
     ])
-    return toComparisonCounties(rows, projects)
+    return toComparisonCounties(rows, projects, audits, fiscalYear)
   } catch (error) {
     throw new Error(handleReturnError(error))
   }

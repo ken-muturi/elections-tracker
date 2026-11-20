@@ -1,5 +1,8 @@
 /** Database rows → ComparisonCounty (pure, so the mapping is testable without a database) */
 import type { ComparisonCounty, ProjectCoverage } from "./compare-metrics"
+import { auditForYear } from "./audit-format"
+
+export type AuditCount = { countyCode: string; fiscalYear: string; findings: number }
 
 export type CountyRow = {
   code: string
@@ -28,7 +31,9 @@ function coverageFor(code: string, projects: ProjectCounts | null): ProjectCover
   }
 }
 
-export function toComparisonCounties(rows: CountyRow[], projects: ProjectCounts | null): ComparisonCounty[] {
+export function toComparisonCounties(
+  rows: CountyRow[], projects: ProjectCounts | null, audits: AuditCount[] = [], fiscalYear = "",
+): ComparisonCounty[] {
   return rows.map((r) => ({
     code: r.code,
     name: r.name,
@@ -40,5 +45,9 @@ export function toComparisonCounties(rows: CountyRow[], projects: ProjectCounts 
     devAbsorptionRate: r.devAbsorptionRate,
     sectors: r.sectors.map((s) => ({ name: s.name, allocated: Number(s.allocatedAmount) })),
     projects: coverageFor(r.code, projects),
+    audit: (() => {
+      const a = fiscalYear ? auditForYear(audits.filter((x) => x.countyCode === r.code), fiscalYear) : null
+      return a ? { fiscalYear: a.fiscalYear, findings: a.findings } : null
+    })(),
   }))
 }
