@@ -45,6 +45,7 @@ async function main() {
   for (const a of audits) {
     findings += a.findings.length
     if (dryRun) continue
+    if (a.findings.length === 0) { console.warn(`⚠  ${a.countyName}: no findings — not loaded`); continue }
     try {
       await prisma.$transaction(async (tx) => {
         const audit = await tx.hAudit.upsert({

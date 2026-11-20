@@ -67,3 +67,13 @@ test("parseAuditFile: non-array input, missing opinion and entity defaults", () 
   assert.equal(audits[0].entity, "County Executive")
   assert.equal(audits[0].totalFindings, 3)
 })
+
+test("a county with no usable findings is skipped, so the loader can't delete all its findings", () => {
+  const { audits, skipped } = parseAuditFile([
+    { ...mombasa, findings: [] },
+    { ...mombasa, county_name: "Kwale", county_code: 2, findings: [{ number: 1, title: "  " }, { title: "" }] },
+  ])
+  assert.equal(audits.length, 0)
+  assert.equal(skipped.length, 2)
+  assert.match(skipped[0], /Mombasa: no usable findings/)
+})

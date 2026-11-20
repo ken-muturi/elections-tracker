@@ -19,6 +19,7 @@ export function CompareRanking({ metric, counties, highlighted, countyOptions, y
   return (
     <VStack align="stretch" gap={3} bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" p={4}>
       <Text fontWeight="700">{metric.label}</Text>
+      {metric.note && <Text fontSize="xs" color="gray.500">{metric.note}</Text>}
       <Text fontSize="sm" color="gray.600">Ranked among the {s.withData} counties with data for FY {year}</Text>
       {s.rankLines.length > 0 && !s.uniform && !s.projectsUnavailable && (
         <VStack align="start" gap={0}>

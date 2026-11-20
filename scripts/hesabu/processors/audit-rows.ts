@@ -51,6 +51,12 @@ export function parseAuditFile(data: unknown): { audits: AuditInput[]; skipped: 
       continue
     }
     const findings = toFindings(item.findings)
+    // An empty list is a broken export, not "all findings resolved" — loading it would delete every
+    // finding for the county and unlink citizen reports
+    if (findings.length === 0) {
+      skipped.push(`${name}: no usable findings`)
+      continue
+    }
     audits.push({
       countyCode,
       countyName: name,
