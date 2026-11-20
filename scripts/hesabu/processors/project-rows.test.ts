@@ -74,3 +74,12 @@ test("same amount but different contract numbers are NOT merged (Tarbaj vs Eldas
   assert.equal(rows.length, 2)
   assert.equal(stats.mergedContracts, 0)
 })
+test("items found only by Hawkeye are audit findings, not projects — skipped and counted", () => {
+  const hawk = { source: "hawkeye" as const, url: "https://hawkeyekenya.com/x.json" }
+  const { rows, stats } = build([
+    rep({ title: "Unsupported Expenditure", source: "hawkeye", sources: [hawk] }),
+    rep({ title: "Wargadud dispensary", sources: [{ source: "tenders", url: "https://tenders.go.ke/tenders/1" }, hawk] }),
+  ])
+  assert.deepEqual(rows.map((r) => r.title), ["Wargadud dispensary"])
+  assert.equal(stats.skippedAuditOnly, 1)
+})

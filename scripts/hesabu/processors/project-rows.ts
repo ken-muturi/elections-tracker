@@ -39,6 +39,8 @@ export interface LoadStats {
   mergedContracts: number
   /** Rows flagged as possibly the same project as another row (kept, linked, counted once in totals) */
   possibleDuplicates: number
+  /** Items whose only source is Hawkeye — Auditor-General findings, loaded by load-audit instead */
+  skippedAuditOnly: number
 }
 
 const normTitle = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim()
@@ -58,7 +60,7 @@ export function buildProjectRows(
 ): { rows: ProjectRow[]; stats: LoadStats } {
   const stats: LoadStats = {
     total: input.reports.length, placed: 0, byMethod: { "card-name": 0, ward: 0, constituency: 0 },
-    countyWide: 0, unknownFy: 0, skippedEmpty: 0, duplicates: 0, mergedContracts: 0, possibleDuplicates: 0,
+    countyWide: 0, unknownFy: 0, skippedEmpty: 0, duplicates: 0, mergedContracts: 0, possibleDuplicates: 0, skippedAuditOnly: 0,
   }
   const rows: ProjectRow[] = []
   const seen = new Set<string>()
@@ -67,6 +69,8 @@ export function buildProjectRows(
   for (const r of input.reports) {
     const title = r.title?.trim()
     if (!title) { stats.skippedEmpty++; continue }
+    const srcKeys = r.sources?.length ? r.sources.map((s) => s.source) : r.source ? [r.source] : []
+    if (srcKeys.length > 0 && srcKeys.every((s) => s === "hawkeye")) { stats.skippedAuditOnly++; continue }
     const key = dedupKey(r.fiscalYear, title, r.budgetAllocated)
     if (seen.has(key)) { stats.duplicates++; continue }
 
