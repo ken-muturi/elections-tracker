@@ -244,7 +244,7 @@ export const HesabuDashboard = ({
               />
             )}
             {activeTab === "reports" && (
-              <CitizenReports county={county} initialReports={reports} />
+              <CitizenReports county={county} initialReports={reports} countyCode={currentCountyCode} fiscalYear={currentYear} />
             )}
           </Box>
         </Box>
