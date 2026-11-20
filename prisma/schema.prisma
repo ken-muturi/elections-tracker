@@ -225,9 +225,13 @@ model HReport {
   ward   HWard   @relation(fields: [wardId], references: [id], onDelete: Cascade)
   sector HSector @relation(fields: [sectorId], references: [id], onDelete: Cascade)
   voteRecords HVote[]
+  /// Audit finding this report responds to ("Have you seen this?"), if any
+  auditFindingId String?        @map("audit_finding_id") @db.VarChar(50)
+  auditFinding   HAuditFinding? @relation(fields: [auditFindingId], references: [id], onDelete: SetNull)
 
   @@index([countyId, status])
   @@index([wardId])
+  @@index([auditFindingId])
   @@map("h_reports")
 }
 
@@ -275,6 +279,38 @@ model HProject {
   @@unique([countyCode, dedupKey])
   @@index([countyCode, fiscalYear, cardName])
   @@map("h_projects")
+}
+
+/// Auditor-General audit of one county entity for one fiscal year (loaded from Hawkeye)
+model HAudit {
+  id            String          @id @default(cuid()) @db.VarChar(50)
+  countyCode    String          @map("county_code") @db.VarChar(5)
+  fiscalYear    String          @map("fiscal_year") @db.VarChar(15)
+  entity        String          @db.VarChar(150)
+  opinion       String          @db.VarChar(30)
+  totalFindings Int             @map("total_findings")
+  sourceUrl     String          @map("source_url") @db.VarChar(500)
+  loadedAt      DateTime        @default(now()) @map("loaded_at")
+  findings      HAuditFinding[]
+
+  @@unique([countyCode, fiscalYear, entity])
+  @@map("h_audits")
+}
+
+/// One finding in an Auditor-General audit; amountCited is the figure the finding cites, not a sum at risk
+model HAuditFinding {
+  id          String    @id @default(cuid()) @db.VarChar(50)
+  auditId     String    @map("audit_id") @db.VarChar(50)
+  number      Int
+  title       String    @db.VarChar(500)
+  category    String    @db.VarChar(30)
+  amountCited BigInt?   @map("amount_cited")
+  summary     String    @db.Text
+  audit       HAudit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  reports     HReport[]
+
+  @@unique([auditId, number])
+  @@map("h_audit_findings")
 }
 
 model VerificationRequest {

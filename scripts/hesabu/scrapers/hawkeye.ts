@@ -15,7 +15,7 @@ import axios from "axios"
 import { CountyMeta } from "../constants"
 import { ExtractedReport, guessSector } from "../lib/claude"
 
-const FINDINGS_URL = "https://hawkeyekenya.com/data/auditor-general-findings-2023-24.json"
+import { HAWKEYE_FINDINGS_URL as FINDINGS_URL } from "../lib/hawkeye-source"
 
 interface Finding { number?: number; title: string; amount_kshs?: number | null; summary?: string; category?: string }
 interface CountyAudit {
