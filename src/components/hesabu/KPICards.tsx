@@ -1,6 +1,7 @@
 "use client"
 
 import { Box, Text, Grid } from "@chakra-ui/react"
+import { absorbedLabel } from "./budget-text"
 import { CountyFull, ReportData } from "@/services/Hesabu"
 
 type Props = {
@@ -35,7 +36,7 @@ export const KPICards = ({ county, reports }: Props) => {
     {
       label: "DEVELOPMENT BUDGET",
       value: fmtB(county.developmentExpenditure),
-      sub: `${county.devAbsorptionRate?.toFixed(0) ?? "N/A"}% absorbed (FY 24/25)`,
+      sub: absorbedLabel(county.devAbsorptionRate ?? null, county.fiscalYear),
       accent: "#E63946",
     },
     {

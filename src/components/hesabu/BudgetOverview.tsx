@@ -2,7 +2,9 @@
 
 import { useState } from "react"
 import { Box, Text, HStack, Grid } from "@chakra-ui/react"
-import { CountyFull, TrendPoint } from "@/services/Hesabu"
+import { AuditSummary, CountyFull, TrendPoint } from "@/services/Hesabu"
+import { AuditSection } from "./AuditSection"
+import { absorptionAlertText } from "./budget-text"
 import { SectorCard } from "./SectorCard"
 import { TrendChart } from "./TrendChart"
 import { ProjectDrawer } from "./ProjectDrawer"
@@ -14,6 +16,8 @@ type Props = {
   currentYear: string
   countyCode: string
   sectorSummary: ProjectCardSummary[]
+  auditSummary: AuditSummary
+  onSeeAllFindings: () => void
 }
 
 const fmtB = (n: bigint) => {
@@ -24,7 +28,7 @@ const fmtB = (n: bigint) => {
 const pct = (a: bigint, b: bigint) =>
   b > 0n ? Math.round((Number(a) / Number(b)) * 100) : 0
 
-export const BudgetOverview = ({ county, trendData, currentYear, countyCode, sectorSummary }: Props) => {
+export const BudgetOverview = ({ county, trendData, currentYear, countyCode, sectorSummary, auditSummary, onSeeAllFindings }: Props) => {
   const [openSector, setOpenSector] = useState<string | null>(null)
   const bySector = new Map(sectorSummary.map((s) => [s.key, s]))
   const recurrentPct = pct(county.recurrentExpenditure, county.totalBudget)
@@ -157,6 +161,8 @@ export const BudgetOverview = ({ county, trendData, currentYear, countyCode, sec
         </Box>
       </Grid>
 
+      <AuditSection summary={auditSummary} fiscalYear={currentYear} onSeeAll={onSeeAllFindings} />
+
       {/* Absorption alert */}
       {(county.devAbsorptionRate ?? 100) < 70 && (
         <Box
@@ -174,9 +180,7 @@ export const BudgetOverview = ({ county, trendData, currentYear, countyCode, sec
             </Text>
           </HStack>
           <Text fontSize="sm" color="orange.800">
-            In FY 2024/25, only {fmtB(county.developmentExpenditure)} of the development budget was
-            spent by Q4 &mdash; a {county.devAbsorptionRate?.toFixed(0)}% absorption rate. The county CADP
-            notes execution challenges including procurement delays.
+            {absorptionAlertText(county.fiscalYear, county.devAbsorptionRate ?? null, fmtB(county.developmentExpenditure))}
           </Text>
         </Box>
       )}
