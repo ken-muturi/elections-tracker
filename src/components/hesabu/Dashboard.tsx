@@ -122,15 +122,17 @@ export const HesabuDashboard = ({
               availableYears={availableYears}
               currentYear={currentYear}
             />
-            <Link
-              href={buildCompareHref({ view: "side", year: currentYear, counties: [currentCountyCode], metric: DEFAULT_METRIC })}
-              style={{
-                background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8,
-                color: "white", fontSize: 13, fontWeight: 600, padding: "6px 12px", whiteSpace: "nowrap",
-              }}
-            >
-              ⇄ Compare counties
-            </Link>
+            <Box asChild display="inline-flex" alignItems="center" minH={{ base: "40px", md: "auto" }}>
+              <Link
+                href={buildCompareHref({ view: "side", year: currentYear, counties: [currentCountyCode], metric: DEFAULT_METRIC })}
+                style={{
+                  background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8,
+                  color: "white", fontSize: 13, fontWeight: 600, padding: "6px 12px", whiteSpace: "nowrap",
+                }}
+              >
+                ⇄ Compare counties
+              </Link>
+            </Box>
           </HStack>
         </HStack>
       </Box>

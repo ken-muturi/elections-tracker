@@ -1,5 +1,6 @@
 "use client"
 
+import { chakra } from "@chakra-ui/react"
 import { useRouter, usePathname } from "next/navigation"
 
 type Props = {
@@ -17,7 +18,8 @@ export const YearSelector = ({ availableYears, currentYear }: Props) => {
   }
 
   return (
-    <select
+    <chakra.select
+      minH={{ base: "40px", md: "auto" }}
       value={currentYear}
       onChange={onChange}
       style={{
@@ -39,6 +41,6 @@ export const YearSelector = ({ availableYears, currentYear }: Props) => {
           FY {y}
         </option>
       ))}
-    </select>
+    </chakra.select>
   )
 }

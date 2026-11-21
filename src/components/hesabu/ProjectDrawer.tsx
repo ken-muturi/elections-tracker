@@ -67,7 +67,7 @@ export const ProjectDrawer = ({ open, onClose, countyCode, fiscalYear, filter, l
   }
 
   const chip = (active: boolean, text: string, onClick: () => void) => (
-    <Button key={text} size="xs" px={2} variant={active ? "solid" : "outline"} colorPalette="teal" onClick={onClick}>
+    <Button key={text} size="xs" px={2} minH={{ base: "40px", md: "auto" }} variant={active ? "solid" : "outline"} colorPalette="teal" onClick={onClick}>
       {text}
     </Button>
   )
@@ -124,29 +124,30 @@ export const ProjectDrawer = ({ open, onClose, countyCode, fiscalYear, filter, l
                             </Text>
                           </HStack>
                           <HStack gap={2} mt={2} flexWrap="wrap">
-                            <Badge bg={st.bg} color={st.color} borderRadius="full" px={2} fontSize="2xs">{st.label}</Badge>
+                            <Badge bg={st.bg} color={st.color} borderRadius="full" px={2} fontSize={{ base: "11px", md: "2xs" }}>{st.label}</Badge>
                             <Text fontSize="xs" color="gray.500">
                               {bySector ? r.cardName ?? "County-wide" : r.sector}
                             </Text>
                             {r.possibleDuplicateOf && (
-                              <Badge bg="orange.100" color="orange.800" borderRadius="full" px={2} fontSize="2xs">
+                              <Badge bg="orange.100" color="orange.800" borderRadius="full" px={2} fontSize={{ base: "11px", md: "2xs" }}>
                                 Possible duplicate
                               </Badge>
                             )}
                             {r.sources.map((s) => (
-                              <Link key={s.url} href={s.url} target="_blank" rel="noopener noreferrer" fontSize="2xs" color="teal.700"
-                                border="1px solid" borderColor="teal.200" borderRadius="full" px={2} py={0.5}>
+                              <Link key={s.url} href={s.url} target="_blank" rel="noopener noreferrer" fontSize={{ base: "11px", md: "2xs" }} color="teal.700"
+                                border="1px solid" borderColor="teal.200" borderRadius="full" px={2} py={0.5}
+                                display="inline-flex" alignItems="center" minH={{ base: "40px", md: "auto" }}>
                                 {sourceLabel(s.source)} ↗
                               </Link>
                             ))}
                           </HStack>
                           {r.possibleDuplicateOf && (
-                            <Text fontSize="2xs" color="orange.700" mt={1}>
+                            <Text fontSize={{ base: "11px", md: "2xs" }} color="orange.700" mt={1}>
                               ≈ Possibly the same as: {r.possibleDuplicateOf} — its amount is not counted twice
                             </Text>
                           )}
                           {r.matchedOn && (
-                            <Text fontSize="2xs" color="gray.400" mt={1}>Matched on: {r.locationText ?? r.matchedOn}</Text>
+                            <Text fontSize={{ base: "11px", md: "2xs" }} color="gray.400" mt={1}>Matched on: {r.locationText ?? r.matchedOn}</Text>
                           )}
                           <Text
                             fontSize="xs" color="gray.600" mt={2} lineClamp={isOpen ? undefined : 2} cursor="pointer"
@@ -168,13 +169,13 @@ export const ProjectDrawer = ({ open, onClose, countyCode, fiscalYear, filter, l
             </Drawer.Body>
 
             <Drawer.Footer px={5} py={3} borderTop="1px solid" borderColor="gray.100" justifyContent="flex-start">
-              <Text fontSize="2xs" color="gray.500">
+              <Text fontSize={{ base: "11px", md: "2xs" }} color="gray.500">
                 Projects are compiled from public documents. Card totals above are separate estimates.
               </Text>
             </Drawer.Footer>
 
             <Drawer.CloseTrigger asChild>
-              <CloseButton size="sm" position="absolute" top={3} right={3} />
+              <CloseButton size={{ base: "md", md: "sm" }} position="absolute" top={3} right={3} />
             </Drawer.CloseTrigger>
           </Drawer.Content>
         </Drawer.Positioner>

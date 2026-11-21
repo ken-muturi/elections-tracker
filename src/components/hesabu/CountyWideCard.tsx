@@ -28,6 +28,10 @@ export const CountyWideCard = ({ summary, onOpen }: Props) => (
       textAlign="left"
       cursor={summary?.count ? "pointer" : "default"}
       onClick={summary?.count ? onOpen : undefined}
+      display="flex"
+      alignItems="center"
+      w="full"
+      minH={{ base: "40px", md: "auto" }}
     >
       <Text fontSize="xs" fontWeight="semibold" color={summary?.count ? "teal.600" : "gray.400"}>
         {projectLine(summary)}
