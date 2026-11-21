@@ -152,6 +152,25 @@ export function cellText(metric: MetricDef, county: ComparisonCounty | null, yea
   return formatValue(metric.unit, v)
 }
 
+export type CompareCell = { code: string; text: string; isBest: boolean; missing: boolean }
+export type CompareRow = { key: string; label: string; note?: string; uniform: boolean; cells: CompareCell[] }
+export type CompareGroup = { group: MetricGroup; rows: CompareRow[] }
+
+/** Side-by-side rows for the selected columns, grouped in METRIC_GROUPS order (empty groups omitted). */
+export function compareRows(metrics: MetricDef[], columns: Column[], allCounties: ComparisonCounty[], year: string): CompareGroup[] {
+  return METRIC_GROUPS.map((group) => ({
+    group,
+    rows: metrics.filter((m) => m.group === group).map((m) => {
+      const uniform = isUniform(allCounties.map((c) => m.value(c)), m.unit)
+      const best = bestOf(m, columns.map((c) => ({ code: c.code, value: c.county ? m.value(c.county) : null })), uniform)
+      return {
+        key: m.key, label: m.label, note: m.note, uniform,
+        cells: columns.map((c) => ({ code: c.code, text: cellText(m, c.county, year), isBest: best.includes(c.code), missing: c.county === null })),
+      }
+    }),
+  })).filter((g) => g.rows.length > 0)
+}
+
 export interface RankingSummary {
   uniform: boolean
   /** Counties that have a value for this figure (the N in "Xth of N") */

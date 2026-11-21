@@ -2,7 +2,7 @@ import { test } from "node:test"
 import assert from "node:assert/strict"
 import {
   ComparisonCounty, buildMetrics, pickMetric, isUniform, bestOf, rankRows,
-  formatValue, ordinal, selectedColumns, cellText, DEFAULT_METRIC,
+  formatValue, ordinal, selectedColumns, cellText, DEFAULT_METRIC, compareRows, type Column,
 } from "./compare-metrics"
 
 function county(code: string, over: Partial<ComparisonCounty> = {}): ComparisonCounty {
@@ -143,4 +143,44 @@ test("summarizeRanking: failed project queries are reported as unavailable, not 
   assert.deepEqual(s.noData, [])
   assert.deepEqual(s.notScraped, [])
   assert.equal(s.rankLines[0].text, "project data unavailable")
+})
+
+const col = (c: ComparisonCounty | null, code = c?.code ?? "099"): Column => ({ code, name: c?.name ?? "Missing", county: c })
+
+test("compareRows: groups follow METRIC_GROUPS order and empty groups are left out", () => {
+  const cs = [county("001"), county("002")]
+  const ms = buildMetrics(cs).filter((m) => m.group === "Projects" || m.group === "Budget")
+  const groups = compareRows(ms, cs.map((c) => col(c)), cs, "2025/2026")
+  assert.deepEqual(groups.map((g) => g.group), ["Budget", "Projects"])
+  assert.deepEqual(groups[0].rows.map((r) => r.key), ["totalBudget", "equitableShare", "devShare"])
+})
+
+test("compareRows: flags the best cell", () => {
+  const cs = [county("001", { devAbsorptionRate: 60 }), county("002", { devAbsorptionRate: 80 })]
+  const row = compareRows(buildMetrics(cs), cs.map((c) => col(c)), cs, "2025/2026")
+    .flatMap((g) => g.rows).find((r) => r.key === "absorption")!
+  assert.deepEqual(row.cells.map((c) => [c.code, c.isBest]), [["001", false], ["002", true]])
+  assert.equal(row.cells[1].text, "80.0%")
+})
+
+test("compareRows: a uniform figure flags no best cell", () => {
+  const cs = [county("001"), county("002")]
+  const row = compareRows(buildMetrics(cs), cs.map((c) => col(c)), cs, "2025/2026")
+    .flatMap((g) => g.rows).find((r) => r.key === "revenuePerformance")!
+  assert.equal(row.uniform, true)
+  assert.ok(row.cells.every((c) => !c.isBest))
+})
+
+test("compareRows: a column with no county data is missing with the year in its text", () => {
+  const cs = [county("001")]
+  const row = compareRows(buildMetrics(cs), [col(cs[0]), col(null, "099")], cs, "2025/2026")[0].rows[0]
+  assert.deepEqual(row.cells[1], { code: "099", text: "No data for FY 2025/2026", isBest: false, missing: true })
+})
+
+test("compareRows: a county never scraped says so on project figures", () => {
+  const cs = [county("001", { projects: { state: "not-scraped", total: 0, stalled: 0 } })]
+  const row = compareRows(buildMetrics(cs), [col(cs[0])], cs, "2025/2026")
+    .flatMap((g) => g.rows).find((r) => r.key === "projects")!
+  assert.equal(row.cells[0].text, "Not yet scraped")
+  assert.equal(row.cells[0].missing, false)
 })

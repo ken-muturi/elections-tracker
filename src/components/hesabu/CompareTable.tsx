@@ -3,10 +3,7 @@
 import { Fragment } from "react"
 import Link from "next/link"
 import { Badge, Box, Text } from "@chakra-ui/react"
-import {
-  METRIC_GROUPS, MAX_COMPARE, bestOf, cellText, isUniform,
-  type Column, type ComparisonCounty, type MetricDef,
-} from "./compare-metrics"
+import { MAX_COMPARE, compareRows, type Column, type ComparisonCounty, type MetricDef } from "./compare-metrics"
 
 type Props = { metrics: MetricDef[]; columns: Column[]; allCounties: ComparisonCounty[]; year: string }
 
@@ -21,6 +18,7 @@ export function CompareTable({ metrics, columns, allCounties, year }: Props) {
     )
   }
   const remaining = MAX_COMPARE - columns.length
+  const groups = compareRows(metrics, columns, allCounties, year)
   return (
     <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" overflow="hidden">
       <Box overflowX="auto">
@@ -38,43 +36,32 @@ export function CompareTable({ metrics, columns, allCounties, year }: Props) {
             </tr>
           </thead>
           <tbody>
-            {METRIC_GROUPS.map((group) => {
-              const rows = metrics.filter((m) => m.group === group)
-              if (rows.length === 0) return null
-              return (
-                <Fragment key={group}>
-                  <tr>
-                    <td colSpan={columns.length + 1} style={{ background: "#f9fafb", padding: "8px 12px", fontSize: 12, fontWeight: 700,
-                      textTransform: "uppercase", letterSpacing: "0.05em", color: "#4b5563" }}>
-                      {group}
-                    </td>
+            {groups.map(({ group, rows }) => (
+              <Fragment key={group}>
+                <tr>
+                  <td colSpan={columns.length + 1} style={{ background: "#f9fafb", padding: "8px 12px", fontSize: 12, fontWeight: 700,
+                    textTransform: "uppercase", letterSpacing: "0.05em", color: "#4b5563" }}>
+                    {group}
+                  </td>
+                </tr>
+                {rows.map((row) => (
+                  <tr key={row.key}>
+                    <Box as="th" {...stickyCell} textAlign="left" fontWeight="500" px={3} py={2} borderBottom="1px solid" borderColor="gray.100">
+                      {row.label}
+                      {row.uniform && <Text fontSize="2xs" color="orange.700">same for all counties</Text>}
+                      {row.note && <Text fontSize="2xs" color="gray.500">{row.note}</Text>}
+                    </Box>
+                    {row.cells.map((cell) => (
+                      <Box as="td" key={cell.code} textAlign="right" px={3} py={2} borderBottom="1px solid" borderColor="gray.100"
+                        fontWeight={cell.isBest ? "700" : "400"} color={cell.missing ? "gray.500" : "inherit"} whiteSpace="nowrap">
+                        {cell.text}
+                        {cell.isBest && <Badge ml={2} colorPalette="green" size="xs">Highest</Badge>}
+                      </Box>
+                    ))}
                   </tr>
-                  {rows.map((m) => {
-                    const uniform = isUniform(allCounties.map((c) => m.value(c)), m.unit)
-                    const best = bestOf(m, columns.map((c) => ({ code: c.code, value: c.county ? m.value(c.county) : null })), uniform)
-                    return (
-                      <tr key={m.key}>
-                        <Box as="th" {...stickyCell} textAlign="left" fontWeight="500" px={3} py={2} borderBottom="1px solid" borderColor="gray.100">
-                          {m.label}
-                          {uniform && <Text fontSize="2xs" color="orange.700">same for all counties</Text>}
-                          {m.note && <Text fontSize="2xs" color="gray.500">{m.note}</Text>}
-                        </Box>
-                        {columns.map((c) => {
-                          const isBest = best.includes(c.code)
-                          return (
-                            <Box as="td" key={c.code} textAlign="right" px={3} py={2} borderBottom="1px solid" borderColor="gray.100"
-                              fontWeight={isBest ? "700" : "400"} color={c.county ? "inherit" : "gray.500"} whiteSpace="nowrap">
-                              {cellText(m, c.county, year)}
-                              {isBest && <Badge ml={2} colorPalette="green" size="xs">Highest</Badge>}
-                            </Box>
-                          )
-                        })}
-                      </tr>
-                    )
-                  })}
-                </Fragment>
-              )
-            })}
+                ))}
+              </Fragment>
+            ))}
           </tbody>
         </Box>
       </Box>
