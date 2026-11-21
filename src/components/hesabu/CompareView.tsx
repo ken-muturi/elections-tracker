@@ -29,7 +29,7 @@ export function CompareView({ params, years, countyOptions, counties }: Props) {
     : "/hesabu"
 
   return (
-    <Box bg="#f8fafc" minH="100vh" color="#0f172a">
+    <Box bg="#f8fafc" minH="100vh" color="#0f172a" data-hesabu-root="">
       <Box bg="linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #155e75 100%)" px={{ base: 4, md: 8 }} py={6}>
         <Box maxW="1200px" mx="auto">
           <Link href={back} style={{ color: "rgba(255,255,255,0.75)", fontSize: 14 }}>← Back to county dashboard</Link>

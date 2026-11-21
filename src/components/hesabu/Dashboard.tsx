@@ -64,7 +64,7 @@ export const HesabuDashboard = ({
   const devPct = pct(county.developmentExpenditure, county.totalBudget);
 
   return (
-    <Box bg="#f8fafc" minH="100vh" color="#0f172a">
+    <Box bg="#f8fafc" minH="100vh" color="#0f172a" data-hesabu-root="">
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <Box
         bg="linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #155e75 100%)"
@@ -194,6 +194,7 @@ export const HesabuDashboard = ({
               return (
                 <Box
                   key={tab.id}
+                  data-tab={tab.id}
                   as="button"
                   px={4}
                   py={2.5}
