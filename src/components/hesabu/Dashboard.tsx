@@ -7,6 +7,7 @@ import {
   ReportData,
   TrendPoint,
   CountyOption,
+  AuditSummary,
 } from "@/services/Hesabu";
 import { KPICards } from "@/components/hesabu/KPICards"
 import { BudgetOverview } from "@/components/hesabu/BudgetOverview"
@@ -39,6 +40,7 @@ type Props = {
   currentCountyCode: string;
   projectSummary: ProjectCardSummary[];
   sectorSummary: ProjectCardSummary[];
+  auditSummary: AuditSummary;
 };
 
 export const HesabuDashboard = ({
@@ -51,8 +53,13 @@ export const HesabuDashboard = ({
   currentCountyCode,
   projectSummary,
   sectorSummary,
+  auditSummary,
 }: Props) => {
   const [activeTab, setActiveTab] = useState<Tab>("budget");
+  const showAuditFindings = () => {
+    setActiveTab("reports");
+    setTimeout(() => document.getElementById("audit-findings")?.scrollIntoView({ behavior: "smooth" }), 50);
+  };
 
   const tabs: { id: Tab; label: string; short: string; icon: string }[] = [
     { id: "budget", label: "Budget Overview", short: "Overview", icon: "🏛️" },
@@ -235,6 +242,8 @@ export const HesabuDashboard = ({
                 currentYear={currentYear}
                 countyCode={currentCountyCode}
                 sectorSummary={sectorSummary}
+                auditSummary={auditSummary}
+                onSeeAllFindings={showAuditFindings}
               />
             )}
             {activeTab === "wards" && (
@@ -246,7 +255,7 @@ export const HesabuDashboard = ({
               />
             )}
             {activeTab === "reports" && (
-              <CitizenReports county={county} initialReports={reports} />
+              <CitizenReports county={county} initialReports={reports} countyCode={currentCountyCode} fiscalYear={currentYear} />
             )}
           </Box>
         </Box>

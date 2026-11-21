@@ -12,6 +12,7 @@ function county(code: string, over: Partial<ComparisonCounty> = {}): ComparisonC
     revenueTarget: 1_000_000_000, revenueCollected: 900_000_000, devAbsorptionRate: 60,
     sectors: [{ name: "Health Services", allocated: 2_500_000_000 }, { name: "Water & Environment", allocated: 1_000_000_000 }],
     projects: { state: "scraped", total: 12, stalled: 3 },
+    audit: { fiscalYear: "2023/2024", findings: 20 },
     ...over,
   }
 }
@@ -22,7 +23,7 @@ test("buildMetrics: budget, performance, one figure per sector (sorted), then pr
   assert.deepEqual(keys, [
     "totalBudget", "equitableShare", "devShare", "absorption", "revenuePerformance",
     "sector:Agriculture & Livestock", "sector:Health Services", "sector:Water & Environment",
-    "projects", "stalledProjects",
+    "projects", "auditFindings", "stalledProjects",
   ])
 })
 
@@ -143,6 +144,27 @@ test("summarizeRanking: failed project queries are reported as unavailable, not 
   assert.deepEqual(s.noData, [])
   assert.deepEqual(s.notScraped, [])
   assert.equal(s.rankLines[0].text, "project data unavailable")
+})
+
+test("Accountability group: audit findings and stalled projects", () => {
+  const ms = buildMetrics([county("001")])
+  const audit = pickMetric(ms, "auditFindings")
+  assert.equal(audit.group, "Accountability")
+  assert.equal(audit.direction, "neutral")
+  assert.equal(audit.note, "FY 2023/24 audit")
+  assert.equal(audit.value(county("001")), 20)
+  assert.equal(cellText(audit, county("001", { audit: null }), "2025/2026"), "—")
+  const stalled = pickMetric(ms, "stalledProjects")
+  assert.equal(stalled.group, "Accountability")
+  assert.equal(cellText(stalled, county("001", { projects: { state: "not-scraped", total: 0, stalled: 0 } }), "2025/2026"), "Not yet scraped")
+})
+
+test("summarizeRanking still reports unscraped counties for stalled projects after the group move", async () => {
+  const { summarizeRanking } = await import("./compare-metrics")
+  const cs = [county("008", { name: "Wajir" }), county("047", { name: "Nairobi City", projects: { state: "not-scraped", total: 0, stalled: 0 } })]
+  const s = summarizeRanking(pickMetric(buildMetrics(cs), "stalledProjects"), cs, ["047"], [], "2025/2026")
+  assert.deepEqual(s.notScraped, ["Nairobi City"])
+  assert.equal(s.rankLines[0].text, "not yet scraped")
 })
 
 const col = (c: ComparisonCounty | null, code = c?.code ?? "099"): Column => ({ code, name: c?.name ?? "Missing", county: c })

@@ -19,6 +19,8 @@ npm run "$SCRIPT" >> "$LOG" 2>&1
 if [[ "$SCRIPT" == hesabu:scrape* ]]; then
   echo "=== $(date) — npm run hesabu:load ===" >> "$LOG"
   npm run hesabu:load >> "$LOG" 2>&1
+  echo "=== $(date) — npm run hesabu:load-audit ===" >> "$LOG"
+  npm run hesabu:load-audit >> "$LOG" 2>&1
 fi
 echo "=== finished $(date) ===" >> "$LOG"
 

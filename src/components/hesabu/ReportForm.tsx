@@ -9,12 +9,13 @@ type Props = {
   county: CountyFull
   onSuccess: () => void
   onCancel: () => void
+  linkedFinding?: { id: string; number: number; title: string }
 }
 
-export const ReportForm = ({ county, onSuccess, onCancel }: Props) => {
+export const ReportForm = ({ county, onSuccess, onCancel, linkedFinding }: Props) => {
   const [wardId, setWardId] = useState("")
   const [sectorId, setSectorId] = useState("")
-  const [title, setTitle] = useState("")
+  const [title, setTitle] = useState(linkedFinding ? `Re: ${linkedFinding.title}`.slice(0, 300) : "")
   const [description, setDescription] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,6 +47,7 @@ export const ReportForm = ({ county, onSuccess, onCancel }: Props) => {
         sectorId,
         title: title.trim(),
         description: description.trim() || undefined,
+        auditFindingId: linkedFinding?.id,
       })
       onSuccess()
     } catch (err: unknown) {
@@ -58,6 +60,11 @@ export const ReportForm = ({ county, onSuccess, onCancel }: Props) => {
   return (
     <Box as="form" onSubmit={handleSubmit}>
       <VStack gap={4} align="stretch">
+      {linkedFinding && (
+        <Text fontSize="xs" color="teal.800" bg="teal.50" borderRadius="md" px={3} py={2} mb={3}>
+          Linked audit finding #{linkedFinding.number}: {linkedFinding.title}
+        </Text>
+      )}
 <Text fontSize="sm" color="gray.500">
           Help hold the county government accountable by reporting service delivery gaps in your area.
         </Text>

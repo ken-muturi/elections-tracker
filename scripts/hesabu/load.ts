@@ -60,7 +60,7 @@ async function main() {
         `${meta.name.padEnd(10)} ${String(rows.length).padStart(4)} projects · ${stats.placed} placed ` +
         `(card-name ${m["card-name"]}, ward ${m.ward}, constituency ${m.constituency}) · ${stats.countyWide} county-wide · ` +
         `${stats.unknownFy} unknown FY · ${stats.duplicates} dup · ${stats.mergedContracts} merged (same contract) · ` +
-        `${stats.possibleDuplicates} possible dup · ${stats.skippedEmpty} empty`
+        `${stats.possibleDuplicates} possible dup · ${stats.skippedEmpty} empty · ${stats.skippedAuditOnly} audit-only (Hawkeye)`
       )
       if (process.env.HESABU_LOAD_DEBUG) {
         console.table(rows.filter((r) => r.cardName).map((r) => ({ card: r.cardName, on: r.matchedOn, title: r.title.slice(0, 70) })))

@@ -1,5 +1,6 @@
 /** County comparison: figure definitions and pure helpers (no I/O). */
 import { fmtKesShort } from "./project-format"
+import { shortFiscalYear } from "./audit-format"
 
 export type ProjectCoverage = { state: "scraped" | "not-scraped" | "unavailable"; total: number; stalled: number }
 
@@ -14,10 +15,11 @@ export type ComparisonCounty = {
   devAbsorptionRate: number | null
   sectors: { name: string; allocated: number }[]
   projects: ProjectCoverage
+  audit: { fiscalYear: string; findings: number } | null
 }
 
 export type Direction = "higher-better" | "neutral"
-export type MetricGroup = "Budget" | "Performance" | "Sectors" | "Projects"
+export type MetricGroup = "Budget" | "Performance" | "Sectors" | "Projects" | "Accountability"
 export type MetricUnit = "kes" | "pct" | "count"
 
 export interface MetricDef {
@@ -28,6 +30,7 @@ export interface MetricDef {
   direction: Direction
   value: (c: ComparisonCounty) => number | null
   note?: string
+  projectBased?: boolean
 }
 
 export interface ValueRow { code: string; value: number | null }
@@ -36,7 +39,7 @@ export interface Column { code: string; name: string; county: ComparisonCounty |
 
 export const DEFAULT_METRIC = "absorption"
 export const MAX_COMPARE = 4
-export const METRIC_GROUPS: MetricGroup[] = ["Budget", "Performance", "Sectors", "Projects"]
+export const METRIC_GROUPS: MetricGroup[] = ["Budget", "Performance", "Sectors", "Projects", "Accountability"]
 
 const EPS = 1e-9
 
@@ -60,10 +63,22 @@ const BUDGET_AND_PERFORMANCE: MetricDef[] = [
 
 const PROJECTS: MetricDef[] = [
   { key: "projects", label: "Documented projects", group: "Projects", unit: "count", direction: "neutral",
-    value: scraped((p) => p.total), note: "From scraped public documents" },
-  { key: "stalledProjects", label: "Documented stalled projects", group: "Projects", unit: "count", direction: "neutral",
-    value: scraped((p) => p.stalled) },
+    value: scraped((p) => p.total), note: "From scraped public documents", projectBased: true },
 ]
+
+function auditNote(counties: ComparisonCounty[]): string {
+  const years = [...new Set(counties.map((c) => c.audit?.fiscalYear).filter((y): y is string => !!y))]
+  return years.length === 1 ? `FY ${shortFiscalYear(years[0])} audit` : "Latest audit up to this year"
+}
+
+function accountability(counties: ComparisonCounty[]): MetricDef[] {
+  return [
+    { key: "auditFindings", label: "Audit findings (latest audit)", group: "Accountability", unit: "count", direction: "neutral",
+      value: (c) => c.audit?.findings ?? null, note: auditNote(counties) },
+    { key: "stalledProjects", label: "Documented stalled projects", group: "Accountability", unit: "count", direction: "neutral",
+      value: scraped((p) => p.stalled), projectBased: true },
+  ]
+}
 
 /** All figures for this set of counties: one sector-share figure per sector name present */
 export function buildMetrics(counties: ComparisonCounty[]): MetricDef[] {
@@ -79,7 +94,7 @@ export function buildMetrics(counties: ComparisonCounty[]): MetricDef[] {
       return s ? pctOf(s.allocated, c.totalBudget) : null
     },
   }))
-  return [...BUDGET_AND_PERFORMANCE, ...sectors, ...PROJECTS]
+  return [...BUDGET_AND_PERFORMANCE, ...sectors, ...PROJECTS, ...accountability(counties)]
 }
 
 export function pickMetric(metrics: MetricDef[], key: string | undefined): MetricDef {
@@ -145,7 +160,7 @@ export function selectedColumns(codes: string[], counties: ComparisonCounty[], o
 export function cellText(metric: MetricDef, county: ComparisonCounty | null, year: string): string {
   if (!county) return `No data for FY ${year}`
   const v = metric.value(county)
-  if (v === null && metric.group === "Projects") {
+  if (v === null && metric.projectBased) {
     if (county.projects.state === "not-scraped") return "Not yet scraped"
     if (county.projects.state === "unavailable") return "Unavailable"
   }
@@ -194,7 +209,7 @@ export function summarizeRanking(
 ): RankingSummary {
   const nameOf = (code: string) => counties.find((c) => c.code === code)?.name ?? options.find((o) => o.code === code)?.name ?? code
   const stateOf = (code: string) => counties.find((c) => c.code === code)?.projects.state
-  const isProjects = metric.group === "Projects"
+  const isProjects = metric.projectBased === true
   const rows = counties.map((c) => ({ code: c.code, value: metric.value(c) }))
   const { ranked, missing } = rankRows(rows)
   const projectsUnavailable = isProjects && counties.some((c) => c.projects.state === "unavailable")

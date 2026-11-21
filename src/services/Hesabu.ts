@@ -6,6 +6,7 @@ import type { ProjectCardSummary } from "@/components/hesabu/project-format"
 import { orFallback } from "@/components/hesabu/project-format"
 import { toComparisonCounties, type ProjectCounts } from "@/components/hesabu/compare-data"
 import type { ComparisonCounty } from "@/components/hesabu/compare-metrics"
+import { auditForYear, categoryLabel, countByCategory, topFindings, type CategoryCount } from "@/components/hesabu/audit-format"
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,6 +70,7 @@ export type ReportData = {
   createdAt: Date
   ward: { id: string; name: string; subCounty: string }
   sector: { id: string; name: string; icon: string | null }
+  auditFinding: { number: number } | null
 }
 
 export type CreateReportInput = {
@@ -77,6 +79,7 @@ export type CreateReportInput = {
   sectorId: string
   title: string
   description?: string
+  auditFindingId?: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -242,6 +245,7 @@ export const getReportsByCounty = async (
       include: {
         ward: { select: { id: true, name: true, subCounty: true } },
         sector: { select: { id: true, name: true, icon: true } },
+        auditFinding: { select: { number: true } },
       },
       orderBy: { votes: "desc" },
     }) as ReportData[]
@@ -255,6 +259,14 @@ export const createReport = async (input: CreateReportInput): Promise<ReportData
     if (!input.title.trim()) throw new Error("Report title is required.")
     if (!input.countyId || !input.wardId || !input.sectorId)
       throw new Error("County, ward, and sector are required.")
+    if (input.auditFindingId !== undefined) {
+      if (typeof input.auditFindingId !== "string") throw new Error("Invalid audit finding")
+      const [finding, county] = await Promise.all([
+        prisma.hAuditFinding.findUnique({ where: { id: input.auditFindingId }, select: { audit: { select: { countyCode: true } } } }),
+        prisma.hCounty.findUnique({ where: { id: input.countyId }, select: { code: true } }),
+      ])
+      if (!finding || !county || finding.audit.countyCode !== county.code) throw new Error("Invalid audit finding")
+    }
 
     const report = await prisma.hReport.create({
       data: {
@@ -265,10 +277,12 @@ export const createReport = async (input: CreateReportInput): Promise<ReportData
         description: input.description?.trim() || null,
         status: "UNRESOLVED",
         votes: 0,
+        auditFindingId: input.auditFindingId ?? null,
       },
       include: {
         ward: { select: { id: true, name: true, subCounty: true } },
         sector: { select: { id: true, name: true, icon: true } },
+        auditFinding: { select: { number: true } },
       },
     })
     return report as ReportData
@@ -480,7 +494,7 @@ async function loadProjectCounts(fiscalYear: string): Promise<ProjectCounts> {
 export const getCountyComparison = async (fiscalYear: string): Promise<ComparisonCounty[]> => {
   if (typeof fiscalYear !== "string") throw new Error("Invalid parameters.")
   try {
-    const [rows, projects] = await Promise.all([
+    const [rows, projects, audits] = await Promise.all([
       prisma.hCounty.findMany({
         where: { fiscalYear, isDataAvailable: true },
         orderBy: { name: "asc" },
@@ -491,8 +505,86 @@ export const getCountyComparison = async (fiscalYear: string): Promise<Compariso
         },
       }),
       orFallback<ProjectCounts | null>(loadProjectCounts(fiscalYear), null, "comparison project counts"),
+      orFallback(
+        prisma.hAudit.findMany({ where: { entity: "County Executive" }, select: { countyCode: true, fiscalYear: true, totalFindings: true } })
+          .then((r) => r.map((a) => ({ countyCode: a.countyCode, fiscalYear: a.fiscalYear, findings: a.totalFindings }))),
+        [], "comparison audits"),
     ])
-    return toComparisonCounties(rows, projects)
+    return toComparisonCounties(rows, projects, audits, fiscalYear)
+  } catch (error) {
+    throw new Error(handleReturnError(error))
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auditor-General findings (counts and individual findings — amounts are never summed)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type AuditInfo = { fiscalYear: string; entity: string; opinion: string; totalFindings: number; sourceUrl: string }
+export type AuditFindingRow = {
+  id: string; number: number; title: string; category: string; categoryLabel: string
+  amountCited: number | null; summary: string; linkedReports: number
+}
+export type AuditSummary = {
+  audit: AuditInfo | null; counts: CategoryCount[]; top: AuditFindingRow[]
+  stalledProjects: number | null; unavailable: boolean
+}
+
+async function loadAudit(countyCode: string, fiscalYear: string): Promise<{ audit: AuditInfo; findings: AuditFindingRow[] } | null> {
+  if (typeof countyCode !== "string" || typeof fiscalYear !== "string") throw new Error("Invalid parameters.")
+  const audits = await prisma.hAudit.findMany({
+    where: { countyCode },
+    select: { id: true, fiscalYear: true, entity: true, opinion: true, totalFindings: true, sourceUrl: true },
+  })
+  // County Executive first so it wins a same-year tie
+  audits.sort((a, b) => Number(b.entity === "County Executive") - Number(a.entity === "County Executive"))
+  const a = auditForYear(audits, fiscalYear)
+  if (!a) return null
+  const rows = await prisma.hAuditFinding.findMany({
+    where: { auditId: a.id },
+    orderBy: { number: "asc" },
+    include: { _count: { select: { reports: true } } },
+  })
+  return {
+    audit: { fiscalYear: a.fiscalYear, entity: a.entity, opinion: a.opinion, totalFindings: a.totalFindings, sourceUrl: a.sourceUrl },
+    findings: rows.map((f) => ({
+      id: f.id, number: f.number, title: f.title, category: f.category, categoryLabel: categoryLabel(f.category),
+      amountCited: f.amountCited === null ? null : Number(f.amountCited), summary: f.summary, linkedReports: f._count.reports,
+    })),
+  }
+}
+
+/** Distinct documented stalled projects for the year; null if the county has never been scraped */
+async function countStalled(countyCode: string, fiscalYear: string): Promise<number | null> {
+  const scraped = await prisma.hProject.count({ where: { countyCode } })
+  if (scraped === 0) return null
+  return prisma.hProject.count({ where: { countyCode, fiscalYear, status: "stalled", possibleDuplicateOf: null } })
+}
+
+export const getAuditSummary = async (countyCode: string, fiscalYear: string): Promise<AuditSummary> => {
+  const [loaded, stalledProjects] = await Promise.all([
+    orFallback<{ ok: true; v: Awaited<ReturnType<typeof loadAudit>> } | { ok: false; v: null }>(
+      loadAudit(countyCode, fiscalYear).then((v) => ({ ok: true as const, v })), { ok: false, v: null }, "audit summary"),
+    orFallback(countStalled(countyCode, fiscalYear), null, "stalled projects"),
+  ])
+  if (!loaded.ok) return { audit: null, counts: [], top: [], stalledProjects, unavailable: true }
+  const v = loaded.v
+  return {
+    audit: v?.audit ?? null,
+    counts: v ? countByCategory(v.findings) : [],
+    top: v ? topFindings(v.findings) : [],
+    stalledProjects,
+    unavailable: false,
+  }
+}
+
+export const getAuditFindings = async (
+  countyCode: string,
+  fiscalYear: string,
+): Promise<{ audit: AuditInfo | null; findings: AuditFindingRow[] }> => {
+  try {
+    const v = await loadAudit(countyCode, fiscalYear)
+    return v ?? { audit: null, findings: [] }
   } catch (error) {
     throw new Error(handleReturnError(error))
   }

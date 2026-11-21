@@ -63,6 +63,9 @@ export const ReportCard = ({ report, onVote, hasVoted }: Props) => {
           <Text fontWeight="semibold" color="gray.800" fontSize="sm" mb={1}>
             {report.title}
           </Text>
+          {report.auditFinding && (
+            <Text fontSize="2xs" color="teal.700" fontWeight="600">Linked to audit finding #{report.auditFinding.number}</Text>
+          )}
           <Text fontSize="xs" color="gray.400">
             Reported: {date}
           </Text>
