@@ -36,7 +36,8 @@ export function AuditSection({ summary, fiscalYear, onSeeAll }: Props) {
           <HStack gap={2} flexWrap="wrap" fontSize="sm" color="gray.700">
             <Text>Latest audit: FY {shortFiscalYear(audit.fiscalYear)} · {audit.entity} ·</Text>
             <Badge colorPalette={opinionPalette(audit.opinion)}>{audit.opinion} opinion</Badge>
-            <Link href={audit.sourceUrl} target="_blank" rel="noopener noreferrer" color="teal.700" fontSize="xs">Source</Link>
+            <Link href={audit.sourceUrl} target="_blank" rel="noopener noreferrer" color="teal.700" fontSize="xs"
+              display="inline-flex" alignItems="center" minH={{ base: "40px", md: "auto" }}>Source</Link>
           </HStack>
           <Grid templateColumns={{ base: "1fr 1fr", md: "repeat(4, 1fr)" }} gap={3}>
             <Stat value={String(audit.totalFindings)} label="findings raised by the Auditor-General" />
@@ -57,7 +58,7 @@ export function AuditSection({ summary, fiscalYear, onSeeAll }: Props) {
                   {f.summary && <Text fontSize="xs" color="gray.600" mt={1} lineClamp={2}>{f.summary}</Text>}
                 </Box>
               ))}
-              <Button size="sm" variant="outline" alignSelf="flex-start" onClick={onSeeAll}>
+              <Button size="sm" variant="outline" alignSelf="flex-start" minH={{ base: "40px", md: "auto" }} onClick={onSeeAll}>
                 See all {audit.totalFindings} findings →
               </Button>
             </VStack>
