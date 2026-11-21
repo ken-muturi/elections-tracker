@@ -1,7 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import {
-  AUDIT_NOTE, categoryLabel, countByCategory, auditForYear, topFindings,
+  AUDIT_NOTE, categoryLabel, countByCategory, auditForYear,
   fmtAmountCited, shortFiscalYear, opinionPalette,
 } from "./audit-format"
 
@@ -39,19 +39,6 @@ test("auditForYear: exact year, latest earlier year, none before the first audit
 test("auditForYear keeps the first of two audits for the same year", () => {
   const audits = [{ fiscalYear: "2023/2024", id: "exec" }, { fiscalYear: "2023/2024", id: "assembly" }]
   assert.equal(auditForYear(audits, "2025/2026")?.id, "exec")
-})
-
-test("topFindings: reasons for the opinion first, then by number; never by amount; capped", () => {
-  const rows = [
-    { number: 1, category: "lawfulness", amountCited: 9e10 },
-    { number: 2, category: "opinion_basis", amountCited: 1 },
-    { number: 3, category: "governance", amountCited: null },
-    { number: 4, category: "opinion_basis", amountCited: 5e9 },
-    { number: 5, category: "lawfulness", amountCited: 2 },
-    { number: 6, category: "lawfulness", amountCited: 3 },
-  ]
-  assert.deepEqual(topFindings(rows).map((r) => r.number), [2, 4, 1, 3, 5])
-  assert.deepEqual(topFindings(rows, 2).map((r) => r.number), [2, 4])
 })
 
 test("fmtAmountCited", () => {

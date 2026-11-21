@@ -8,11 +8,13 @@ import {
   TrendPoint,
   CountyOption,
   AuditSummary,
-} from "@/services/Hesabu";
+} from "@/services/Hesabu"
+import type { AuditFindingRow } from "@/services/Hesabu";
 import { KPICards } from "@/components/hesabu/KPICards"
 import { BudgetOverview } from "@/components/hesabu/BudgetOverview"
 import { WardComparison } from "@/components/hesabu/WardComparison"
 import { CitizenReports } from "@/components/hesabu/CitizenReports"
+import { AuditFindings } from "@/components/hesabu/AuditFindings"
 import { YearSelector } from "@/components/hesabu/YearSelector"
 import { CountySelector } from "@/components/hesabu/CountySelector";
 import type { ProjectCardSummary } from "@/components/hesabu/project-format";
@@ -20,7 +22,7 @@ import Link from "next/link"
 import { buildCompareHref } from "@/components/hesabu/compare-params"
 import { DEFAULT_METRIC } from "@/components/hesabu/compare-metrics"
 
-type Tab = "budget" | "wards" | "reports"
+type Tab = "budget" | "wards" | "reports" | "audit"
 
 const fmtB = (n: bigint) => {
   const v = Number(n)
@@ -56,15 +58,24 @@ export const HesabuDashboard = ({
   auditSummary,
 }: Props) => {
   const [activeTab, setActiveTab] = useState<Tab>("budget");
+  const [linkedFinding, setLinkedFinding] = useState<AuditFindingRow | null>(null);
+  const scrollToTabs = () =>
+    setTimeout(() => document.getElementById("hesabu-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   const showAuditFindings = () => {
+    setActiveTab("audit");
+    scrollToTabs();
+  };
+  const reportFromFinding = (f: AuditFindingRow) => {
+    setLinkedFinding(f);
     setActiveTab("reports");
-    setTimeout(() => document.getElementById("audit-findings")?.scrollIntoView({ behavior: "smooth" }), 50);
+    scrollToTabs();
   };
 
   const tabs: { id: Tab; label: string; short: string; icon: string }[] = [
     { id: "budget", label: "Budget Overview", short: "Overview", icon: "🏛️" },
     { id: "wards", label: "Ward Comparison", short: "Wards", icon: "🗺️" },
     { id: "reports", label: "Citizen Reports", short: "Reports", icon: "🚩" },
+    { id: "audit", label: "Audit Findings", short: "Audit", icon: "📋" },
   ];
 
   const recurrentPct = pct(county.recurrentExpenditure, county.totalBudget);
@@ -188,6 +199,8 @@ export const HesabuDashboard = ({
           borderRadius="xl"
           overflow="hidden"
           boxShadow="sm"
+          id="hesabu-tabs"
+          scrollMarginTop="72px"
         >
           {/* Tab bar */}
           <HStack
@@ -225,7 +238,7 @@ export const HesabuDashboard = ({
                   transition="all 0.15s"
                   mr={1}
                 >
-                  {tab.icon}{" "}
+                  <Box as="span" display={{ base: "none", md: "inline" }}>{tab.icon} </Box>
                   <Box as="span" display={{ base: "inline", md: "none" }}>{tab.short}</Box>
                   <Box as="span" display={{ base: "none", md: "inline" }}>{tab.label}</Box>
                 </Box>
@@ -255,7 +268,16 @@ export const HesabuDashboard = ({
               />
             )}
             {activeTab === "reports" && (
-              <CitizenReports county={county} initialReports={reports} countyCode={currentCountyCode} fiscalYear={currentYear} />
+              <CitizenReports
+                county={county}
+                initialReports={reports}
+                linkedFinding={linkedFinding}
+                onClearLinked={() => setLinkedFinding(null)}
+                onShowAudit={showAuditFindings}
+              />
+            )}
+            {activeTab === "audit" && (
+              <AuditFindings countyCode={currentCountyCode} fiscalYear={currentYear} onReport={reportFromFinding} />
             )}
           </Box>
         </Box>

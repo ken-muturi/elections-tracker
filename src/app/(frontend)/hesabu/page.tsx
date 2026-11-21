@@ -54,7 +54,7 @@ export default async function HesabuPage({ searchParams }: Props) {
     orFallback(getProjectSummaryByCard(resolvedCode, fiscalYear), [], "project summary"),
     orFallback(getProjectSummaryBySector(resolvedCode, fiscalYear), [], "sector project summary"),
     orFallback(getAuditSummary(resolvedCode, fiscalYear),
-      { audit: null, counts: [], top: [], stalledProjects: null, unavailable: true }, "audit summary"),
+      { audit: null, counts: [], stalledProjects: null, unavailable: true }, "audit summary"),
   ]);
 
   if (!county) notFound()

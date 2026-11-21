@@ -6,7 +6,7 @@ import type { ProjectCardSummary } from "@/components/hesabu/project-format"
 import { orFallback } from "@/components/hesabu/project-format"
 import { toComparisonCounties, type ProjectCounts } from "@/components/hesabu/compare-data"
 import type { ComparisonCounty } from "@/components/hesabu/compare-metrics"
-import { auditForYear, categoryLabel, countByCategory, topFindings, type CategoryCount } from "@/components/hesabu/audit-format"
+import { auditForYear, categoryLabel, countByCategory, type CategoryCount } from "@/components/hesabu/audit-format"
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -526,7 +526,7 @@ export type AuditFindingRow = {
   amountCited: number | null; summary: string; linkedReports: number
 }
 export type AuditSummary = {
-  audit: AuditInfo | null; counts: CategoryCount[]; top: AuditFindingRow[]
+  audit: AuditInfo | null; counts: CategoryCount[]
   stalledProjects: number | null; unavailable: boolean
 }
 
@@ -567,12 +567,11 @@ export const getAuditSummary = async (countyCode: string, fiscalYear: string): P
       loadAudit(countyCode, fiscalYear).then((v) => ({ ok: true as const, v })), { ok: false, v: null }, "audit summary"),
     orFallback(countStalled(countyCode, fiscalYear), null, "stalled projects"),
   ])
-  if (!loaded.ok) return { audit: null, counts: [], top: [], stalledProjects, unavailable: true }
+  if (!loaded.ok) return { audit: null, counts: [], stalledProjects, unavailable: true }
   const v = loaded.v
   return {
     audit: v?.audit ?? null,
     counts: v ? countByCategory(v.findings) : [],
-    top: v ? topFindings(v.findings) : [],
     stalledProjects,
     unavailable: false,
   }
