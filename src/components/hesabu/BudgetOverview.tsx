@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Box, Text, HStack, Grid } from "@chakra-ui/react"
+import { Box, Text, HStack, Grid, Stack } from "@chakra-ui/react"
 import { AuditSummary, CountyFull, TrendPoint } from "@/services/Hesabu"
 import { AuditSection } from "./AuditSection"
 import { absorptionAlertText } from "./budget-text"
@@ -47,7 +47,7 @@ export const BudgetOverview = ({ county, trendData, currentYear, countyCode, sec
           mb={4}
           boxShadow="sm"
         >
-          <HStack justify="space-between" mb={4}>
+          <Stack direction={{ base: "column", md: "row" }} justify="space-between" align={{ base: "start", md: "center" }} gap={{ base: 2, md: 4 }} mb={4}>
             <Box>
               <Text fontWeight="bold" color="gray.800" fontSize="md">
                 Budget Trend Since Devolution (2013 &rarr; 2026)
@@ -70,7 +70,7 @@ export const BudgetOverview = ({ county, trendData, currentYear, countyCode, sec
                 <Text fontSize="11px" color="gray.500">Absorption %</Text>
               </HStack>
             </HStack>
-          </HStack>
+          </Stack>
           <TrendChart data={trendData} currentYear={currentYear} />
         </Box>
       )}
@@ -86,7 +86,7 @@ export const BudgetOverview = ({ county, trendData, currentYear, countyCode, sec
           boxShadow="sm"
         >
           <Text
-            fontSize="10px"
+            fontSize={{ base: "11px", md: "10px" }}
             color="gray.400"
             textTransform="uppercase"
             letterSpacing="widest"
@@ -128,7 +128,7 @@ export const BudgetOverview = ({ county, trendData, currentYear, countyCode, sec
           boxShadow="sm"
         >
           <Text
-            fontSize="10px"
+            fontSize={{ base: "11px", md: "10px" }}
             color="gray.400"
             textTransform="uppercase"
             letterSpacing="widest"

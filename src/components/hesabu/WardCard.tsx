@@ -120,6 +120,9 @@ export const WardCard = ({ ward, projects, onOpenProjects }: Props) => {
         borderColor="gray.100"
         cursor={projects?.count ? "pointer" : "default"}
         onClick={projects?.count ? onOpenProjects : undefined}
+        display="flex"
+        alignItems="center"
+        minH={{ base: "40px", md: "auto" }}
         _hover={projects?.count ? { color: "teal.700" } : undefined}
       >
         <Text fontSize="xs" fontWeight="semibold" color={projects?.count ? "teal.600" : "gray.400"}>

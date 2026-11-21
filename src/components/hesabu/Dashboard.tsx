@@ -61,17 +61,17 @@ export const HesabuDashboard = ({
     setTimeout(() => document.getElementById("audit-findings")?.scrollIntoView({ behavior: "smooth" }), 50);
   };
 
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: "budget", label: "Budget Overview", icon: "🏛️" },
-    { id: "wards", label: "Ward Comparison", icon: "🗺️" },
-    { id: "reports", label: "Citizen Reports", icon: "🚩" },
+  const tabs: { id: Tab; label: string; short: string; icon: string }[] = [
+    { id: "budget", label: "Budget Overview", short: "Overview", icon: "🏛️" },
+    { id: "wards", label: "Ward Comparison", short: "Wards", icon: "🗺️" },
+    { id: "reports", label: "Citizen Reports", short: "Reports", icon: "🚩" },
   ];
 
   const recurrentPct = pct(county.recurrentExpenditure, county.totalBudget);
   const devPct = pct(county.developmentExpenditure, county.totalBudget);
 
   return (
-    <Box bg="#f8fafc" minH="100vh" color="#0f172a">
+    <Box bg="#f8fafc" minH="100vh" color="#0f172a" data-hesabu-root="">
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <Box
         bg="linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #155e75 100%)"
@@ -129,20 +129,22 @@ export const HesabuDashboard = ({
               availableYears={availableYears}
               currentYear={currentYear}
             />
-            <Link
-              href={buildCompareHref({ view: "side", year: currentYear, counties: [currentCountyCode], metric: DEFAULT_METRIC })}
-              style={{
-                background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8,
-                color: "white", fontSize: 13, fontWeight: 600, padding: "6px 12px", whiteSpace: "nowrap",
-              }}
-            >
-              ⇄ Compare counties
-            </Link>
+            <Box asChild display="inline-flex" alignItems="center" minH={{ base: "40px", md: "auto" }}>
+              <Link
+                href={buildCompareHref({ view: "side", year: currentYear, counties: [currentCountyCode], metric: DEFAULT_METRIC })}
+                style={{
+                  background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8,
+                  color: "white", fontSize: 13, fontWeight: 600, padding: "6px 12px", whiteSpace: "nowrap",
+                }}
+              >
+                ⇄ Compare counties
+              </Link>
+            </Box>
           </HStack>
         </HStack>
       </Box>
 
-      <Box w="8xl" mx="auto" px={{ base: 4, md: 8 }} py={6}>
+      <Box w="100%" maxW="8xl" mx="auto" px={{ base: 4, md: 8 }} py={6}>
         {/* ── Summary bar ────────────────────────────────────────────────── */}
         <Box
           bg="white"
@@ -192,18 +194,25 @@ export const HesabuDashboard = ({
             gap={0}
             borderBottom="1px solid"
             borderColor="gray.100"
-            px={4}
+            px={{ base: 2, md: 4 }}
             pt={3}
             bg="gray.50"
+            overflowX="auto"
+            overflowY="hidden"
+            pb="1px"
           >
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
               return (
                 <Box
                   key={tab.id}
+                  data-tab={tab.id}
                   as="button"
-                  px={4}
+                  px={{ base: 3, md: 4 }}
                   py={2.5}
+                  flexShrink={0}
+                  whiteSpace="nowrap"
+                  minH={{ base: "40px", md: "auto" }}
                   fontSize="sm"
                   fontWeight={isActive ? "bold" : "normal"}
                   color={isActive ? "white" : "gray.500"}
@@ -216,7 +225,9 @@ export const HesabuDashboard = ({
                   transition="all 0.15s"
                   mr={1}
                 >
-                  {tab.icon} {tab.label}
+                  {tab.icon}{" "}
+                  <Box as="span" display={{ base: "inline", md: "none" }}>{tab.short}</Box>
+                  <Box as="span" display={{ base: "none", md: "inline" }}>{tab.label}</Box>
                 </Box>
               );
             })}

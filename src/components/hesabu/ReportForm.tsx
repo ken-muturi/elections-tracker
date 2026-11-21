@@ -151,10 +151,12 @@ export const ReportForm = ({ county, onSuccess, onCancel, linkedFinding }: Props
         <HStack gap={3} justify="flex-end">
           <Button
             variant="ghost"
-            color="whiteAlpha.600"
+            color="gray.600"
             onClick={onCancel}
             disabled={submitting}
             size="sm"
+            px={4}
+            minH={{ base: "40px", md: "auto" }}
           >
             Cancel
           </Button>
@@ -164,6 +166,8 @@ export const ReportForm = ({ county, onSuccess, onCancel, linkedFinding }: Props
             color="white"
             fontWeight="bold"
             size="sm"
+            px={4}
+            minH={{ base: "40px", md: "auto" }}
             loading={submitting}
             loadingText="Submitting…"
             _hover={{ bg: "#1e3a5f" }}

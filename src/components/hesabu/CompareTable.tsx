@@ -2,11 +2,8 @@
 
 import { Fragment } from "react"
 import Link from "next/link"
-import { Badge, Box, Text } from "@chakra-ui/react"
-import {
-  METRIC_GROUPS, MAX_COMPARE, bestOf, cellText, isUniform,
-  type Column, type ComparisonCounty, type MetricDef,
-} from "./compare-metrics"
+import { Badge, Box, Grid, Text } from "@chakra-ui/react"
+import { MAX_COMPARE, compareRows, type Column, type ComparisonCounty, type MetricDef } from "./compare-metrics"
 
 type Props = { metrics: MetricDef[]; columns: Column[]; allCounties: ComparisonCounty[]; year: string }
 
@@ -21,27 +18,65 @@ export function CompareTable({ metrics, columns, allCounties, year }: Props) {
     )
   }
   const remaining = MAX_COMPARE - columns.length
+  const groups = compareRows(metrics, columns, allCounties, year)
+  const cols = `repeat(${columns.length}, minmax(0, 1fr))`
   return (
     <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" overflow="hidden">
-      <Box overflowX="auto">
-        <Box as="table" w="100%" fontSize="sm" style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: 200 + columns.length * 150 }}>
-          <thead>
-            <tr>
-              <Box as="th" {...stickyCell} textAlign="left" p={3} borderBottom="1px solid" borderColor="gray.200" minW="200px" />
-              {columns.map((c) => (
-                <Box as="th" key={c.code} textAlign="right" p={3} borderBottom="1px solid" borderColor="gray.200" minW="150px">
-                  <Link href={`/hesabu?county=${c.code}&year=${encodeURIComponent(year)}`} style={{ color: "#0e7490", fontWeight: 700 }}>
-                    {c.name}
-                  </Link>
-                </Box>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {METRIC_GROUPS.map((group) => {
-              const rows = metrics.filter((m) => m.group === group)
-              if (rows.length === 0) return null
-              return (
+      <Box display={{ base: "block", md: "none" }}>
+        {groups.map(({ group, rows }) => (
+          <Box key={group} data-compare-group="">
+            <Box bg="gray.50" px={3} pt={2} borderBottom="1px solid" borderColor="gray.200">
+              <Text fontSize="xs" fontWeight="700" textTransform="uppercase" letterSpacing="0.05em" color="gray.600">
+                {group}
+              </Text>
+              <Grid templateColumns={cols} gap={2}>
+                {columns.map((c) => (
+                  <Box key={c.code} data-compare-col="" textAlign="center" minW={0}>
+                    <Link href={`/hesabu?county=${c.code}&year=${encodeURIComponent(year)}`}
+                      style={{ color: "#0e7490", fontWeight: 700, fontSize: 13, display: "inline-flex", alignItems: "center",
+                        justifyContent: "center", minHeight: 40, overflowWrap: "anywhere" }}>
+                      {c.name}
+                    </Link>
+                  </Box>
+                ))}
+              </Grid>
+            </Box>
+            {rows.map((row) => (
+              <Box key={row.key} px={3} py={2} borderBottom="1px solid" borderColor="gray.100">
+                <Text fontSize="sm" fontWeight="500">{row.label}</Text>
+                {row.uniform && <Text fontSize="11px" color="orange.700">same for all counties</Text>}
+                {row.note && <Text fontSize="11px" color="gray.500">{row.note}</Text>}
+                <Grid templateColumns={cols} gap={2} mt={1}>
+                  {row.cells.map((cell) => (
+                    <Box key={cell.code} data-compare-cell="" textAlign="center" minW={0} overflowWrap="anywhere" fontSize="sm"
+                      fontWeight={cell.isBest ? "700" : "400"} color={cell.missing ? "gray.500" : "inherit"}>
+                      {cell.text}
+                      {cell.isBest && <Text fontSize="11px" fontWeight="600" color="green.700">Highest</Text>}
+                    </Box>
+                  ))}
+                </Grid>
+              </Box>
+            ))}
+          </Box>
+        ))}
+      </Box>
+      <Box display={{ base: "none", md: "block" }}>
+        <Box overflowX="auto">
+          <Box as="table" w="100%" fontSize="sm" style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: 200 + columns.length * 150 }}>
+            <thead>
+              <tr>
+                <Box as="th" {...stickyCell} textAlign="left" p={3} borderBottom="1px solid" borderColor="gray.200" minW="200px" />
+                {columns.map((c) => (
+                  <Box as="th" key={c.code} textAlign="right" p={3} borderBottom="1px solid" borderColor="gray.200" minW="150px">
+                    <Link href={`/hesabu?county=${c.code}&year=${encodeURIComponent(year)}`} style={{ color: "#0e7490", fontWeight: 700 }}>
+                      {c.name}
+                    </Link>
+                  </Box>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {groups.map(({ group, rows }) => (
                 <Fragment key={group}>
                   <tr>
                     <td colSpan={columns.length + 1} style={{ background: "#f9fafb", padding: "8px 12px", fontSize: 12, fontWeight: 700,
@@ -49,33 +84,26 @@ export function CompareTable({ metrics, columns, allCounties, year }: Props) {
                       {group}
                     </td>
                   </tr>
-                  {rows.map((m) => {
-                    const uniform = isUniform(allCounties.map((c) => m.value(c)), m.unit)
-                    const best = bestOf(m, columns.map((c) => ({ code: c.code, value: c.county ? m.value(c.county) : null })), uniform)
-                    return (
-                      <tr key={m.key}>
-                        <Box as="th" {...stickyCell} textAlign="left" fontWeight="500" px={3} py={2} borderBottom="1px solid" borderColor="gray.100">
-                          {m.label}
-                          {uniform && <Text fontSize="2xs" color="orange.700">same for all counties</Text>}
-                          {m.note && <Text fontSize="2xs" color="gray.500">{m.note}</Text>}
+                  {rows.map((row) => (
+                    <tr key={row.key}>
+                      <Box as="th" {...stickyCell} textAlign="left" fontWeight="500" px={3} py={2} borderBottom="1px solid" borderColor="gray.100">
+                        {row.label}
+                        {row.uniform && <Text fontSize="2xs" color="orange.700">same for all counties</Text>}
+                        {row.note && <Text fontSize="2xs" color="gray.500">{row.note}</Text>}
+                      </Box>
+                      {row.cells.map((cell) => (
+                        <Box as="td" key={cell.code} textAlign="right" px={3} py={2} borderBottom="1px solid" borderColor="gray.100"
+                          fontWeight={cell.isBest ? "700" : "400"} color={cell.missing ? "gray.500" : "inherit"} whiteSpace="nowrap">
+                          {cell.text}
+                          {cell.isBest && <Badge ml={2} colorPalette="green" size="xs">Highest</Badge>}
                         </Box>
-                        {columns.map((c) => {
-                          const isBest = best.includes(c.code)
-                          return (
-                            <Box as="td" key={c.code} textAlign="right" px={3} py={2} borderBottom="1px solid" borderColor="gray.100"
-                              fontWeight={isBest ? "700" : "400"} color={c.county ? "inherit" : "gray.500"} whiteSpace="nowrap">
-                              {cellText(m, c.county, year)}
-                              {isBest && <Badge ml={2} colorPalette="green" size="xs">Highest</Badge>}
-                            </Box>
-                          )
-                        })}
-                      </tr>
-                    )
-                  })}
+                      ))}
+                    </tr>
+                  ))}
                 </Fragment>
-              )
-            })}
-          </tbody>
+              ))}
+            </tbody>
+          </Box>
         </Box>
       </Box>
       {columns.length < 2 && (

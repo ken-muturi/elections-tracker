@@ -74,7 +74,7 @@ export const KPICards = ({ county, reports }: Props) => {
           boxShadow="sm"
         >
           <Text
-            fontSize="10px"
+            fontSize={{ base: "11px", md: "10px" }}
             color="gray.400"
             textTransform="uppercase"
             letterSpacing="widest"

@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts"
+import { Box } from "@chakra-ui/react"
 import { TrendPoint } from "@/services/Hesabu"
 
 type Props = {
@@ -61,12 +62,14 @@ export const TrendChart = ({ data, currentYear }: Props) => {
   const currentLabel = currentYear.replace(/20(\d{2})\/20(\d{2})/, "$1/$2")
 
   return (
-    <div style={{ width: "100%", height: 320 }}>
+    <Box w="100%" h={{ base: "260px", md: "320px" }}>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 8, right: 24, left: 8, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
           <XAxis
             dataKey="label"
+            interval="preserveStartEnd"
+            minTickGap={12}
             tick={{ fontSize: 11, fill: "#94a3b8" }}
             axisLine={false}
             tickLine={false}
@@ -139,6 +142,6 @@ export const TrendChart = ({ data, currentYear }: Props) => {
           />
         </ComposedChart>
       </ResponsiveContainer>
-    </div>
+    </Box>
   )
 }

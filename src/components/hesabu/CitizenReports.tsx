@@ -87,6 +87,7 @@ export const CitizenReports = ({ county, initialReports, countyCode, fiscalYear 
           fontWeight="bold"
           size="sm"
           onClick={() => { setShowForm((v) => !v); setLinkedFinding(null) }}
+          minH={{ base: "40px", md: "auto" }}
           _hover={{ bg: "#1e3a5f" }}
         >
           {showForm ? "✕ Cancel" : "+ Flag a Gap"}
@@ -133,6 +134,9 @@ export const CitizenReports = ({ county, initialReports, countyCode, fiscalYear 
               color={isActive ? "white" : "gray.500"}
               cursor="pointer"
               onClick={() => setFilter(btn.value)}
+              display="inline-flex"
+              alignItems="center"
+              minH={{ base: "40px", md: "auto" }}
               _hover={{ bg: isActive ? "#0f172a" : "gray.200" }}
               transition="all 0.15s"
             >
