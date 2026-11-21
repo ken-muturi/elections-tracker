@@ -25,13 +25,13 @@
 
 ## Review Focus
 
-1. A county with citizen reports (Mombasa has none): report cards and their vote column must not clip at 390px — the checker only sees the empty state; review `ReportCard` for fixed widths.
+1. Report cards with real reports (only Baringo, 030, has any — 8 today): cards and their vote column must not clip at 390px and must meet the text-size floor. Pinned by checker page `dash-reports-list`.
 2. Long county names in the 4-column phone compare layout ("Nairobi City", "Tana River" today; "Elgeyo-Marakwet" once more counties load): must wrap inside their column, never push the grid wider than the screen (`minW={0}` + `overflowWrap="anywhere"` on every grid child).
 3. Compare page with 1 county: the stacked layout with a single full-width column must still read correctly, and the "Add up to N more counties" line must show.
 4. Project drawer with many sources: wrapped 40px source links must not overflow the drawer width.
 5. Landscape phones / small tablets (768–1024px) get the desktop layout: the desktop compare table must still scroll inside its card, and the dashboard must not clip at 800px.
 
-Items 2 and 3 are pinned by checker pages `compare-side-long` and `compare-side-1` (Task 1); item 5 by the `--width=800` run in Task 6. Items 1 and 4 are read by the final reviewer.
+Items 1, 2 and 3 are pinned by checker pages `dash-reports-list`, `compare-side-long` and `compare-side-1` (Task 1); item 5 by the `--width=800` run in Task 6. Item 4 is read by the final reviewer.
 
 ---
 
@@ -134,6 +134,10 @@ const pages = {
     await go("/hesabu?county=001"); await p.click("[data-tab=reports]"); await p.waitForTimeout(500)
     await p.locator("button").filter({ hasText: /Flag a Gap/ }).click(); await p.waitForTimeout(500)
     await check("dash-reports", { tabs: true })
+  },
+  "dash-reports-list": async () => {
+    await go("/hesabu?county=030"); await p.click("[data-tab=reports]"); await p.waitForTimeout(500)
+    await check("dash-reports-list", { tabs: true })
   },
   "dash-drawer": async () => {
     await go("/hesabu?county=001")
@@ -518,8 +522,8 @@ and in `CountyWideCard.tsx` also `w="full"`.
 
 - [ ] **Step 6: Run the checker for the dashboard pages**
 
-Run: `cd $PW && for p in dash-overview dash-wards dash-reports dash-drawer; do node mobile-check.mjs --only=$p | grep -v SUMMARY; done`
-Expected: every line `PASS`. If `targets` lists the form's text inputs/selects at 38–39px, add `minHeight: 40` to `inputStyle` in `ReportForm.tsx` and ledger a ruling (applies at all widths; a 40px form field on desktop is harmless).
+Run: `cd $PW && for p in dash-overview dash-wards dash-reports dash-reports-list dash-drawer; do node mobile-check.mjs --only=$p | grep -v SUMMARY; done`
+Expected: every line `PASS`. If `text` or `targets` on `dash-reports-list` lists `ReportCard` elements (e.g. `fontSize="xs"` is fine at 12px; anything smaller is not), apply the `{ base: "11px", md: <old> }` pattern in `ReportCard.tsx` and ledger a ruling. If `targets` lists the form's text inputs/selects at 38–39px, add `minHeight: 40` to `inputStyle` in `ReportForm.tsx` and ledger a ruling (applies at all widths; a 40px form field on desktop is harmless).
 
 - [ ] **Step 7: Type check, suite, commit**
 
