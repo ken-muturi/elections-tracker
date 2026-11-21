@@ -32,7 +32,9 @@ export function CompareView({ params, years, countyOptions, counties }: Props) {
     <Box bg="#f8fafc" minH="100vh" color="#0f172a" data-hesabu-root="">
       <Box bg="linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #155e75 100%)" px={{ base: 4, md: 8 }} py={6}>
         <Box maxW="1200px" mx="auto">
-          <Link href={back} style={{ color: "rgba(255,255,255,0.75)", fontSize: 14 }}>← Back to county dashboard</Link>
+          <Box asChild display="inline-flex" alignItems="center" minH={{ base: "40px", md: "auto" }}>
+            <Link href={back} style={{ color: "rgba(255,255,255,0.75)", fontSize: 14 }}>← Back to county dashboard</Link>
+          </Box>
           <Text fontSize={{ base: "xl", md: "2xl" }} fontWeight="800" color="white" mt={2}>Compare counties</Text>
           <Text fontSize="xs" color="rgba(255,255,255,0.6)" textTransform="uppercase" letterSpacing="widest">
             {counties.length} counties with data for FY {params.year}
