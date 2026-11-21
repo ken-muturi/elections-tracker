@@ -2,7 +2,7 @@
 
 import { Badge, Box, Button, Grid, HStack, Link, Text, VStack } from "@chakra-ui/react"
 import type { AuditSummary } from "@/services/Hesabu"
-import { AUDIT_NOTE, fmtAmountCited, opinionPalette, shortFiscalYear } from "./audit-format"
+import { AUDIT_NOTE, opinionPalette, shortFiscalYear } from "./audit-format"
 
 type Props = { summary: AuditSummary; fiscalYear: string; onSeeAll: () => void }
 
@@ -16,7 +16,7 @@ function Stat({ value, label }: { value: string; label: string }) {
 }
 
 export function AuditSection({ summary, fiscalYear, onSeeAll }: Props) {
-  const { audit, counts, top, stalledProjects, unavailable } = summary
+  const { audit, counts, stalledProjects, unavailable } = summary
   const countOf = (key: string) => counts.find((c) => c.key === key)?.count ?? 0
   const stalledStat = <Stat value={stalledProjects === null ? "—" : String(stalledProjects)}
     label={stalledProjects === null ? "stalled projects: not yet scraped" : "documented stalled projects"} />
@@ -34,7 +34,7 @@ export function AuditSection({ summary, fiscalYear, onSeeAll }: Props) {
       ) : (
         <VStack align="stretch" gap={4}>
           <HStack gap={2} flexWrap="wrap" fontSize="sm" color="gray.700">
-            <Text>Latest audit: FY {shortFiscalYear(audit.fiscalYear)} · {audit.entity} ·</Text>
+            <Text>Latest audit: FY {shortFiscalYear(audit.fiscalYear)} · {audit.entity}</Text>
             <Badge colorPalette={opinionPalette(audit.opinion)}>{audit.opinion} opinion</Badge>
             <Link href={audit.sourceUrl} target="_blank" rel="noopener noreferrer" color="teal.700" fontSize="xs"
               display="inline-flex" alignItems="center" minH={{ base: "40px", md: "auto" }}>Source</Link>
@@ -45,24 +45,9 @@ export function AuditSection({ summary, fiscalYear, onSeeAll }: Props) {
             <Stat value={String(countOf("lawfulness"))} label="on lawful use of public money" />
             {stalledStat}
           </Grid>
-          {top.length > 0 && (
-            <VStack align="stretch" gap={2}>
-              <Text fontSize="sm" fontWeight="bold" color="gray.700">Most serious findings</Text>
-              {top.map((f) => (
-                <Box key={f.id} border="1px solid" borderColor="gray.100" borderRadius="md" p={3}>
-                  <Text fontSize="sm" fontWeight="600">#{f.number} {f.title}</Text>
-                  <HStack gap={2} flexWrap="wrap" mt={1}>
-                    <Badge size="sm" colorPalette="gray">{f.categoryLabel}</Badge>
-                    {fmtAmountCited(f.amountCited) && <Text fontSize="xs" color="gray.600">{fmtAmountCited(f.amountCited)}</Text>}
-                  </HStack>
-                  {f.summary && <Text fontSize="xs" color="gray.600" mt={1} lineClamp={2}>{f.summary}</Text>}
-                </Box>
-              ))}
-              <Button size="sm" variant="outline" alignSelf="flex-start" minH={{ base: "40px", md: "auto" }} onClick={onSeeAll}>
-                See all {audit.totalFindings} findings →
-              </Button>
-            </VStack>
-          )}
+          <Button size="sm" variant="outline" alignSelf="flex-start" minH={{ base: "40px", md: "auto" }} onClick={onSeeAll}>
+            See all {audit.totalFindings} findings →
+          </Button>
         </VStack>
       )}
       <Text fontSize="xs" color="gray.500" mt={4}>{AUDIT_NOTE}</Text>

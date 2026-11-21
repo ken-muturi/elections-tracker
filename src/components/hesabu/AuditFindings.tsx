@@ -31,7 +31,7 @@ export function AuditFindings({ countyCode, fiscalYear, onReport }: Props) {
     category === "all" || (category === "other" ? !KNOWN.has(f.category) : f.category === category))
 
   return (
-    <Box id="audit-findings" mt={8} pt={6} borderTop="1px solid" borderColor="gray.200">
+    <Box id="audit-findings">
       <Text fontWeight="bold" color="gray.700" fontSize="md">
         From the Auditor-General{data?.audit ? ` (FY ${shortFiscalYear(data.audit.fiscalYear)})` : ""}
       </Text>
@@ -59,7 +59,8 @@ export function AuditFindings({ countyCode, fiscalYear, onReport }: Props) {
               return (
                 <Box key={c.key} as="button" px={3} py={1.5} borderRadius="full" fontSize="xs"
                   fontWeight={active ? "bold" : "normal"} bg={active ? "#0f172a" : "gray.100"}
-                  color={active ? "white" : "gray.600"} cursor="pointer" onClick={() => setCategory(c.key)}>
+                  color={active ? "white" : "gray.600"} cursor="pointer" onClick={() => setCategory(c.key)}
+                  display="inline-flex" alignItems="center" minH={{ base: "40px", md: "auto" }} aria-pressed={active}>
                   {c.label} ({c.count})
                 </Box>
               )
@@ -76,7 +77,7 @@ export function AuditFindings({ countyCode, fiscalYear, onReport }: Props) {
                 )}
               </HStack>
               {f.summary && <Text fontSize="xs" color="gray.600" mt={1} lineClamp={3}>{f.summary}</Text>}
-              <Button size="xs" mt={2} variant="outline" onClick={() => onReport(f)}>Have you seen this?</Button>
+              <Button size="xs" mt={2} px={3} variant="outline" minH={{ base: "40px", md: "auto" }} onClick={() => onReport(f)}>Have you seen this?</Button>
             </Box>
           ))}
         </VStack>

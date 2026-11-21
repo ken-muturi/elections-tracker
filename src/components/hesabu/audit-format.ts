@@ -49,14 +49,6 @@ export function auditForYear<T extends { fiscalYear: string }>(audits: T[], sele
   return best
 }
 
-/** Reasons for the opinion first, then report order. Never by amount — amounts are often context figures. */
-export function topFindings<T extends { category: string; number: number }>(findings: T[], n = 5): T[] {
-  return [...findings]
-    .sort((a, b) =>
-      Number(b.category === "opinion_basis") - Number(a.category === "opinion_basis") || a.number - b.number)
-    .slice(0, n)
-}
-
 export function fmtAmountCited(n: number | null): string | null {
   return n && n > 0 ? `Amount cited: ${fmtKesShort(n)}` : null
 }

@@ -7,30 +7,23 @@ import { ReportCard } from "./ReportCard"
 import { ReportForm } from "./ReportForm"
 import { voteOnReport } from "@/services/Hesabu"
 import type { AuditFindingRow } from "@/services/Hesabu"
-import { AuditFindings } from "./AuditFindings"
 
 type Filter = "ALL" | "UNRESOLVED" | "INVESTIGATING" | "RESOLVED"
 
 type Props = {
   county: CountyFull
   initialReports: ReportData[]
-  countyCode: string
-  fiscalYear: string
+  linkedFinding: AuditFindingRow | null
+  onClearLinked: () => void
+  onShowAudit: () => void
 }
 
-export const CitizenReports = ({ county, initialReports, countyCode, fiscalYear }: Props) => {
+export const CitizenReports = ({ county, initialReports, linkedFinding, onClearLinked, onShowAudit }: Props) => {
   const [reports, setReports] = useState<ReportData[]>(initialReports)
   const [filter, setFilter] = useState<Filter>("ALL")
-  const [showForm, setShowForm] = useState(false)
+  const [showForm, setShowForm] = useState(linkedFinding !== null)
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set())
   const [, startTransition] = useTransition()
-  const [linkedFinding, setLinkedFinding] = useState<AuditFindingRow | null>(null)
-
-  const reportFromFinding = (f: AuditFindingRow) => {
-    setLinkedFinding(f)
-    setShowForm(true)
-    window.scrollTo({ top: 0, behavior: "smooth" })
-  }
 
   const filtered =
     filter === "ALL" ? reports : reports.filter((r) => r.status === filter)
@@ -86,7 +79,7 @@ export const CitizenReports = ({ county, initialReports, countyCode, fiscalYear 
           color="white"
           fontWeight="bold"
           size="sm"
-          onClick={() => { setShowForm((v) => !v); setLinkedFinding(null) }}
+          onClick={() => { setShowForm((v) => !v); onClearLinked() }}
           minH={{ base: "40px", md: "auto" }}
           _hover={{ bg: "#1e3a5f" }}
         >
@@ -112,7 +105,7 @@ export const CitizenReports = ({ county, initialReports, countyCode, fiscalYear 
             county={county}
             linkedFinding={linkedFinding ?? undefined}
             onSuccess={handleReportSuccess}
-            onCancel={() => { setShowForm(false); setLinkedFinding(null) }}
+            onCancel={() => { setShowForm(false); onClearLinked() }}
           />
         </Box>
       )}
@@ -159,9 +152,14 @@ export const CitizenReports = ({ county, initialReports, countyCode, fiscalYear 
           <Text fontSize="2xl" mb={2}>🎉</Text>
           <Text color="gray.500" fontSize="sm">
             {filter === "ALL" && reports.length === 0
-              ? "No citizen reports yet. Start with an Auditor-General finding below"
+              ? "No citizen reports yet."
               : `No ${filter !== "ALL" ? filter.toLowerCase() : ""} reports for this county.`}
           </Text>
+          {filter === "ALL" && reports.length === 0 && (
+            <Button size="sm" variant="ghost" color="teal.700" mt={2} minH={{ base: "40px", md: "auto" }} onClick={onShowAudit}>
+              See Auditor-General findings →
+            </Button>
+          )}
         </Box>
       ) : (
         <VStack gap={2} align="stretch">
@@ -177,8 +175,6 @@ export const CitizenReports = ({ county, initialReports, countyCode, fiscalYear 
             ))}
         </VStack>
       )}
-
-      <AuditFindings countyCode={countyCode} fiscalYear={fiscalYear} onReport={reportFromFinding} />
     </Box>
   )
 }
