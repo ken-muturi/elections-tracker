@@ -1,5 +1,6 @@
 "use client"
 
+import { chakra } from "@chakra-ui/react"
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 
 type Props = {
@@ -23,7 +24,8 @@ export const CountySelector = ({ counties, currentCode }: Props) => {
   }
 
   return (
-    <select
+    <chakra.select
+      minH={{ base: "40px", md: "auto" }}
       value={currentCode}
       onChange={onChange}
       style={{
@@ -45,6 +47,6 @@ export const CountySelector = ({ counties, currentCode }: Props) => {
           {c.name}
         </option>
       ))}
-    </select>
+    </chakra.select>
   )
 }

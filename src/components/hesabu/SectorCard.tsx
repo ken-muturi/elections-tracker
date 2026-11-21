@@ -122,6 +122,9 @@ export const SectorCard = ({ sector, totalBudget, projects, onOpenProjects }: Pr
         borderColor="gray.100"
         cursor={projects?.count ? "pointer" : "default"}
         onClick={projects?.count ? onOpenProjects : undefined}
+        display="flex"
+        alignItems="center"
+        minH={{ base: "40px", md: "auto" }}
       >
         <Text as="span" fontSize="xs" fontWeight="semibold" color={projects?.count ? "teal.600" : "gray.400"}>
           {projectLine(projects)}
