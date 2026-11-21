@@ -191,6 +191,8 @@ export const HesabuDashboard = ({
             pt={3}
             bg="gray.50"
             overflowX="auto"
+            overflowY="hidden"
+            pb="1px"
           >
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;

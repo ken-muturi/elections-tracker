@@ -21,25 +21,26 @@ export function CompareTable({ metrics, columns, allCounties, year }: Props) {
   const groups = compareRows(metrics, columns, allCounties, year)
   const cols = `repeat(${columns.length}, minmax(0, 1fr))`
   return (
-    <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" overflow={{ base: "visible", md: "hidden" }}>
+    <Box bg="white" border="1px solid" borderColor="gray.200" borderRadius="lg" overflow="hidden">
       <Box display={{ base: "block", md: "none" }}>
-        <Grid templateColumns={cols} gap={2} px={3} py={1} position="sticky" top={0} zIndex={1} bg="white"
-          borderTopRadius="lg" borderBottom="1px solid" borderColor="gray.200">
-          {columns.map((c) => (
-            <Box key={c.code} data-compare-col="" textAlign="center" minW={0}>
-              <Link href={`/hesabu?county=${c.code}&year=${encodeURIComponent(year)}`}
-                style={{ color: "#0e7490", fontWeight: 700, fontSize: 13, display: "inline-flex", alignItems: "center",
-                  justifyContent: "center", minHeight: 40, overflowWrap: "anywhere" }}>
-                {c.name}
-              </Link>
-            </Box>
-          ))}
-        </Grid>
         {groups.map(({ group, rows }) => (
-          <Box key={group}>
-            <Text bg="gray.50" px={3} py={2} fontSize="xs" fontWeight="700" textTransform="uppercase" letterSpacing="0.05em" color="gray.600">
-              {group}
-            </Text>
+          <Box key={group} data-compare-group="">
+            <Box bg="gray.50" px={3} pt={2} borderBottom="1px solid" borderColor="gray.200">
+              <Text fontSize="xs" fontWeight="700" textTransform="uppercase" letterSpacing="0.05em" color="gray.600">
+                {group}
+              </Text>
+              <Grid templateColumns={cols} gap={2}>
+                {columns.map((c) => (
+                  <Box key={c.code} data-compare-col="" textAlign="center" minW={0}>
+                    <Link href={`/hesabu?county=${c.code}&year=${encodeURIComponent(year)}`}
+                      style={{ color: "#0e7490", fontWeight: 700, fontSize: 13, display: "inline-flex", alignItems: "center",
+                        justifyContent: "center", minHeight: 40, overflowWrap: "anywhere" }}>
+                      {c.name}
+                    </Link>
+                  </Box>
+                ))}
+              </Grid>
+            </Box>
             {rows.map((row) => (
               <Box key={row.key} px={3} py={2} borderBottom="1px solid" borderColor="gray.100">
                 <Text fontSize="sm" fontWeight="500">{row.label}</Text>
