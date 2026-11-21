@@ -54,10 +54,10 @@ export const HesabuDashboard = ({
 }: Props) => {
   const [activeTab, setActiveTab] = useState<Tab>("budget");
 
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    { id: "budget", label: "Budget Overview", icon: "🏛️" },
-    { id: "wards", label: "Ward Comparison", icon: "🗺️" },
-    { id: "reports", label: "Citizen Reports", icon: "🚩" },
+  const tabs: { id: Tab; label: string; short: string; icon: string }[] = [
+    { id: "budget", label: "Budget Overview", short: "Overview", icon: "🏛️" },
+    { id: "wards", label: "Ward Comparison", short: "Wards", icon: "🗺️" },
+    { id: "reports", label: "Citizen Reports", short: "Reports", icon: "🚩" },
   ];
 
   const recurrentPct = pct(county.recurrentExpenditure, county.totalBudget);
@@ -135,7 +135,7 @@ export const HesabuDashboard = ({
         </HStack>
       </Box>
 
-      <Box w="8xl" mx="auto" px={{ base: 4, md: 8 }} py={6}>
+      <Box w="100%" maxW="8xl" mx="auto" px={{ base: 4, md: 8 }} py={6}>
         {/* ── Summary bar ────────────────────────────────────────────────── */}
         <Box
           bg="white"
@@ -185,9 +185,10 @@ export const HesabuDashboard = ({
             gap={0}
             borderBottom="1px solid"
             borderColor="gray.100"
-            px={4}
+            px={{ base: 2, md: 4 }}
             pt={3}
             bg="gray.50"
+            overflowX="auto"
           >
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
@@ -196,8 +197,11 @@ export const HesabuDashboard = ({
                   key={tab.id}
                   data-tab={tab.id}
                   as="button"
-                  px={4}
+                  px={{ base: 3, md: 4 }}
                   py={2.5}
+                  flexShrink={0}
+                  whiteSpace="nowrap"
+                  minH={{ base: "40px", md: "auto" }}
                   fontSize="sm"
                   fontWeight={isActive ? "bold" : "normal"}
                   color={isActive ? "white" : "gray.500"}
@@ -210,7 +214,9 @@ export const HesabuDashboard = ({
                   transition="all 0.15s"
                   mr={1}
                 >
-                  {tab.icon} {tab.label}
+                  {tab.icon}{" "}
+                  <Box as="span" display={{ base: "inline", md: "none" }}>{tab.short}</Box>
+                  <Box as="span" display={{ base: "none", md: "inline" }}>{tab.label}</Box>
                 </Box>
               );
             })}
